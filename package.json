@@ -8,8 +8,9 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "tsc -b tsconfig.build.json",
+    "build": "tsc -b tsconfig.build.json && node packages/database/scripts/copy-migrations.mjs",
     "clean": "tsc -b tsconfig.build.json --clean",
+    "db:migrate": "tsx packages/database/src/migrate.ts",
     "format": "prettier --write \"apps/**/*.ts\" \"packages/**/*.ts\" \"tests/**/*.ts\" \"config/**/*.json\" \"eslint.config.mjs\" \"package.json\" \"tsconfig*.json\" \".prettierrc.json\"",
     "format:check": "prettier --check \"apps/**/*.ts\" \"packages/**/*.ts\" \"tests/**/*.ts\" \"config/**/*.json\" \"eslint.config.mjs\" \"package.json\" \"tsconfig*.json\" \".prettierrc.json\"",
     "lint": "eslint .",
@@ -24,6 +25,7 @@
   "devDependencies": {
     "@eslint/js": "^9.20.0",
     "@types/node": "^22.13.0",
+    "@types/pg": "^8.23.1",
     "eslint": "^9.20.0",
     "prettier": "^3.5.3",
     "tsx": "^4.19.3",

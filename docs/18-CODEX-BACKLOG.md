@@ -154,6 +154,7 @@ Ensure stop controls are not hidden behind ordinary queued work.
 
 **Priority:** P0  
 **Dependencies:** CC-001
+**Status:** DONE
 
 Implement agents, workers, gateways, projects, jobs, tasks, dependencies, conversations/messages, named locations, audit events.
 

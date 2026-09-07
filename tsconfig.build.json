@@ -1,6 +1,7 @@
 {
   "files": [],
   "references": [
+    { "path": "packages/database/tsconfig.json" },
     { "path": "packages/domain/tsconfig.json" },
     { "path": "packages/protocol/tsconfig.json" },
     { "path": "packages/scheduler/tsconfig.json" },
