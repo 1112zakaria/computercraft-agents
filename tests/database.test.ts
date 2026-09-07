@@ -16,7 +16,7 @@ test("database migration set is ordered and contains the core relational model",
   const migrations = readMigrationFiles(migrationDirectory);
   assert.deepEqual(
     migrations.map((migration) => migration.version),
-    ["001"],
+    ["001", "002"],
   );
   const migrationsReadAgain = readMigrationFiles(migrationDirectory);
   assert.equal(migrationChecksum(migrations[0]!), migrationChecksum(migrationsReadAgain[0]!));
@@ -48,6 +48,12 @@ test("database migration set is ordered and contains the core relational model",
   assert.match(sql, /CHECK \(task_id <> depends_on_task_id\)/);
   assert.match(sql, /CREATE INDEX audit_events_lineage_idx/);
   assert.match(sql, /CREATE TRIGGER jobs_set_updated_at/);
+
+  const runtimeSql = readFileSync(join(migrationDirectory, "002_gateway_runtime.sql"), "utf8");
+  for (const table of ["gateway_commands", "gateway_stop_controls", "gateway_events"]) {
+    assert.match(runtimeSql, new RegExp(`CREATE TABLE ${table} \\(`));
+  }
+  assert.match(runtimeSql, /gateway_delivery_cursor_seq/);
 });
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;

@@ -8,6 +8,7 @@
     "build": "tsc -p tsconfig.json && node scripts/copy-migrations.mjs"
   },
   "dependencies": {
+    "@computercraft-agents/protocol": "0.1.0",
     "pg": "^8.13.1"
   }
 }

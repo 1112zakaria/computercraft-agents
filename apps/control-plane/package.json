@@ -4,5 +4,9 @@
   "private": true,
   "main": "dist/main.js",
   "types": "dist/main.d.ts",
-  "scripts": { "build": "tsc -p tsconfig.json" }
+  "scripts": { "build": "tsc -p tsconfig.json" },
+  "dependencies": {
+    "@computercraft-agents/database": "0.1.0",
+    "@computercraft-agents/protocol": "0.1.0"
+  }
 }

@@ -180,3 +180,5 @@ export async function runMigrations(
 export function createDatabasePool(connectionString: string): Pool {
   return new Pool({ connectionString });
 }
+
+export * from "./repositories";

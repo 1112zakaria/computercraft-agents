@@ -1,13 +1,22 @@
 [Unit]
 Description=ComputerCraft Agents control plane
 After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
 WorkingDirectory=/opt/computercraft-agents
-EnvironmentFile=/opt/computercraft-agents/.env
+User=ubuntu
+Group=ubuntu
+EnvironmentFile=/etc/computercraft-agents/control-plane.env
 ExecStart=/usr/bin/node /opt/computercraft-agents/apps/control-plane/dist/main.js
 Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/computercraft-agents
 
 [Install]
 WantedBy=multi-user.target

@@ -42,6 +42,7 @@ Create the baseline repository layout described in `11-DEPLOYMENT.md`.
 
 **Priority:** P0  
 **Dependencies:** CC-001
+**Status:** DONE
 
 Add GitHub Actions for TypeScript lint/typecheck/tests and basic Lua static/test checks chosen by the repo.
 
@@ -55,6 +56,7 @@ Add GitHub Actions for TypeScript lint/typecheck/tests and basic Lua static/test
 
 **Priority:** P0  
 **Dependencies:** CC-001
+**Status:** DONE
 
 Implement validated configuration for database, HTTP binding, gateway auth, Codex settings, reasoning concurrency, feature gates, and log level.
 
@@ -87,6 +89,7 @@ Create typed schemas for gateway registration, heartbeat, commands, events, erro
 
 **Priority:** P0  
 **Dependencies:** CC-003, CC-010
+**Status:** DONE
 
 Implement gateway ID + bearer secret authentication.
 
@@ -100,6 +103,7 @@ Implement gateway ID + bearer secret authentication.
 
 **Priority:** P0  
 **Dependencies:** CC-010, CC-011
+**Status:** DONE
 
 **Acceptance criteria**
 
@@ -111,6 +115,7 @@ Implement gateway ID + bearer secret authentication.
 
 **Priority:** P0  
 **Dependencies:** CC-010, CC-012
+**Status:** DONE
 
 Support worker-targeted commands and polling/long-polling with cursor semantics.
 
@@ -125,6 +130,7 @@ Support worker-targeted commands and polling/long-polling with cursor semantics.
 
 **Priority:** P0  
 **Dependencies:** CC-010, CC-012
+**Status:** DONE
 
 **Acceptance criteria**
 
@@ -137,6 +143,7 @@ Support worker-targeted commands and polling/long-polling with cursor semantics.
 
 **Priority:** P0  
 **Dependencies:** CC-013
+**Status:** DONE
 
 Ensure stop controls are not hidden behind ordinary queued work.
 
@@ -168,6 +175,7 @@ Implement agents, workers, gateways, projects, jobs, tasks, dependencies, conver
 
 **Priority:** P0  
 **Dependencies:** CC-020
+**Status:** DONE
 
 **Acceptance criteria**
 
@@ -179,6 +187,7 @@ Implement agents, workers, gateways, projects, jobs, tasks, dependencies, conver
 
 **Priority:** P0  
 **Dependencies:** CC-012, CC-020, CC-021
+**Status:** DONE
 
 **Acceptance criteria**
 
@@ -190,6 +199,7 @@ Implement agents, workers, gateways, projects, jobs, tasks, dependencies, conver
 
 **Priority:** P0  
 **Dependencies:** CC-020
+**Status:** DONE
 
 Implement state transitions and task dependencies.
 
@@ -203,6 +213,7 @@ Implement state transitions and task dependencies.
 
 **Priority:** P0  
 **Dependencies:** CC-020
+**Status:** DONE
 
 **Acceptance criteria**
 
