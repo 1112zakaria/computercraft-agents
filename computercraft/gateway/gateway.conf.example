@@ -1,0 +1,8 @@
+-- Copy this template to the gateway computer and fill values locally.
+-- Never commit a populated gateway.conf.
+return {
+  gateway_id = "gateway-example",
+  vps_url = "http://10.50.0.1:8787",
+  gateway_bearer_secret = "set-locally",
+  protocol_version = 1,
+}

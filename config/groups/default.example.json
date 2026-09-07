@@ -1,0 +1,6 @@
+{
+  "groupId": "default-workers",
+  "displayName": "Default workers",
+  "purpose": "Bounded development workers",
+  "agentIds": []
+}

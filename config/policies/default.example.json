@@ -1,0 +1,7 @@
+{
+  "policyId": "development-defaults",
+  "dryRun": true,
+  "maxPrimitiveSteps": 32,
+  "maxBlockChanges": 0,
+  "allowDestructiveSkills": false
+}

@@ -18,6 +18,7 @@ Status at project start: all items **TODO** unless explicitly marked otherwise.
 
 **Priority:** P0  
 **Dependencies:** none
+**Status:** DONE
 
 Create the baseline repository layout described in `11-DEPLOYMENT.md`.
 

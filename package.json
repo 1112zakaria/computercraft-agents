@@ -1,0 +1,33 @@
+{
+  "name": "computercraft-agents",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ComputerCraft-first autonomous Minecraft workers",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "tsc -b tsconfig.build.json",
+    "clean": "tsc -b tsconfig.build.json --clean",
+    "format": "prettier --write \"apps/**/*.ts\" \"packages/**/*.ts\" \"tests/**/*.ts\" \"config/**/*.json\" \"eslint.config.mjs\" \"package.json\" \"tsconfig*.json\" \".prettierrc.json\"",
+    "format:check": "prettier --check \"apps/**/*.ts\" \"packages/**/*.ts\" \"tests/**/*.ts\" \"config/**/*.json\" \"eslint.config.mjs\" \"package.json\" \"tsconfig*.json\" \".prettierrc.json\"",
+    "lint": "eslint .",
+    "test": "tsx --test \"tests/**/*.test.ts\"",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "check": "npm run lint && npm run format:check && npm run typecheck && npm test"
+  },
+  "engines": {
+    "node": ">=20",
+    "npm": ">=10"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.20.0",
+    "@types/node": "^22.13.0",
+    "eslint": "^9.20.0",
+    "prettier": "^3.5.3",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.24.0"
+  }
+}

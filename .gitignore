@@ -1,0 +1,20 @@
+node_modules/
+dist/
+coverage/
+.cache/
+.DS_Store
+*.log
+.env
+.env.*
+!.env.example
+
+# TypeScript incremental build metadata
+*.tsbuildinfo
+
+# Local ComputerCraft/world files
+computercraft/**/gateway.conf
+computercraft/**/worker.conf
+
+# Local deployment secrets
+deploy/**/*.secret.*
+deploy/**/*.key

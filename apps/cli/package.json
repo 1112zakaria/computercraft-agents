@@ -1,0 +1,8 @@
+{
+  "name": "@computercraft-agents/cli",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist/main.js",
+  "types": "dist/main.d.ts",
+  "scripts": { "build": "tsc -p tsconfig.json" }
+}

@@ -1,0 +1,12 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/domain/tsconfig.json" },
+    { "path": "packages/protocol/tsconfig.json" },
+    { "path": "packages/scheduler/tsconfig.json" },
+    { "path": "packages/reasoning/tsconfig.json" },
+    { "path": "packages/skills/tsconfig.json" },
+    { "path": "apps/control-plane/tsconfig.json" },
+    { "path": "apps/cli/tsconfig.json" }
+  ]
+}
