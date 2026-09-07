@@ -2,7 +2,16 @@
 -- Never commit a populated gateway.conf.
 return {
   gateway_id = "gateway-example",
+  minecraft_server_id = "friends-server",
   vps_url = "http://10.50.0.1:8787",
   gateway_bearer_secret = "set-locally",
+  modem_side = "back",
+  rednet_protocol = "computercraft-agents-v1",
+  worker_runtime_version = "0.1.0",
+  capabilities = {"gateway.rednet", "gateway.http"},
+  poll_interval_seconds = 2,
+  heartbeat_interval_seconds = 10,
+  max_outbox_events = 256,
+  max_event_batch = 32,
   protocol_version = 1,
 }

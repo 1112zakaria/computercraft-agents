@@ -1,0 +1,16 @@
+return {
+  worker_id = "alice",
+  gateway_rednet_id = 42,
+  modem_side = "back",
+  rednet_protocol = "computercraft-agents-v1",
+  runtime_version = "0.1.0",
+  state_path = "worker-state.json",
+  idempotency_path = "worker-command-cache.json",
+  max_cached_commands = 64,
+  heartbeat_interval_seconds = 10,
+  receive_timeout_seconds = 1,
+  fuel_low_threshold = 100,
+  container_side = "front",
+  reserved_slots = { [1] = true },
+  acceptable_fuel_items = { "minecraft:coal", "minecraft:charcoal" },
+}

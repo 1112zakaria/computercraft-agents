@@ -1,5 +1,9 @@
 # ComputerCraft turtle runtime
 
-This directory is the target for the deterministic turtle runtime described in
-`docs/03-COMPUTERCRAFT-EXECUTION.md`. CC-001 provides only the layout and a safe bootstrap
-placeholder. Runtime implementation starts at CC-040.
+This directory contains the deterministic turtle runtime described in
+`docs/03-COMPUTERCRAFT-EXECUTION.md`. The runtime validates commands, tracks position, applies
+bounded movement/observation/inventory/fuel actions, emits heartbeats/events, handles urgent stops,
+and persists a bounded command idempotency cache.
+
+Install `worker.conf.example` as `worker.conf` on the turtle and configure the gateway computer ID
+and modem side locally. The runtime never executes arbitrary Lua received over Rednet.

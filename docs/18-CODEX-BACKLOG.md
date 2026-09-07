@@ -218,6 +218,7 @@ Implement state transitions and task dependencies.
 
 **Priority:** P0  
 **Dependencies:** CC-010
+**Status:** DONE
 
 Implement `startup.lua`, validated local config, logging, and gateway identity.
 
@@ -231,6 +232,7 @@ Implement `startup.lua`, validated local config, logging, and gateway identity.
 
 **Priority:** P0  
 **Dependencies:** CC-012, CC-030
+**Status:** DONE
 
 **Acceptance criteria**
 
@@ -242,6 +244,7 @@ Implement `startup.lua`, validated local config, logging, and gateway identity.
 
 **Priority:** P0  
 **Dependencies:** CC-030
+**Status:** DONE
 
 Define worker registration handshake over Rednet.
 
@@ -255,6 +258,7 @@ Define worker registration handshake over Rednet.
 
 **Priority:** P0  
 **Dependencies:** CC-013, CC-031, CC-032
+**Status:** DONE
 
 Poll VPS commands and dispatch to target turtle.
 
@@ -268,6 +272,7 @@ Poll VPS commands and dispatch to target turtle.
 
 **Priority:** P0  
 **Dependencies:** CC-014, CC-031
+**Status:** DONE
 
 **Acceptance criteria**
 
@@ -280,6 +285,7 @@ Poll VPS commands and dispatch to target turtle.
 
 **Priority:** P0  
 **Dependencies:** CC-015, CC-033
+**Status:** DONE
 
 **Acceptance criteria**
 
@@ -294,6 +300,7 @@ Poll VPS commands and dispatch to target turtle.
 
 **Priority:** P0  
 **Dependencies:** CC-032
+**Status:** DONE
 
 **Acceptance criteria**
 
@@ -305,6 +312,7 @@ Poll VPS commands and dispatch to target turtle.
 
 **Priority:** P0  
 **Dependencies:** CC-040
+**Status:** DONE
 
 Implement local `(x,y,z,facing,dimension,confidence)` state and atomic updates.
 
@@ -318,6 +326,7 @@ Implement local `(x,y,z,facing,dimension,confidence)` state and atomic updates.
 
 **Priority:** P0  
 **Dependencies:** CC-041
+**Status:** DONE
 
 Wrap forward/back/up/down/turn operations into typed result objects/events.
 
@@ -331,6 +340,7 @@ Wrap forward/back/up/down/turn operations into typed result objects/events.
 
 **Priority:** P0  
 **Dependencies:** CC-040
+**Status:** DONE
 
 **Acceptance criteria**
 
@@ -342,6 +352,7 @@ Wrap forward/back/up/down/turn operations into typed result objects/events.
 
 **Priority:** P0  
 **Dependencies:** CC-043
+**Status:** DONE
 
 **Acceptance criteria**
 
@@ -354,6 +365,7 @@ Wrap forward/back/up/down/turn operations into typed result objects/events.
 
 **Priority:** P0  
 **Dependencies:** CC-040
+**Status:** DONE
 
 **Acceptance criteria**
 
@@ -366,6 +378,7 @@ Wrap forward/back/up/down/turn operations into typed result objects/events.
 
 **Priority:** P0  
 **Dependencies:** CC-045
+**Status:** DONE
 
 **Acceptance criteria**
 
@@ -377,6 +390,7 @@ Wrap forward/back/up/down/turn operations into typed result objects/events.
 
 **Priority:** P0  
 **Dependencies:** CC-040
+**Status:** DONE
 
 **Acceptance criteria**
 

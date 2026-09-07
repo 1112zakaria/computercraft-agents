@@ -87,7 +87,7 @@ export const WorkerRegistrationSchema = z
 
 export const FuelSummarySchema = z
   .object({
-    level: NonNegativeIntegerSchema.nullable(),
+    level: NonNegativeIntegerSchema.nullable().optional(),
     unlimited: z.boolean(),
     reserve: NonNegativeIntegerSchema,
   })
@@ -103,9 +103,9 @@ export const WorkerHeartbeatSchema = z
     executionState: WorkerExecutionStateSchema,
     capabilities: CapabilitiesSchema,
     lastSeenAt: TimestampSchema,
-    currentCommandId: IdentifierSchema.nullable(),
-    position: PositionSchema.nullable(),
-    fuel: FuelSummarySchema.nullable(),
+    currentCommandId: IdentifierSchema.nullable().optional(),
+    position: PositionSchema.nullable().optional(),
+    fuel: FuelSummarySchema.nullable().optional(),
   })
   .strict();
 
@@ -298,12 +298,41 @@ export type SkillName = z.infer<typeof SkillNameSchema>;
 export type CommandBudget = z.infer<typeof CommandBudgetSchema>;
 export type Command = z.infer<typeof CommandSchema>;
 
+const StopControlBaseShape = {
+  protocolVersion: ProtocolVersionSchema,
+  controlId: IdentifierSchema,
+  issuedAt: TimestampSchema,
+  reason: z.string().min(1).max(512).optional(),
+};
+
+export const WorkerStopControlSchema = z
+  .object({
+    ...StopControlBaseShape,
+    type: z.literal("worker.stop"),
+    workerId: IdentifierSchema,
+  })
+  .strict();
+
+export const GlobalStopControlSchema = z
+  .object({
+    ...StopControlBaseShape,
+    type: z.literal("all.stop"),
+  })
+  .strict();
+
+export const StopControlSchema = z.union([WorkerStopControlSchema, GlobalStopControlSchema]);
+
+export type WorkerStopControl = z.infer<typeof WorkerStopControlSchema>;
+export type GlobalStopControl = z.infer<typeof GlobalStopControlSchema>;
+export type StopControl = z.infer<typeof StopControlSchema>;
+
 export const CommandPollResponseSchema = z
   .object({
     protocolVersion: ProtocolVersionSchema,
     serverTime: TimestampSchema,
     commands: z.array(CommandSchema).max(128),
     nextCursor: IdentifierSchema.nullable(),
+    stopControls: z.array(StopControlSchema).max(128).default([]),
   })
   .strict();
 
@@ -562,34 +591,6 @@ export const EventAckSchema = z
 
 export type EventBatch = z.infer<typeof EventBatchSchema>;
 export type EventAck = z.infer<typeof EventAckSchema>;
-
-const StopControlBaseShape = {
-  protocolVersion: ProtocolVersionSchema,
-  controlId: IdentifierSchema,
-  issuedAt: TimestampSchema,
-  reason: z.string().min(1).max(512).optional(),
-};
-
-export const WorkerStopControlSchema = z
-  .object({
-    ...StopControlBaseShape,
-    type: z.literal("worker.stop"),
-    workerId: IdentifierSchema,
-  })
-  .strict();
-
-export const GlobalStopControlSchema = z
-  .object({
-    ...StopControlBaseShape,
-    type: z.literal("all.stop"),
-  })
-  .strict();
-
-export const StopControlSchema = z.union([WorkerStopControlSchema, GlobalStopControlSchema]);
-
-export type WorkerStopControl = z.infer<typeof WorkerStopControlSchema>;
-export type GlobalStopControl = z.infer<typeof GlobalStopControlSchema>;
-export type StopControl = z.infer<typeof StopControlSchema>;
 
 export function parseProtocolPayload<T>(schema: z.ZodType<T>, input: unknown): T {
   return schema.parse(input);

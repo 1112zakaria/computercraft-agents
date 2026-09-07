@@ -2,9 +2,10 @@
 
 ComputerCraft-first autonomous Minecraft workers for Minecraft Java 1.7.10 + Forge.
 
-The repository has completed the CC-001 bootstrap, CC-010 protocol-schema, and CC-020 database
-schema stages. The control-plane workspace is intentionally small and dependency-light; later
-backlog items add gateway transport, turtle execution, scheduling, and reasoning integrations.
+The repository has completed the CC-001 bootstrap, CC-010 protocol-schema, CC-020 database schema,
+and CC-030–047 ComputerCraft runtime stages. The control-plane workspace is intentionally small and
+dependency-light; later backlog items add gateway transport endpoints, scheduling, and reasoning
+integrations.
 
 ## Quick start
 
