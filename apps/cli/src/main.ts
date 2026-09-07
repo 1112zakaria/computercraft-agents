@@ -51,7 +51,7 @@ function timestampAfterMinutes(minutes: number): string {
 }
 
 export async function runCli(args: readonly string[]): Promise<void> {
-  const [command, first, second] = args;
+  const [command, first, second] = args.map((argument) => argument.trim());
   if (command === "workers") {
     console.log(JSON.stringify(await request("/v1/workers"), null, 2));
     return;
