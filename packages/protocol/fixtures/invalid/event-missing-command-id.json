@@ -1,0 +1,12 @@
+{
+  "protocolVersion": 1,
+  "eventId": "evt-invalid-command",
+  "gatewayId": "friends-server-gateway",
+  "workerId": "alice",
+  "sequence": 9,
+  "type": "command.started",
+  "occurredAt": "2026-09-07T02:00:00Z",
+  "payload": {
+    "skill": "movement.step"
+  }
+}

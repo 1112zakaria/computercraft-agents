@@ -1,0 +1,17 @@
+[
+  {
+    "protocolVersion": 1,
+    "type": "worker.stop",
+    "controlId": "ctl-worker-01",
+    "workerId": "alice",
+    "issuedAt": "2026-09-07T02:00:00Z",
+    "reason": "operator requested stop"
+  },
+  {
+    "protocolVersion": 1,
+    "type": "all.stop",
+    "controlId": "ctl-global-01",
+    "issuedAt": "2026-09-07T02:00:01Z",
+    "reason": "live-world canary complete"
+  }
+]

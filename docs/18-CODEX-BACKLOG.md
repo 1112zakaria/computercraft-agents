@@ -72,6 +72,7 @@ Implement validated configuration for database, HTTP binding, gateway auth, Code
 
 **Priority:** P0  
 **Dependencies:** CC-001
+**Status:** DONE
 
 Create typed schemas for gateway registration, heartbeat, commands, events, errors, workers, capabilities, and stop controls.
 

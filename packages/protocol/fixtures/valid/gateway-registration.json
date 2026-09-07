@@ -1,0 +1,23 @@
+{
+  "protocolVersion": 1,
+  "gatewayId": "friends-server-gateway",
+  "bootId": "gw-boot-9c12",
+  "minecraftServerId": "friends-server",
+  "runtimeVersion": "0.1.0",
+  "capabilities": [
+    "gateway.rednet",
+    {
+      "name": "gateway.http",
+      "version": "1.0.0",
+      "maturity": "CANARY"
+    }
+  ],
+  "workers": [
+    {
+      "workerId": "alice",
+      "computerId": 21,
+      "runtimeVersion": "0.1.0",
+      "capabilities": ["movement.step", "observation.block", "inventory.inspect"]
+    }
+  ]
+}

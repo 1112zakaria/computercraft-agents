@@ -1,0 +1,31 @@
+{
+  "protocolVersion": 1,
+  "gatewayId": "friends-server-gateway",
+  "bootId": "gw-boot-9c12",
+  "batchId": "batch-0001",
+  "events": [
+    {
+      "protocolVersion": 1,
+      "eventId": "evt-0001",
+      "gatewayId": "friends-server-gateway",
+      "workerId": "alice",
+      "commandId": "cmd-01J-NAVIGATE",
+      "sequence": 1432,
+      "type": "command.completed",
+      "occurredAt": "2026-09-07T02:00:03Z",
+      "payload": {
+        "result": {
+          "status": "ARRIVED"
+        },
+        "position": {
+          "dimension": 0,
+          "x": 106,
+          "y": 65,
+          "z": -21,
+          "facing": "E",
+          "confidence": "CONFIRMED"
+        }
+      }
+    }
+  ]
+}

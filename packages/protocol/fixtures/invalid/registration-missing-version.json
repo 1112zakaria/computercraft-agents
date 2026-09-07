@@ -1,0 +1,6 @@
+{
+  "gatewayId": "friends-server-gateway",
+  "bootId": "gw-boot-invalid",
+  "minecraftServerId": "friends-server",
+  "workers": []
+}
