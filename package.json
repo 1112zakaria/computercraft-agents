@@ -9,6 +9,7 @@
   ],
   "scripts": {
     "build": "tsc -b tsconfig.build.json && node packages/database/scripts/copy-migrations.mjs",
+    "cli": "tsx apps/cli/src/main.ts",
     "clean": "tsc -b tsconfig.build.json --clean",
     "db:migrate": "tsx packages/database/src/migrate.ts",
     "format": "prettier --write \"apps/**/*.ts\" \"packages/**/*.ts\" \"tests/**/*.ts\" \"config/**/*.json\" \"eslint.config.mjs\" \"package.json\" \"tsconfig*.json\" \".prettierrc.json\"",

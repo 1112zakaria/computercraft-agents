@@ -370,6 +370,19 @@ export class GatewayRuntimeRepository {
     return result.rows;
   }
 
+  public async listGateways(): Promise<readonly Record<string, unknown>[]> {
+    const result = await this.pool.query(
+      `
+        SELECT gateway_key AS "gatewayId", boot_id AS "bootId", minecraft_server_id AS "minecraftServerId",
+               runtime_version AS "runtimeVersion", status, last_seen_at AS "lastSeenAt",
+               capabilities_json AS capabilities
+        FROM gateways
+        ORDER BY gateway_key
+      `,
+    );
+    return result.rows;
+  }
+
   private async upsertGateway(
     client: PoolClient,
     gatewayId: string,

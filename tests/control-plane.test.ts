@@ -38,6 +38,8 @@ class FakeGatewayStore implements GatewayServiceStore {
   public readonly registrations: GatewayRegistration[] = [];
   public readonly heartbeats: GatewayHeartbeat[] = [];
   public readonly eventBatches: EventBatch[] = [];
+  public readonly commands: Command[] = [];
+  public readonly stopControls: StopControl[] = [];
 
   public async register(payload: GatewayRegistration): Promise<void> {
     this.registrations.push(payload);
@@ -71,13 +73,29 @@ class FakeGatewayStore implements GatewayServiceStore {
     this.eventBatches.push(payload);
     return payload.events.map((event) => event.eventId);
   }
+
+  public async enqueueCommand(payload: Command): Promise<void> {
+    this.commands.push(payload);
+  }
+
+  public async enqueueStopControl(payload: StopControl): Promise<void> {
+    this.stopControls.push(payload);
+  }
+
+  public async listWorkers(): Promise<readonly Record<string, unknown>[]> {
+    return [];
+  }
+
+  public async listGateways(): Promise<readonly Record<string, unknown>[]> {
+    return [];
+  }
 }
 
 async function startServer(
   store: FakeGatewayStore,
 ): Promise<{ baseUrl: string; close: () => Promise<void> }> {
   const server = createControlPlaneServer({
-    service: new GatewayService(store, { bearerSecret: secret }),
+    service: new GatewayService(store, { bearerSecret: secret, adminSecret: "admin-secret" }),
     maxBodyBytes: 100_000,
   });
   server.listen(0, "127.0.0.1");
@@ -97,6 +115,13 @@ function gatewayHeaders(): Record<string, string> {
     Authorization: `Bearer ${secret}`,
     "Content-Type": "application/json",
     "X-Agent-Gateway-Id": gatewayId,
+  };
+}
+
+function adminHeaders(): Record<string, string> {
+  return {
+    "Content-Type": "application/json",
+    "X-Control-Plane-Secret": "admin-secret",
   };
 }
 
@@ -164,6 +189,40 @@ test("control-plane gateway API returns commands/stops and acknowledges events",
     const eventBody = (await events.json()) as { acceptedEventIds: string[] };
     assert.deepEqual(eventBody.acceptedEventIds, ["event-test"]);
     assert.equal(store.eventBatches.length, 1);
+  } finally {
+    await server.close();
+  }
+});
+
+test("operator API supports inspection and deterministic command/stop enqueueing", async () => {
+  const store = new FakeGatewayStore();
+  const server = await startServer(store);
+  try {
+    const diagnostics = await fetch(`${server.baseUrl}/v1/diagnostics`, {
+      headers: adminHeaders(),
+    });
+    assert.equal(diagnostics.status, 200);
+
+    const enqueue = await fetch(`${server.baseUrl}/v1/commands`, {
+      method: "POST",
+      headers: adminHeaders(),
+      body: JSON.stringify(command()),
+    });
+    assert.equal(enqueue.status, 200);
+    assert.equal(store.commands[0]?.commandId, "command-test");
+
+    const stop = await fetch(`${server.baseUrl}/v1/stop-controls`, {
+      method: "POST",
+      headers: adminHeaders(),
+      body: JSON.stringify({
+        protocolVersion: 1,
+        controlId: "stop-admin-test",
+        issuedAt: "2026-09-07T12:00:00.000Z",
+        type: "all.stop",
+      }),
+    });
+    assert.equal(stop.status, 200);
+    assert.equal(store.stopControls[0]?.controlId, "stop-admin-test");
   } finally {
     await server.close();
   }

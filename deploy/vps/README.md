@@ -23,6 +23,7 @@ CONTROL_PLANE_HOST=10.50.0.1
 CONTROL_PLANE_PORT=8787
 DATABASE_URL=postgresql://ccagents:<database-password>@127.0.0.1:5432/computercraft_agents
 GATEWAY_BEARER_SECRET=<gateway-secret>
+CONTROL_PLANE_ADMIN_SECRET=<operator-secret>
 GATEWAY_TIMEOUT_SECONDS=45
 WORKER_TIMEOUT_SECONDS=45
 MAX_HTTP_BODY_BYTES=1048576
@@ -57,4 +58,5 @@ journalctl -u computercraft-agents-control-plane -n 100 --no-pager
 ```
 
 The gateway endpoint should only be reachable through the WireGuard interface where practical.
-The default private topology uses `10.50.0.1` for the VPS and `10.50.0.2` for the Minecraft host.
+The private addresses are deployment-specific. The current VPS uses `10.66.66.1` on its existing
+`wg0`; the friend-side peer must receive a free address in that same WireGuard network.

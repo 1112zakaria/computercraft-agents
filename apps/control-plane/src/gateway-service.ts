@@ -3,19 +3,23 @@ import type { IncomingHttpHeaders } from "node:http";
 
 import {
   CommandPollResponseSchema,
+  CommandSchema,
   ErrorResponseSchema,
   EventAckSchema,
   EventBatchSchema,
   GatewayHeartbeatSchema,
   GatewayRegistrationSchema,
   IdentifierSchema,
+  StopControlSchema,
 } from "@computercraft-agents/protocol";
 import type {
   CommandPollResponse,
+  Command,
   EventAck,
   EventBatch,
   GatewayHeartbeat,
   GatewayRegistration,
+  StopControl,
 } from "@computercraft-agents/protocol";
 import { RepositoryError } from "@computercraft-agents/database";
 import type { GatewayPollResult, GatewayRuntimeRepository } from "@computercraft-agents/database";
@@ -23,6 +27,7 @@ import type { z } from "zod";
 
 export interface GatewayServiceConfig {
   readonly bearerSecret: string;
+  readonly adminSecret: string;
 }
 
 type GatewayRegistrationPayload = Omit<GatewayRegistration, "capabilities"> & {
@@ -34,6 +39,10 @@ export interface GatewayServiceStore {
   heartbeat(payload: GatewayHeartbeat): Promise<unknown>;
   poll(gatewayId: string, after: string | null): Promise<GatewayPollResult>;
   ingestEvents(batch: EventBatch): Promise<string[]>;
+  enqueueCommand(command: Command): Promise<void>;
+  enqueueStopControl(control: StopControl): Promise<void>;
+  listWorkers(): Promise<readonly Record<string, unknown>[]>;
+  listGateways(): Promise<readonly Record<string, unknown>[]>;
 }
 
 export interface GatewayRequestContext {
@@ -134,6 +143,11 @@ export class GatewayService {
   public async events(context: GatewayRequestContext, input: unknown): Promise<EventAck> {
     const payload = this.parsePayload(EventBatchSchema, input);
     this.assertGatewayMatches(context, payload.gatewayId);
+    for (const event of payload.events) {
+      if (event.gatewayId !== payload.gatewayId) {
+        throw new HttpError(400, "INVALID_PAYLOAD", "event gateway identity does not match batch");
+      }
+    }
     const acceptedEventIds = await this.store.ingestEvents(payload);
     return EventAckSchema.parse({
       protocolVersion: 1,
@@ -156,6 +170,43 @@ export class GatewayService {
 
   public health(): object {
     return { status: "ok", service: "computercraft-agents-control-plane" };
+  }
+
+  public authenticateAdmin(headers: IncomingHttpHeaders): void {
+    const supplied = headerValue(headers, "x-control-plane-secret");
+    if (!supplied || !secretsEqual(supplied, this.config.adminSecret)) {
+      throw new HttpError(401, "AUTHENTICATION_FAILED", "control-plane authentication failed");
+    }
+  }
+
+  public async listWorkers(): Promise<readonly Record<string, unknown>[]> {
+    return this.store.listWorkers();
+  }
+
+  public async diagnostics(): Promise<object> {
+    const [gateways, workers] = await Promise.all([
+      this.store.listGateways(),
+      this.store.listWorkers(),
+    ]);
+    return {
+      protocolVersion: 1,
+      service: "ok",
+      gatewayEndpoint: "/v1/gateway",
+      gateways,
+      workers,
+    };
+  }
+
+  public async enqueueCommand(input: unknown): Promise<object> {
+    const command = this.parsePayload(CommandSchema, input);
+    await this.store.enqueueCommand(command);
+    return { accepted: true, commandId: command.commandId };
+  }
+
+  public async enqueueStopControl(input: unknown): Promise<object> {
+    const control = this.parsePayload(StopControlSchema, input);
+    await this.store.enqueueStopControl(control);
+    return { accepted: true, controlId: control.controlId };
   }
 
   private parsePayload<T>(schema: z.ZodType<T>, input: unknown): T {
@@ -211,6 +262,7 @@ export function errorResponse(error: HttpError): object {
 export function createRepositoryService(
   repository: GatewayRuntimeRepository,
   bearerSecret: string,
+  adminSecret: string,
 ): GatewayService {
-  return new GatewayService(repository, { bearerSecret });
+  return new GatewayService(repository, { bearerSecret, adminSecret });
 }

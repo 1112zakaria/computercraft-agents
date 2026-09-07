@@ -46,6 +46,35 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
         return;
       }
 
+      if (
+        url.pathname === "/v1/workers" ||
+        url.pathname === "/v1/diagnostics" ||
+        url.pathname === "/v1/commands" ||
+        url.pathname === "/v1/stop-controls"
+      ) {
+        options.service.authenticateAdmin(request.headers);
+        if (method === "GET" && url.pathname === "/v1/workers") {
+          sendJson(response, 200, { workers: await options.service.listWorkers() });
+          return;
+        }
+        if (method === "GET" && url.pathname === "/v1/diagnostics") {
+          sendJson(response, 200, await options.service.diagnostics());
+          return;
+        }
+        if (method !== "POST") {
+          throw new HttpError(405, "INVALID_PAYLOAD", "method is not supported");
+        }
+        const adminBody = options.service.parseBody(await readBody(request, options.maxBodyBytes));
+        if (url.pathname === "/v1/commands") {
+          sendJson(response, 200, await options.service.enqueueCommand(adminBody));
+          return;
+        }
+        if (url.pathname === "/v1/stop-controls") {
+          sendJson(response, 200, await options.service.enqueueStopControl(adminBody));
+          return;
+        }
+      }
+
       if (!url.pathname.startsWith("/v1/gateway/")) {
         sendJson(response, 404, { error: "not found" });
         return;

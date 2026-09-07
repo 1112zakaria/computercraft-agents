@@ -4,6 +4,7 @@ export interface ControlPlaneConfig {
   readonly port: number;
   readonly databaseUrl: string;
   readonly gatewayBearerSecret: string;
+  readonly adminSecret: string;
   readonly gatewayTimeoutSeconds: number;
   readonly workerTimeoutSeconds: number;
   readonly maxHttpBodyBytes: number;
@@ -37,6 +38,7 @@ export function loadConfig(): ControlPlaneConfig {
     port: positiveInteger("CONTROL_PLANE_PORT", 8787),
     databaseUrl: required("DATABASE_URL"),
     gatewayBearerSecret: required("GATEWAY_BEARER_SECRET"),
+    adminSecret: required("CONTROL_PLANE_ADMIN_SECRET"),
     gatewayTimeoutSeconds: positiveInteger("GATEWAY_TIMEOUT_SECONDS", 45),
     workerTimeoutSeconds: positiveInteger("WORKER_TIMEOUT_SECONDS", 45),
     maxHttpBodyBytes: positiveInteger("MAX_HTTP_BODY_BYTES", 1_048_576),

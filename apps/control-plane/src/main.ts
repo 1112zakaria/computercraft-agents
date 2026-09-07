@@ -17,7 +17,11 @@ async function main(): Promise<void> {
     gatewayTimeoutSeconds: config.gatewayTimeoutSeconds,
     workerTimeoutSeconds: config.workerTimeoutSeconds,
   });
-  const service = createRepositoryService(repository, config.gatewayBearerSecret);
+  const service = createRepositoryService(
+    repository,
+    config.gatewayBearerSecret,
+    config.adminSecret,
+  );
   const server = createControlPlaneServer({ service, maxBodyBytes: config.maxHttpBodyBytes });
 
   const staleWorkerTimer = setInterval(() => {
