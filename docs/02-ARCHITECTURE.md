@@ -1,0 +1,255 @@
+# Architecture
+
+## 1. System style
+
+The project is a distributed autonomous-agent control system with a ComputerCraft execution backend.
+
+```text
+┌──────────────────────────────── VPS ────────────────────────────────┐
+│                                                                    │
+│  CLI / Chat Gateway                                                │
+│          │                                                         │
+│          ▼                                                         │
+│  Command + Context Router                                          │
+│          │                                                         │
+│          ▼                                                         │
+│  Project Manager ─────► Shared Project Planner (when complex)      │
+│          │                                                         │
+│          ▼                                                         │
+│  Central Scheduler                                                 │
+│     │          │          │                                        │
+│     ▼          ▼          ▼                                        │
+│ Alice planner Bob planner Charlie planner                          │
+│     │          │          │                                        │
+│     └──────────┴──────────┘                                        │
+│                ▼                                                   │
+│          Skill Executor                                            │
+│                │                                                   │
+│         ComputerCraft Gateway API                                  │
+│                                                                    │
+│ PostgreSQL: agents/projects/jobs/memory/world/conversation/audit   │
+└──────────────────────────┬─────────────────────────────────────────┘
+                           │ HTTP/JSON over WireGuard
+═══════════════════════════╪══════════════════════════════════════════
+                           ▼
+┌──────────────────── Minecraft host ────────────────────────────────┐
+│                    Gateway Computer                                │
+│           HTTP client + Rednet dispatcher                          │
+│                           │                                        │
+│                  Rednet / wireless modem                           │
+│           ┌───────────────┼───────────────┐                        │
+│           ▼               ▼               ▼                        │
+│      Alice Turtle     Bob Turtle      Charlie Turtle               │
+│           │               │               │                        │
+│           └───────────────┼───────────────┘                        │
+│                           ▼                                        │
+│                Minecraft world + peripherals                      │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+## 2. Responsibility split
+
+### VPS control plane owns
+
+- natural-language interpretation;
+- explicit addressing and authorization;
+- logical agent identities;
+- groups;
+- projects/jobs/tasks;
+- task dependencies;
+- scheduling and priorities;
+- delegation;
+- standing policies;
+- Codex integration;
+- model tier/escalation logic;
+- memory and conversation history;
+- named world locations;
+- resource planning/reservations;
+- construction blueprints/plans;
+- high-level verification;
+- audit/event storage;
+- CLI;
+- gateway connection state.
+
+### ComputerCraft gateway owns
+
+- communication with VPS;
+- gateway identity/authentication;
+- local command queue transport;
+- worker registration/discovery;
+- Rednet request/response/event routing;
+- heartbeat aggregation;
+- local bounded buffering during short VPS outages;
+- translating versioned gateway messages to turtle runtime messages.
+
+### Turtle runtime owns
+
+- movement primitives;
+- orientation tracking;
+- dig/place/inspect/attack/craft/equip/suck/drop primitives;
+- local inventory snapshot;
+- fuel observation;
+- deterministic micro-skills;
+- cancellation checks;
+- blocked-path observation;
+- execution acknowledgements/events;
+- limited local safety/budget enforcement.
+
+## 3. Logical agent vs physical turtle
+
+A logical agent is a persistent application entity. A turtle is an execution device.
+
+```text
+Logical Agent: Alice
+  id: alice
+  goals: persistent
+  memory: persistent
+  projects: persistent
+  groups: [builders]
+  capability policy: ...
+        │
+        ▼ binding
+Physical Worker:
+  backend: computercraft
+  computer_id: 21
+  label: alice-turtle
+  position: observed/cached
+  inventory: observed/cached
+```
+
+v1 MAY use a stable one-to-one binding. The data model SHALL not require it forever.
+
+## 4. Backend abstraction
+
+The scheduler SHALL target a capability-oriented worker abstraction rather than ComputerCraft-specific APIs.
+
+```text
+WorkerBackend
+  observe(worker)
+  execute(skillInvocation)
+  stop(worker)
+  capabilities(worker)
+  health(worker)       # execution health, not biological health
+```
+
+ComputerCraft is the first implementation:
+
+```text
+ComputerCraftBackend
+  └── GatewayClient
+      └── Turtle Runtime
+```
+
+Future implementations MAY include CustomNPC+ or Forge workers without replacing the scheduler or agent model.
+
+## 5. Reasoning architecture
+
+```text
+Event
+  │
+  ▼
+Context assembler
+  ├── goal/project state
+  ├── current worker observation
+  ├── relevant world knowledge
+  ├── relevant memories
+  ├── available skills/capabilities
+  └── recent conversation
+  │
+  ▼
+ReasoningProvider
+  └── CodexCliProvider (v1)
+  │
+  ▼
+Structured decision
+  ├── continue skill
+  ├── create tasks
+  ├── request delegation
+  ├── replan
+  ├── refuse
+  ├── report
+  └── escalate project planning
+```
+
+The planner SHALL operate on semantic skills, not raw turtle APIs.
+
+Bad planner interface:
+
+```text
+forward(); left(); dig(); forward(); ...
+```
+
+Preferred planner interface:
+
+```text
+gather_resource(item="minecraft:cobblestone", quantity=128, destination="Main Warehouse")
+build_blueprint(blueprint_id="house-17", origin="Build Site A")
+travel_to(location="Mine Alpha")
+```
+
+## 6. Scheduling architecture
+
+The scheduler maintains many jobs but permits one action stream per physical turtle.
+
+```text
+Project
+  ├── Task A [RUNNING → Alice]
+  ├── Task B [RUNNABLE → Bob]
+  ├── Task C [BLOCKED by A]
+  └── Task D [RUNNABLE, unassigned]
+```
+
+Agents MAY propose/decompose work, but task ownership is granted centrally.
+
+## 7. State authority
+
+| State | Authority |
+|---|---|
+| Project/job/task | PostgreSQL/control plane |
+| Agent identity/groups/policies | PostgreSQL/config |
+| Conversation/history | PostgreSQL |
+| Named locations/world knowledge | PostgreSQL |
+| Turtle inventory | Turtle observation (VPS cache) |
+| Turtle position/orientation | Turtle runtime + reconciliation (VPS cache) |
+| Turtle fuel | Turtle observation |
+| Block/world state | Minecraft observations |
+| AE2/Machine state | Peripheral observation at time of use |
+
+The VPS SHALL not pretend cached physical state is authoritative after disconnect/restart.
+
+## 8. Transport topology
+
+Preferred v1:
+
+```text
+Gateway Computer ──HTTP request/poll──► VPS API on WireGuard
+Gateway Computer ◄──── response ─────── VPS
+Gateway Computer ──HTTP event batch───► VPS
+
+Gateway Computer ⇄ Rednet ⇄ Turtles
+```
+
+This is intentionally simpler than a custom Forge RPC listener.
+
+If ComputerCraft 1.75 HTTP restrictions prevent direct access to the WireGuard address, resolve that through configuration or a minimal bridge before redesigning the whole system.
+
+## 9. Why a gateway computer
+
+A gateway reduces complexity:
+
+- one VPS connection identity;
+- one HTTP whitelist/config target;
+- turtles do not need HTTP capability/modems beyond local Rednet;
+- centralized buffering/retry;
+- easier diagnostics;
+- turtle worker programs remain small;
+- future peripheral services can be attached to the gateway.
+
+## 10. Architecture constraints
+
+- No LLM call from Lua.
+- No arbitrary Codex-generated Lua executed by turtles in normal operation.
+- No unbounded local turtle loops.
+- No reliance on hidden server omniscience for core navigation.
+- No assumption that cached position/inventory survived a physical world change.
+- No requirement for a custom Forge worker entity in the ComputerCraft-first design.
