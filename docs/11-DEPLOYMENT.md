@@ -51,30 +51,67 @@ Recommended:
 Node.js / TypeScript
 Codex CLI
 PostgreSQL
-WireGuard
 systemd
+TLS reverse proxy (Caddy or equivalent)
 ```
 
-The control plane SHOULD expose its ComputerCraft gateway endpoint only on the WireGuard/private interface when practical.
+The Node.js control plane SHOULD bind only to a non-public listener (loopback or a private
+container-network bridge). A TLS reverse proxy is the sole public gateway boundary and SHALL
+expose only `/v1/gateway/*` on its dedicated HTTPS port.
 
-## 4. WireGuard
+## 4. Public gateway endpoint and source allowlist
 
-Example private topology:
+The current VPS deployment uses this topology. Its final acceptance still requires a live request
+from the friend's Minecraft host, because only that request can verify the claimed source address.
+
+The initial source allowlist is:
 
 ```text
-VPS:              10.50.0.1
-Minecraft host:   10.50.0.2
+Minecraft host public IPv4: 51.161.113.44/32
 ```
 
-The application SHALL treat WireGuard as infrastructure. URLs/ports remain configurable.
+The VPS firewall and reverse proxy SHALL both admit HTTPS gateway requests only from this CIDR.
+This source restriction is defense in depth; the gateway ID plus bearer secret remain mandatory.
+The address MUST be verified from the friend's host before enablement and updated if the host's
+egress address changes. An IP allowlist identifies the host/network's public egress address, not
+an individual ComputerCraft computer.
 
-## 5. ComputerCraft HTTP
+The endpoint requires a public DNS hostname and a publicly trusted TLS certificate. The hostname
+is intentionally a deployment value, not a repository constant. Use DNS-01 certificate issuance
+or another certificate-management method compatible with keeping the gateway route restricted.
+HTTP-01 and TLS-ALPN validation normally require temporary public reachability; if used, restrict
+that exposure to certificate issuance and remove it before enabling the gateway route.
 
-Friend-side setup SHALL verify that the installed ComputerCraft 1.75 HTTP configuration permits the VPS WireGuard address/port.
+The public proxy MUST forward only `/v1/gateway/*` to a non-public control-plane listener.
+Operator and health interfaces remain local/VPS-only. The current deployment uses
+`https://192.99.69.46.sslip.io:8443`, forwarding to a private Docker bridge at
+`172.18.0.1:8787`. Docker-published ports bypass ordinary UFW filtering, so this deployment also
+requires persistent `DOCKER-USER` firewall rules; see `deploy/vps/Caddyfile.example` and
+`deploy/vps/computercraft-agents-docker-firewall.service.example`.
+
+The allowlisted `GET /v1/gateway/connectivity` probe returns HTTP 204 without gateway credentials.
+It exists solely to verify the friend's host egress address before the gateway secret is installed;
+all other gateway routes retain bearer authentication.
+
+After the public probe succeeds, the authenticated canary is
+`GET /v1/gateway/authenticated-connectivity`. It returns HTTP 204 only after validating both
+`X-Agent-Gateway-Id` and the gateway bearer secret. This endpoint is diagnostic-only and does not
+change gateway or worker state.
+
+The endpoint certificate is configured as RSA-2048 for compatibility with legacy Java 8 runtimes
+commonly used with Minecraft 1.7.10 and ComputerCraft 1.75. Do not replace it with a self-signed
+certificate; ComputerCraft must be able to validate the public certificate chain.
+
+## 5. ComputerCraft HTTPS
+
+Friend-side setup SHALL verify that the installed ComputerCraft 1.75 HTTP configuration permits
+the configured public VPS hostname over HTTPS.
 
 This is a milestone-zero connectivity check, not an assumption.
 
-If private-IP access is blocked by configuration, update ComputerCraft config/restart as needed. If version limitations make this impossible, use a small local bridge or revise gateway transport without changing control-plane domain architecture.
+If HTTPS access is blocked by configuration, update ComputerCraft config/restart as needed. If
+version limitations make this impossible, use a small local bridge or revise gateway transport
+without changing control-plane domain architecture.
 
 ## 6. Gateway installation
 
@@ -114,7 +151,6 @@ Never commit:
 - gateway bearer secret;
 - Codex authentication;
 - database password;
-- WireGuard private keys;
 - any private endpoint credentials.
 
 Commit templates such as:
@@ -122,7 +158,7 @@ Commit templates such as:
 ```text
 .env.example
 gateway.conf.example
-wireguard-example.conf
+Caddyfile.example
 ```
 
 ## 9. VPS service lifecycle

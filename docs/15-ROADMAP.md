@@ -8,7 +8,7 @@ Deliver:
 
 - repository/bootstrap;
 - VPS HTTP gateway API;
-- WireGuard/private endpoint config;
+- public HTTPS gateway endpoint with source-IP allowlist;
 - ComputerCraft gateway Lua program;
 - one turtle runtime;
 - Rednet registration;

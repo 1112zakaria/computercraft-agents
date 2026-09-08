@@ -1,5 +1,13 @@
 local M = {}
 
+if type(require) ~= "function" then
+  function require(name)
+    local chunk, load_error = loadfile(name .. ".lua")
+    if not chunk then error(load_error, 0) end
+    return chunk()
+  end
+end
+
 function M.run(config)
   local id = require("id")
   local logger = require("logging")

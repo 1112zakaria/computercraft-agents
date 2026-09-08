@@ -436,9 +436,32 @@ Before Codex, prove `worker move/turn` command path end-to-end.
 ### CC-052 — Milestone-zero connectivity diagnostic
 
 **Priority:** P0  
-**Dependencies:** CC-031, CC-051
+**Dependencies:** CC-031, CC-051, CC-053
 
-Implement a diagnostic command/output showing WireGuard HTTP reachability, gateway status, worker status, runtime/protocol versions.
+Implement a diagnostic command/output showing public HTTPS reachability, observed gateway source
+address/allowlist admission, gateway status, worker status, runtime/protocol versions.
+
+### CC-053 — Public HTTPS gateway ingress and source allowlist
+
+**Priority:** P0
+**Dependencies:** CC-011, CC-031
+**Status:** DONE — public and authenticated HTTPS connectivity canaries verified from the
+friend's Minecraft host on 2026-09-08.
+
+Replace the WireGuard-only gateway route with a public TLS reverse proxy that forwards only
+`/v1/gateway/*` to the loopback-bound control plane. Enforce the firewall and reverse-proxy
+source allowlist for the friend's verified Minecraft-host egress address, initially
+`51.161.113.44/32`.
+
+**Acceptance criteria**
+
+- control plane binds only to a non-public listener in production;
+- public ingress accepts HTTPS only and has a publicly trusted certificate;
+- TCP 8787 is not publicly reachable;
+- public ingress forwards only `/v1/gateway/*` and rejects other paths;
+- firewall and reverse-proxy rules reject a non-allowlisted source;
+- a gateway request from `51.161.113.44` succeeds with valid bearer authentication;
+- no bearer secret, certificate private key, or operator secret is committed or logged.
 
 ---
 
@@ -1056,7 +1079,7 @@ CC-001 → 002 → 003
        → 020 → 021 → 022 → 023 → 024
        → 030 → 031 → 032 → 033 → 034 → 035
        → 040 → 041 → 042 → 043 → 044 → 045 → 046 → 047
-       → 050 → 051 → 052
+       → 050 → 051 → 053 → 052
        → 060 → 061 → 062 → 064 → 065
        → 070 → 071 → 072
        → 080 → 081 → 082 → 084 → 085 → 086 → 087 → 089

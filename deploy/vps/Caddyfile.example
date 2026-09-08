@@ -1,0 +1,31 @@
+# Append this site block to the VPS's existing Caddyfile. Publish host port 8443 to the Caddy
+# container's port 8443, and keep the Node.js control plane on the private Docker bridge.
+# Caddy obtains a publicly trusted certificate for this sslip.io hostname through HTTP-01 on port 80.
+
+https://192.99.69.46.sslip.io:8443 {
+  # ComputerCraft 1.75 commonly runs on an old Java 8 trust/TLS stack; use RSA for compatibility.
+  tls {
+    key_type rsa2048
+  }
+
+  @connectivityProbe {
+    remote_ip 51.161.113.44
+    method GET
+    path /v1/gateway/connectivity
+  }
+
+  handle @connectivityProbe {
+    respond "" 204
+  }
+
+  @allowlistedGateway {
+    remote_ip 51.161.113.44
+    path /v1/gateway/*
+  }
+
+  handle @allowlistedGateway {
+    reverse_proxy 172.18.0.1:8787
+  }
+
+  respond "forbidden" 403
+}

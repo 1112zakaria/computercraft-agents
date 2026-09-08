@@ -17,6 +17,11 @@ function sendJson(response: ServerResponse, statusCode: number, body: object): v
   response.end(encoded);
 }
 
+function sendNoContent(response: ServerResponse): void {
+  response.statusCode = 204;
+  response.end();
+}
+
 function requestMethod(request: IncomingMessage): string {
   return request.method?.toUpperCase() ?? "GET";
 }
@@ -81,6 +86,10 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
       }
 
       const context = options.service.authenticate(request.headers);
+      if (method === "GET" && url.pathname === "/v1/gateway/authenticated-connectivity") {
+        sendNoContent(response);
+        return;
+      }
       if (method === "GET" && url.pathname === "/v1/gateway/commands") {
         const body = await options.service.poll(context, url.searchParams.get("after"));
         sendJson(response, 200, body);

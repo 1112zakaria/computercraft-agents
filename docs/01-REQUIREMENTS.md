@@ -17,7 +17,7 @@
 - **ENV-005** — Exact Forge build remains to be verified; latest/recommended 1.7.10 is expected.
 - **ENV-006** — The modpack already contains ComputerCraft 1.75 and OpenPeripheral-family integrations and SHALL use them before adding custom Forge integration where practical.
 - **ENV-007** — The control plane SHALL run on the user's VPS.
-- **ENV-008** — VPS and Minecraft host SHALL communicate through WireGuard.
+- **ENV-008** — The gateway SHALL initiate outbound HTTPS requests to a public VPS control-plane endpoint. The endpoint SHALL admit only configured Minecraft-host source CIDRs and SHALL require application-level gateway authentication.
 
 ## 3. Worker identity
 
@@ -171,6 +171,6 @@
 - **DEP-001** — Non-secret configuration MAY be checked into Git.
 - **DEP-002** — Secrets/environment-specific credentials SHALL not be committed.
 - **DEP-003** — Friend-side setup SHALL be simple and documented because the user does not expect direct SSH/RDP access.
-- **DEP-004** — WireGuard configuration SHALL be installation infrastructure, independent of application protocol semantics.
+- **DEP-004** — The public gateway endpoint SHALL use TLS and enforce a source-network allowlist independently of application protocol semantics. The initial allowlist SHALL include `51.161.113.44/32` for the friend's Minecraft host, subject to live verification of its actual egress address.
 - **DEP-005** — The VPS control plane SHALL remain running when Minecraft intentionally restarts and SHALL reconnect automatically.
 - **DEP-006** — Lua programs SHALL be deployable with minimal manual copying/paste steps; repository release bundles/scripts SHOULD be used where possible.

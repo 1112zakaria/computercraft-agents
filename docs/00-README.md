@@ -6,7 +6,7 @@ Primary execution backend: **ComputerCraft 1.75 turtles and computers**
 Control plane: **VPS-hosted**  
 Reasoning backend: **Codex CLI behind a provider-neutral interface**  
 Initial scale: **3–5 logical worker agents**  
-Network: **WireGuard between VPS and Minecraft host**
+Network: **gateway-initiated HTTPS to a public VPS endpoint, restricted by source-IP allowlist**
 
 ## Purpose
 
@@ -44,7 +44,7 @@ The following are explicitly not core requirements:
                                                 │
                                          HTTP/JSON API
                                                 │
-══════════════════════════ WireGuard ═══════════╪══════════════════════════
+════════════ HTTPS ingress (source allowlisted) ═╪══════════════════════════
                                                 │
                                       ComputerCraft Gateway
                                                 │
@@ -72,7 +72,7 @@ The preferred v1 topology uses one ComputerCraft gateway computer to communicate
 - [08-NAVIGATION-WORLD-MODEL.md](08-NAVIGATION-WORLD-MODEL.md) — mapping, coordinates, routing, exploration, named locations.
 - [09-MOD-INTEGRATION.md](09-MOD-INTEGRATION.md) — AE2/OpenPeripheral and future mod integration strategy.
 - [10-INTERACTION.md](10-INTERACTION.md) — Minecraft chat, CLI, addressing, conversation and deictic references.
-- [11-DEPLOYMENT.md](11-DEPLOYMENT.md) — Git, WireGuard, VPS, Lua deployment, friend-side setup.
+- [11-DEPLOYMENT.md](11-DEPLOYMENT.md) — Git, public HTTPS ingress, VPS, Lua deployment, friend-side setup.
 - [12-SAFETY-OPERATIONS.md](12-SAFETY-OPERATIONS.md) — live-world safeguards, stop/cancel, outage behavior.
 - [13-TESTING.md](13-TESTING.md) — test pyramid and live-world canary acceptance tests.
 - [14-OBSERVABILITY.md](14-OBSERVABILITY.md) — logs, conversations, action lineage, retention.
@@ -81,6 +81,7 @@ The preferred v1 topology uses one ComputerCraft gateway computer to communicate
 - [17-OPEN-QUESTIONS.md](17-OPEN-QUESTIONS.md) — technical unknowns to resolve by spikes.
 - [18-CODEX-BACKLOG.md](18-CODEX-BACKLOG.md) — ordered coding backlog for Codex.
 - [19-IMPLEMENTATION-CHECKLIST.md](19-IMPLEMENTATION-CHECKLIST.md) — release-readiness checklist.
+- [20-CONNECTIVITY-SEQUENCE.md](20-CONNECTIVITY-SEQUENCE.md) — gateway/VPS/turtle message flow.
 - [AGENTS.md](AGENTS.md) — repository instructions for Codex/coding agents.
 
 ## Normative language

@@ -1,0 +1,12 @@
+[Unit]
+Description=Restrict ComputerCraft Agents Docker-published gateway port
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/computercraft-agents-docker-firewall
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
