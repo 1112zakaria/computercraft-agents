@@ -470,6 +470,28 @@ source allowlist for the friend's verified Minecraft-host egress address, initia
 
 ---
 
+## Epic J — Gateway-managed runtime updates
+
+### CC-090 — Gateway-managed turtle and gateway updates
+
+**Priority:** P1
+**Dependencies:** CC-050, CC-053, CC-010, CC-020
+**Status:** IMPLEMENTED on `feat/gateway-managed-updates`; live modem canary pending
+
+Publish immutable GitHub release manifests and deliver allowlisted runtime files through the
+gateway's authenticated HTTPS poll and Rednet transfer path. The VPS CLI supports gateway,
+worker, and fleet targets. Stable bootstrap/journal files preserve configuration and state and
+attempt rollback after interrupted activation.
+
+**Remaining live acceptance**
+
+- install stable updater files on the gateway and turtle;
+- queue one worker canary after both modems are available;
+- verify new runtime heartbeat and `update-status` success;
+- interrupt a fake/live-safe activation and verify rollback.
+
+---
+
 ## Epic G — Navigation and world map
 
 ### CC-060 — Implement sparse world-cell model

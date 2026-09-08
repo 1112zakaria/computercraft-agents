@@ -25,6 +25,10 @@ POST /v1/gateway/events                    # batched events/results
 POST /v1/gateway/ack                       # optional explicit ack
 ```
 
+The command poll response also contains an `updates` collection. Update controls are persisted by
+the VPS and delivered through this existing gateway-initiated poll; the VPS does not open an
+inbound connection to ComputerCraft.
+
 Exact URLs are implementation details; semantic behavior is normative.
 
 ## 3. Gateway registration
@@ -174,14 +178,55 @@ A stop request SHALL have a dedicated control path and SHOULD not be blocked beh
 
 Turtle skills SHALL check for cancellation between primitives.
 
-## 12. Versioning
+## 12. Update controls and Rednet transfer
+
+An operator update request has this shape:
+
+```json
+{
+  "protocolVersion": 1,
+  "updateId": "upd-01J...",
+  "target": "worker:alice",
+  "releaseVersion": "v0.2.0",
+  "manifestUrl": "https://github.com/1112zakaria/computercraft-agents/releases/download/v0.2.0/release-manifest.json",
+  "issuedAt": "2026-09-08T12:00:00.000Z",
+  "expiresAt": "2026-09-08T12:30:00.000Z"
+}
+```
+
+Targets are `gateway:<id>`, `worker:<id>`, or `fleet:<gateway-id>`. Release versions must be
+immutable semver-like tags such as `v0.2.0`; HTTPS branch URLs are rejected. The poll response
+adds `status`, `gatewayId`, and the resolved `workerIds` to each update control.
+
+Gateway-to-turtle update messages are:
+
+```text
+worker.update.prepare
+worker.update.file.begin
+worker.update.file.chunk
+worker.update.file.end
+worker.update.activate
+worker.update.abort
+worker.update.ack
+```
+
+Every message carries the update ID, release version, gateway boot ID, and worker identity. File
+messages carry an allowlisted relative path, chunk number, and total chunk count. Duplicate chunks
+are idempotent. A stale gateway boot ID, unsafe path, missing chunk, expired update, or missing
+acknowledgement fails the update safely.
+
+Update lifecycle events include `worker.update.started`, `worker.update.staged`,
+`worker.update.activated`, `worker.update.failed`, and `worker.update.rolled_back`; gateway
+self-update uses the corresponding `gateway.update.*` events.
+
+## 13. Versioning
 
 - All messages SHALL carry a protocol version.
 - Minor additive changes SHOULD preserve compatibility.
 - Incompatible changes SHALL increment the major protocol version.
 - Gateway SHALL reject commands requiring unsupported versions/capabilities.
 
-## 13. Payload size
+## 14. Payload size
 
 Commands SHOULD reference large blueprints/path batches by IDs/chunks rather than transmitting enormous objects repeatedly.
 
@@ -193,7 +238,7 @@ blueprint.chunk
 blueprint.execute_chunk
 ```
 
-## 14. Security validation
+## 15. Security validation
 
 Gateway/turtles SHALL validate:
 

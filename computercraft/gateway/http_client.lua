@@ -63,6 +63,24 @@ function M.new(config, logger)
     return { ok = true, status = status, body = parsed }
   end
 
+  function client:get_raw(url)
+    if not http or not http.get then
+      return { ok = false, error = "ComputerCraft HTTP API is unavailable" }
+    end
+    local ok, response_or_error = pcall(http.get, url)
+    if not ok or not response_or_error then
+      return { ok = false, error = tostring(response_or_error or "HTTP request failed") }
+    end
+    local response = response_or_error
+    local status = response.getResponseCode and response.getResponseCode() or 200
+    local body = response.readAll and response.readAll() or ""
+    close_response(response)
+    if status < 200 or status >= 300 then
+      return { ok = false, status = status, error = "HTTP status " .. tostring(status), body = body }
+    end
+    return { ok = true, status = status, body = body }
+  end
+
   return client
 end
 

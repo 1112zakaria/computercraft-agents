@@ -10,6 +10,7 @@ end
 
 function M.run(config)
   local id = require("id")
+  local bootstrap = require("update_bootstrap")
   local logger = require("logging")
   local protocol = require("protocol")
   local http_client = require("http_client").new(config, logger)
@@ -18,6 +19,16 @@ function M.run(config)
   local boot_id = id.new("gw")
   local heartbeat = require("heartbeat").new(config, boot_id, registry, http_client, logger, id)
   local dispatcher = require("dispatcher").new(config, boot_id, registry, outbox, http_client, logger, id, protocol)
+  local update_manager = require("update_manager").new(config, http_client, dispatcher, registry, protocol, logger, bootstrap)
+  dispatcher:set_update_manager(update_manager)
+  bootstrap.confirm(config.update_journal_path, nil)
+  if config.recovered_update then
+    outbox:add(dispatcher:event(nil, nil, "gateway.update.rolled_back", {
+      updateId = config.recovered_update.updateId,
+      releaseVersion = config.recovered_update.releaseVersion,
+      message = "bootstrap restored the previous runtime",
+    }))
+  end
 
   if not rednet.isOpen(config.modem_side) then
     rednet.open(config.modem_side)

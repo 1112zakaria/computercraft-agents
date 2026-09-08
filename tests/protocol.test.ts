@@ -10,6 +10,10 @@ import {
   GatewayHeartbeatSchema,
   GatewayRegistrationSchema,
   StopControlSchema,
+  UpdateControlSchema,
+  UpdateRequestSchema,
+  WorkerUpdateMessageSchema,
+  WorkerUpdateAckSchema,
   isSupportedProtocolVersion,
 } from "../packages/protocol/src/index";
 
@@ -82,4 +86,66 @@ test("command events require command correlation and error responses are typed",
   assert.equal(error.error.retryable, false);
   assert.equal(isSupportedProtocolVersion(error.protocolVersion), true);
   assert.equal(isSupportedProtocolVersion(2), false);
+});
+
+test("update controls require immutable releases and validate transfer envelopes", () => {
+  const request = UpdateRequestSchema.parse({
+    protocolVersion: 1,
+    updateId: "update-1",
+    target: "worker:alice",
+    releaseVersion: "v0.2.0",
+    manifestUrl:
+      "https://github.com/1112zakaria/computercraft-agents/releases/download/v0.2.0/release-manifest.json",
+    issuedAt: "2026-09-08T12:00:00.000Z",
+    expiresAt: "2026-09-08T12:30:00.000Z",
+  });
+  const control = UpdateControlSchema.parse({
+    ...request,
+    status: "QUEUED",
+    gatewayId: "gateway-main",
+    workerIds: ["alice"],
+  });
+  assert.equal(control.releaseVersion, "v0.2.0");
+  assert.equal(
+    UpdateRequestSchema.safeParse({ ...request, releaseVersion: "main" }).success,
+    false,
+  );
+  assert.equal(
+    UpdateRequestSchema.safeParse({
+      ...request,
+      manifestUrl: "http://example.com/release-manifest.json",
+    }).success,
+    false,
+  );
+
+  const chunk = WorkerUpdateMessageSchema.parse({
+    protocolVersion: 1,
+    type: "worker.update.file.chunk",
+    gatewayBootId: "boot-1",
+    updateId: "update-1",
+    releaseVersion: "v0.2.0",
+    workerId: "alice",
+    path: "computercraft/turtle/protocol.lua",
+    chunkNumber: 0,
+    totalChunks: 1,
+    content: "return {}",
+  });
+  assert.equal(chunk.type, "worker.update.file.chunk");
+  assert.equal(
+    WorkerUpdateMessageSchema.safeParse({ ...chunk, path: "computercraft/turtle/../worker.conf" })
+      .success,
+    false,
+  );
+  assert.equal(
+    WorkerUpdateAckSchema.safeParse({
+      protocolVersion: 1,
+      type: "worker.update.ack",
+      gatewayBootId: "boot-1",
+      updateId: "update-1",
+      workerId: "alice",
+      phase: "FILE_RECEIVED",
+      chunkNumber: 0,
+    }).success,
+    true,
+  );
 });

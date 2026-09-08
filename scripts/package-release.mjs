@@ -5,9 +5,17 @@ import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const packageJson = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+const requestedVersion = process.argv[2] ?? `v${packageJson.version}`;
+if (
+  !/^v(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?$/.test(requestedVersion)
+) {
+  throw new Error("release version must be an immutable tag such as v0.2.0");
+}
+
 const releaseRoot = join(root, "dist", "release");
 const staging = join(releaseRoot, "computercraft-lua");
 const archive = join(releaseRoot, "computercraft-lua.zip");
+const repository = "1112zakaria/computercraft-agents";
 
 rmSync(staging, { recursive: true, force: true });
 rmSync(archive, { force: true });
@@ -27,14 +35,42 @@ function filesUnder(directory) {
   });
 }
 
+const stableBootstrapFiles = new Set([
+  "computercraft/gateway/startup.lua",
+  "computercraft/gateway/update_bootstrap.lua",
+  "computercraft/gateway/update_manager.lua",
+  "computercraft/turtle/startup.lua",
+  "computercraft/turtle/update_bootstrap.lua",
+  "computercraft/turtle/update_manager.lua",
+]);
+const runtimeFiles = filesUnder(staging)
+  .filter((path) => path.endsWith(".lua"))
+  .filter((path) => !stableBootstrapFiles.has(path))
+  .sort();
+
 const manifest = {
   package: "computercraft-lua",
-  version: packageJson.version,
+  version: requestedVersion,
   protocolVersion: 1,
+  runtimeVersions: {
+    gateway: requestedVersion,
+    turtle: requestedVersion,
+  },
+  runtimeFiles: runtimeFiles.map((path) => ({
+    path,
+    downloadUrl: `https://raw.githubusercontent.com/${repository}/${requestedVersion}/${path}`,
+  })),
   files: filesUnder(staging).sort(),
+  archiveUrl: `https://github.com/${repository}/releases/download/${requestedVersion}/computercraft-lua.zip`,
+  manifestUrl: `https://github.com/${repository}/releases/download/${requestedVersion}/release-manifest.json`,
+  stableBootstrapFiles: [...stableBootstrapFiles].sort(),
   generatedBy: "npm run release:lua",
 };
-writeFileSync(join(staging, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+writeFileSync(
+  join(staging, "release-manifest.json"),
+  `${JSON.stringify(manifest, null, 2)}\n`,
+  "utf8",
+);
 
 function commandAvailable(command) {
   try {

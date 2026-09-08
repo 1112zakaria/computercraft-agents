@@ -82,6 +82,7 @@ The preferred v1 topology uses one ComputerCraft gateway computer to communicate
 - [18-CODEX-BACKLOG.md](18-CODEX-BACKLOG.md) — ordered coding backlog for Codex.
 - [19-IMPLEMENTATION-CHECKLIST.md](19-IMPLEMENTATION-CHECKLIST.md) — release-readiness checklist.
 - [20-CONNECTIVITY-SEQUENCE.md](20-CONNECTIVITY-SEQUENCE.md) — gateway/VPS/turtle message flow.
+- [21-UPDATEABILITY.md](21-UPDATEABILITY.md) — gateway-managed OTA-style runtime updates.
 - [AGENTS.md](AGENTS.md) — repository instructions for Codex/coding agents.
 
 ## Normative language

@@ -30,6 +30,18 @@ To package the ComputerCraft programs for friend-side installation, run
 `npm run release:lua`. The resulting `dist/release/computercraft-lua.zip` contains no populated
 configuration or secrets.
 
+Gateway-managed OTA-style updates are queued through the protected VPS CLI and delivered by the
+gateway's existing HTTPS poll:
+
+```text
+npm run cli -- update --target worker:alice --version v0.2.0
+npm run cli -- update --target fleet:gateway-main --version v0.2.0
+npm run cli -- update-status <update-id>
+```
+
+Tagged GitHub releases publish the archive and `release-manifest.json`. The update design and
+rollback procedure are documented in [Gateway-managed updates](docs/21-UPDATEABILITY.md).
+
 ## Repository layout
 
 ```text

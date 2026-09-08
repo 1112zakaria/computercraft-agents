@@ -326,6 +326,194 @@ export type WorkerStopControl = z.infer<typeof WorkerStopControlSchema>;
 export type GlobalStopControl = z.infer<typeof GlobalStopControlSchema>;
 export type StopControl = z.infer<typeof StopControlSchema>;
 
+export const ReleaseVersionSchema = z
+  .string()
+  .regex(/^v(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?$/, {
+    message: "releaseVersion must be an immutable semver tag such as v0.2.0",
+  });
+
+export const UpdateTargetSchema = z
+  .string()
+  .regex(/^(gateway|worker|fleet):[A-Za-z0-9][A-Za-z0-9._:-]*$/, {
+    message: "target must be gateway:<id>, worker:<id>, or fleet:<gateway-id>",
+  });
+
+export const ManifestUrlSchema = z
+  .string()
+  .url()
+  .refine((value) => value.startsWith("https://"), "manifestUrl must use HTTPS")
+  .refine((value) => {
+    try {
+      const hostname = new URL(value).hostname;
+      return hostname === "github.com" || hostname === "raw.githubusercontent.com";
+    } catch {
+      return false;
+    }
+  }, "manifestUrl must be hosted by GitHub")
+  .refine((value) => !value.includes("/refs/heads/") && !value.includes("/branches/"), {
+    message: "manifestUrl must reference an immutable release, not a branch",
+  });
+
+export const UpdateStatusSchema = z.enum([
+  "QUEUED",
+  "RUNNING",
+  "CANARY",
+  "SUCCEEDED",
+  "FAILED",
+  "ROLLED_BACK",
+  "CANCELLED",
+]);
+
+const UpdateRequestShape = {
+  protocolVersion: ProtocolVersionSchema,
+  updateId: IdentifierSchema,
+  target: UpdateTargetSchema,
+  releaseVersion: ReleaseVersionSchema,
+  manifestUrl: ManifestUrlSchema,
+  issuedAt: TimestampSchema,
+  expiresAt: TimestampSchema,
+};
+
+function updateExpiryRefinement(
+  update: { issuedAt: string; expiresAt: string },
+  context: z.RefinementCtx,
+): void {
+  if (Date.parse(update.expiresAt) <= Date.parse(update.issuedAt)) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["expiresAt"],
+      message: "expiresAt must be later than issuedAt",
+    });
+  }
+}
+
+export const UpdateRequestSchema = z
+  .object(UpdateRequestShape)
+  .strict()
+  .superRefine(updateExpiryRefinement);
+
+export type ReleaseVersion = z.infer<typeof ReleaseVersionSchema>;
+export type UpdateTarget = z.infer<typeof UpdateTargetSchema>;
+export type UpdateStatus = z.infer<typeof UpdateStatusSchema>;
+export type UpdateRequest = z.infer<typeof UpdateRequestSchema>;
+
+export const UpdateControlSchema = z
+  .object({
+    ...UpdateRequestShape,
+    status: UpdateStatusSchema.default("QUEUED"),
+    gatewayId: IdentifierSchema,
+    workerIds: z.array(IdentifierSchema).max(64).default([]),
+  })
+  .strict()
+  .superRefine(updateExpiryRefinement);
+
+export type UpdateControl = z.infer<typeof UpdateControlSchema>;
+
+const UpdateEventPayloadSchema = z
+  .object({
+    updateId: IdentifierSchema,
+    releaseVersion: ReleaseVersionSchema,
+    message: z.string().min(1).max(512).optional(),
+  })
+  .strict();
+
+export const WorkerUpdateAckSchema = z
+  .object({
+    protocolVersion: ProtocolVersionSchema,
+    type: z.literal("worker.update.ack"),
+    gatewayBootId: IdentifierSchema,
+    updateId: IdentifierSchema,
+    workerId: IdentifierSchema,
+    phase: z.enum(["PREPARED", "FILE_RECEIVED", "ACTIVATED", "FAILED", "ROLLED_BACK"]),
+    path: z.string().max(256).optional(),
+    chunkNumber: NonNegativeIntegerSchema.optional(),
+    error: z.string().max(512).optional(),
+  })
+  .strict();
+
+const WorkerRuntimePathSchema = z
+  .string()
+  .min(1)
+  .max(256)
+  .refine(
+    (value) =>
+      value.startsWith("computercraft/turtle/") && !value.startsWith("/") && !value.includes(".."),
+    "path must be a safe turtle runtime path",
+  );
+
+export const WorkerUpdateMessageSchema = z.discriminatedUnion("type", [
+  z
+    .object({
+      protocolVersion: ProtocolVersionSchema,
+      type: z.literal("worker.update.prepare"),
+      gatewayBootId: IdentifierSchema,
+      updateId: IdentifierSchema,
+      releaseVersion: ReleaseVersionSchema,
+      workerId: IdentifierSchema,
+      expiresAt: TimestampSchema,
+    })
+    .strict(),
+  z
+    .object({
+      protocolVersion: ProtocolVersionSchema,
+      type: z.literal("worker.update.file.begin"),
+      gatewayBootId: IdentifierSchema,
+      updateId: IdentifierSchema,
+      releaseVersion: ReleaseVersionSchema,
+      workerId: IdentifierSchema,
+      path: WorkerRuntimePathSchema,
+      totalChunks: PositiveIntegerSchema.max(4096),
+    })
+    .strict(),
+  z
+    .object({
+      protocolVersion: ProtocolVersionSchema,
+      type: z.literal("worker.update.file.chunk"),
+      gatewayBootId: IdentifierSchema,
+      updateId: IdentifierSchema,
+      releaseVersion: ReleaseVersionSchema,
+      workerId: IdentifierSchema,
+      path: WorkerRuntimePathSchema,
+      chunkNumber: NonNegativeIntegerSchema,
+      totalChunks: PositiveIntegerSchema.max(4096),
+      content: z.string().max(4096),
+    })
+    .strict(),
+  z
+    .object({
+      protocolVersion: ProtocolVersionSchema,
+      type: z.literal("worker.update.file.end"),
+      gatewayBootId: IdentifierSchema,
+      updateId: IdentifierSchema,
+      releaseVersion: ReleaseVersionSchema,
+      workerId: IdentifierSchema,
+      path: WorkerRuntimePathSchema,
+      totalChunks: PositiveIntegerSchema.max(4096),
+    })
+    .strict(),
+  z
+    .object({
+      protocolVersion: ProtocolVersionSchema,
+      type: z.literal("worker.update.activate"),
+      gatewayBootId: IdentifierSchema,
+      updateId: IdentifierSchema,
+      releaseVersion: ReleaseVersionSchema,
+      workerId: IdentifierSchema,
+    })
+    .strict(),
+  z
+    .object({
+      protocolVersion: ProtocolVersionSchema,
+      type: z.literal("worker.update.abort"),
+      gatewayBootId: IdentifierSchema,
+      updateId: IdentifierSchema,
+      releaseVersion: ReleaseVersionSchema,
+      workerId: IdentifierSchema,
+      reason: z.string().min(1).max(512),
+    })
+    .strict(),
+]);
+
 export const CommandPollResponseSchema = z
   .object({
     protocolVersion: ProtocolVersionSchema,
@@ -333,6 +521,7 @@ export const CommandPollResponseSchema = z
     commands: z.array(CommandSchema).max(128),
     nextCursor: IdentifierSchema.nullable(),
     stopControls: z.array(StopControlSchema).max(128).default([]),
+    updates: z.array(UpdateControlSchema).max(32).default([]),
   })
   .strict();
 
@@ -342,6 +531,7 @@ export const ProtocolErrorCodeSchema = z.enum([
   "INVALID_PAYLOAD",
   "UNSUPPORTED_PROTOCOL_VERSION",
   "UNKNOWN_WORKER",
+  "UNKNOWN_UPDATE",
   "UNKNOWN_SKILL",
   "INVALID_ARGUMENTS",
   "COMMAND_EXPIRED",
@@ -542,10 +732,21 @@ const EventUnionSchema = z.discriminatedUnion("type", [
   event("block.observed", BlockObservedPayloadSchema),
   event("peripheral.observed", PeripheralObservedPayloadSchema),
   event("protocol.error", ProtocolErrorPayloadSchema),
+  event("worker.update.started", UpdateEventPayloadSchema),
+  event("worker.update.staged", UpdateEventPayloadSchema),
+  event("worker.update.activated", UpdateEventPayloadSchema),
+  event("worker.update.failed", UpdateEventPayloadSchema),
+  event("worker.update.rolled_back", UpdateEventPayloadSchema),
+  event("gateway.update.started", UpdateEventPayloadSchema),
+  event("gateway.update.staged", UpdateEventPayloadSchema),
+  event("gateway.update.activated", UpdateEventPayloadSchema),
+  event("gateway.update.failed", UpdateEventPayloadSchema),
+  event("gateway.update.rolled_back", UpdateEventPayloadSchema),
 ]);
 
 export const EventSchema = EventUnionSchema.superRefine((eventValue, context) => {
-  if (eventValue.type !== "protocol.error" && !eventValue.workerId) {
+  const gatewayEvent = eventValue.type.startsWith("gateway.update.");
+  if (eventValue.type !== "protocol.error" && !gatewayEvent && !eventValue.workerId) {
     context.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["workerId"],

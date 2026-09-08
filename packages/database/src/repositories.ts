@@ -5,6 +5,9 @@ import type {
   GatewayHeartbeat,
   GatewayRegistration,
   StopControl,
+  UpdateControl,
+  UpdateRequest,
+  UpdateStatus,
 } from "@computercraft-agents/protocol";
 import type { Pool, PoolClient, QueryResultRow } from "pg";
 
@@ -16,7 +19,19 @@ export interface GatewayRuntimeConfig {
 export interface GatewayPollResult {
   readonly commands: readonly Command[];
   readonly stopControls: readonly StopControl[];
+  readonly updates: readonly UpdateControl[];
   readonly nextCursor: string | null;
+}
+
+export interface UpdateRolloutRecord extends UpdateRequest {
+  readonly status: UpdateStatus;
+  readonly gatewayId: string;
+  readonly workerIds: string[];
+  readonly failureCode?: string | null;
+  readonly failureMessage?: string | null;
+  readonly startedAt?: Date | string | null;
+  readonly completedAt?: Date | string | null;
+  readonly createdAt?: Date | string;
 }
 
 export interface GatewayIdentity {
@@ -41,6 +56,25 @@ interface CursorRow extends QueryResultRow {
   id: string;
   delivery_cursor: string;
   payload_json: Command | StopControl;
+}
+
+interface UpdateRow extends QueryResultRow {
+  update_id: string;
+  target: string;
+  target_type: "gateway" | "worker" | "fleet";
+  target_key: string;
+  gateway_key: string;
+  release_version: string;
+  manifest_url: string;
+  issued_at: Date;
+  expires_at: Date;
+  status: UpdateStatus;
+  failure_code: string | null;
+  failure_message: string | null;
+  started_at: Date | null;
+  completed_at: Date | null;
+  created_at: Date;
+  delivery_cursor: string;
 }
 
 interface IdRow extends QueryResultRow {
@@ -73,6 +107,32 @@ function commandStatusForEvent(type: Event["type"]): string | undefined {
     default:
       return undefined;
   }
+}
+
+function updateStatusForEvent(type: Event["type"]): UpdateStatus | undefined {
+  switch (type) {
+    case "worker.update.started":
+    case "gateway.update.started":
+      return "RUNNING";
+    case "worker.update.staged":
+    case "gateway.update.staged":
+      return "CANARY";
+    case "worker.update.activated":
+    case "gateway.update.activated":
+      return "SUCCEEDED";
+    case "worker.update.failed":
+    case "gateway.update.failed":
+      return "FAILED";
+    case "worker.update.rolled_back":
+    case "gateway.update.rolled_back":
+      return "ROLLED_BACK";
+    default:
+      return undefined;
+  }
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error && error.code === "23505";
 }
 
 export class GatewayRuntimeRepository {
@@ -190,7 +250,7 @@ export class GatewayRuntimeRepository {
     }
 
     const afterId = after === null ? 0 : this.parseCursor(after);
-    const [commands, stopControls] = await Promise.all([
+    const [commands, stopControls, updates] = await Promise.all([
       this.pool.query<CursorRow>(
         `
           SELECT id, delivery_cursor, payload_json
@@ -218,11 +278,28 @@ export class GatewayRuntimeRepository {
         `,
         [afterId, gateway.id],
       ),
+      this.pool.query<UpdateRow>(
+        `
+          SELECT update_id, target, target_type, target_key, gateway_key,
+                 release_version, manifest_url, issued_at, expires_at, status,
+                 failure_code, failure_message, started_at, completed_at,
+                 created_at, delivery_cursor
+          FROM update_rollouts
+          WHERE delivery_cursor > $1
+            AND gateway_key = $2
+            AND status IN ('QUEUED', 'RUNNING', 'CANARY')
+            AND expires_at > NOW()
+          ORDER BY delivery_cursor
+          LIMIT 32
+        `,
+        [afterId, gateway.gateway_key],
+      ),
     ]);
 
     const commandRows = commands.rows;
     const stopRows = stopControls.rows;
-    const maxId = [...commandRows, ...stopRows]
+    const updateRows = updates.rows;
+    const maxId = [...commandRows, ...stopRows, ...updateRows]
       .map((row) => BigInt(row.delivery_cursor))
       .reduce((maximum, value) => (value > maximum ? value : maximum), BigInt(afterId));
 
@@ -248,8 +325,139 @@ export class GatewayRuntimeRepository {
     return {
       commands: commandRows.map((row) => parseJson<Command>(row.payload_json)),
       stopControls: stopRows.map((row) => parseJson<StopControl>(row.payload_json)),
+      updates: updateRows.map((row) => this.toUpdateControl(row)),
       nextCursor: maxId === BigInt(afterId) ? null : maxId.toString(),
     };
+  }
+
+  public async enqueueUpdate(request: UpdateRequest): Promise<UpdateRolloutRecord> {
+    const separator = request.target.indexOf(":");
+    const targetType = request.target.slice(0, separator) as "gateway" | "worker" | "fleet";
+    const targetKey = request.target.slice(separator + 1);
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const existing = await client.query<UpdateRow>(
+        `SELECT update_id, target, target_type, target_key, gateway_key,
+                release_version, manifest_url, issued_at, expires_at, status,
+                failure_code, failure_message, started_at, completed_at,
+                created_at, delivery_cursor
+         FROM update_rollouts WHERE update_id = $1`,
+        [request.updateId],
+      );
+      if (existing.rows[0]) {
+        const row = existing.rows[0];
+        if (
+          row.target !== request.target ||
+          row.release_version !== request.releaseVersion ||
+          row.manifest_url !== request.manifestUrl
+        ) {
+          throw new RepositoryError(
+            "UPDATE_ID_REUSE",
+            "update id is already associated with different rollout data",
+            409,
+          );
+        }
+        await client.query("COMMIT");
+        return this.toUpdateRecord(row);
+      }
+
+      const gatewayResult = await client.query<{ gateway_key: string }>(
+        targetType === "worker"
+          ? `
+              SELECT g.gateway_key
+              FROM workers w JOIN gateways g ON g.id = w.gateway_id
+              WHERE w.worker_key = $1
+            `
+          : `SELECT gateway_key FROM gateways WHERE gateway_key = $1`,
+        [targetKey],
+      );
+      const gatewayKey = gatewayResult.rows[0]?.gateway_key;
+      if (!gatewayKey) {
+        throw new RepositoryError(
+          targetType === "worker" ? "UNKNOWN_WORKER" : "UNKNOWN_GATEWAY",
+          `${targetType} target was not found`,
+          404,
+        );
+      }
+
+      const inserted = await client.query<UpdateRow>(
+        `
+          INSERT INTO update_rollouts (
+            update_id, target, target_type, target_key, gateway_key,
+            release_version, manifest_url, issued_at, expires_at
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          RETURNING update_id, target, target_type, target_key, gateway_key,
+                    release_version, manifest_url, issued_at, expires_at, status,
+                    failure_code, failure_message, started_at, completed_at,
+                    created_at, delivery_cursor
+        `,
+        [
+          request.updateId,
+          request.target,
+          targetType,
+          targetKey,
+          gatewayKey,
+          request.releaseVersion,
+          request.manifestUrl,
+          new Date(request.issuedAt),
+          new Date(request.expiresAt),
+        ],
+      );
+      const row = inserted.rows[0];
+      if (!row) {
+        throw new RepositoryError("INTERNAL_ERROR", "update rollout insert returned no row", 500);
+      }
+      await client.query(
+        `INSERT INTO update_events (update_id, status, message, details_json) VALUES ($1, $2, $3, $4)`,
+        [request.updateId, row.status, "rollout queued", asJson({ target: request.target })],
+      );
+      await client.query("COMMIT");
+      return this.toUpdateRecord(row);
+    } catch (error) {
+      await client.query("ROLLBACK");
+      if (isUniqueViolation(error)) {
+        throw new RepositoryError(
+          "UPDATE_OVERLAP",
+          "another active update already targets this gateway",
+          409,
+        );
+      }
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  public async listUpdates(): Promise<readonly UpdateRolloutRecord[]> {
+    const result = await this.pool.query<UpdateRow>(
+      `
+        SELECT update_id, target, target_type, target_key, gateway_key,
+               release_version, manifest_url, issued_at, expires_at, status,
+               failure_code, failure_message, started_at, completed_at,
+               created_at, delivery_cursor
+        FROM update_rollouts
+        ORDER BY created_at DESC, update_id DESC
+      `,
+    );
+    return result.rows.map((row) => this.toUpdateRecord(row));
+  }
+
+  public async getUpdate(updateId: string): Promise<UpdateRolloutRecord | undefined> {
+    const result = await this.pool.query<UpdateRow>(
+      `
+        SELECT update_id, target, target_type, target_key, gateway_key,
+               release_version, manifest_url, issued_at, expires_at, status,
+               failure_code, failure_message, started_at, completed_at,
+               created_at, delivery_cursor
+        FROM update_rollouts
+        WHERE update_id = $1
+      `,
+      [updateId],
+    );
+    const row = result.rows[0];
+    return row ? this.toUpdateRecord(row) : undefined;
   }
 
   public async ingestEvents(batch: EventBatch): Promise<string[]> {
@@ -306,6 +514,30 @@ export class GatewayRuntimeRepository {
     } finally {
       client.release();
     }
+  }
+
+  private toUpdateRecord(row: UpdateRow): UpdateRolloutRecord {
+    return {
+      protocolVersion: 1,
+      updateId: row.update_id,
+      target: row.target,
+      releaseVersion: row.release_version,
+      manifestUrl: row.manifest_url,
+      issuedAt: new Date(row.issued_at).toISOString(),
+      expiresAt: new Date(row.expires_at).toISOString(),
+      status: row.status,
+      gatewayId: row.gateway_key,
+      workerIds: row.target_type === "worker" ? [row.target_key] : [],
+      failureCode: row.failure_code,
+      failureMessage: row.failure_message,
+      startedAt: row.started_at,
+      completedAt: row.completed_at,
+      createdAt: row.created_at,
+    };
+  }
+
+  private toUpdateControl(row: UpdateRow): UpdateControl {
+    return this.toUpdateRecord(row);
   }
 
   public async enqueueCommand(command: Command): Promise<void> {
@@ -675,6 +907,44 @@ export class GatewayRuntimeRepository {
           WHERE command_id = $1
         `,
         [event.commandId, commandStatus],
+      );
+    }
+
+    const updateStatus = updateStatusForEvent(event.type);
+    if (updateStatus) {
+      const payload = event.payload as {
+        readonly updateId: string;
+        readonly message?: string;
+      };
+      await client.query(
+        `
+          UPDATE update_rollouts
+          SET status = $2,
+              failure_code = CASE WHEN $2 IN ('FAILED', 'ROLLED_BACK') THEN $3 ELSE failure_code END,
+              failure_message = CASE WHEN $2 IN ('FAILED', 'ROLLED_BACK') THEN $4 ELSE failure_message END,
+              started_at = CASE WHEN $2 IN ('RUNNING', 'CANARY') THEN COALESCE(started_at, NOW()) ELSE started_at END,
+              completed_at = CASE WHEN $2 IN ('SUCCEEDED', 'FAILED', 'ROLLED_BACK', 'CANCELLED') THEN NOW() ELSE completed_at END
+          WHERE update_id = $1
+        `,
+        [
+          payload.updateId,
+          updateStatus,
+          updateStatus === "ROLLED_BACK"
+            ? "ROLLBACK"
+            : updateStatus === "FAILED"
+              ? "UPDATE_FAILED"
+              : null,
+          payload.message ?? null,
+        ],
+      );
+      await client.query(
+        `INSERT INTO update_events (update_id, status, message, details_json) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING`,
+        [
+          payload.updateId,
+          updateStatus,
+          payload.message ?? null,
+          asJson({ eventId: event.eventId }),
+        ],
       );
     }
   }

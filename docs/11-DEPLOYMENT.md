@@ -200,6 +200,26 @@ release notes
 
 The Minecraft friend should not need to compile Java/TypeScript.
 
+Tagged releases are the source for gateway-managed updates. Run `npm run check`, then
+`npm run release:lua -- v0.2.0` to inspect the generated archive and `release-manifest.json`.
+Pushing a tag matching `v*.*.*` runs the release workflow and publishes both assets. The manifest
+contains only managed runtime files and never contains populated configuration, secrets, state,
+or outbox files.
+
+After the initial manual installation of the stable bootstrap files, an operator can queue an
+update from the VPS:
+
+```text
+npm run cli -- update --target worker:alice --version v0.2.0
+npm run cli -- update --target fleet:gateway-main --version v0.2.0
+npm run cli -- update-status <update-id>
+```
+
+The gateway receives the work on its normal authenticated poll, downloads the immutable release
+manifest/files over HTTPS, and transfers turtle files over Rednet. Configuration and persistent
+state remain local. A turtle must be idle before activation; failures halt the rollout and the
+stable bootstrap attempts rollback. See [21-UPDATEABILITY.md](21-UPDATEABILITY.md).
+
 ## 11. Live-world rollout
 
 Recommended enablement sequence:

@@ -32,6 +32,16 @@ local function identifier(value)
   return non_empty(value) and string.len(value) <= 128 and string.match(value, "^[A-Za-z0-9][A-Za-z0-9._:-]*$") ~= nil
 end
 
+local function release_version(value)
+  return non_empty(value) and string.match(value, "^v[0-9]+%.[0-9]+%.[0-9]+[-0-9A-Za-z%.]*$") ~= nil
+end
+
+function M.is_update_path(value)
+  local prefix = "computercraft/turtle/"
+  return non_empty(value) and string.len(value) <= 256 and string.sub(value, 1, string.len(prefix)) == prefix
+    and string.find(value, "..", 1, true) == nil
+end
+
 local function only_keys(value, allowed)
   for key, _ in pairs(value) do
     if not allowed[key] then
@@ -149,6 +159,26 @@ function M.validate_stop(message)
   end
   if message.type ~= "worker.stop" or not identifier(message.gatewayBootId) then
     return fail("invalid worker.stop envelope")
+  end
+  return true
+end
+
+function M.validate_update_message(message)
+  if type(message) ~= "table" or message.protocolVersion ~= M.VERSION then return fail("invalid update message version") end
+  if message.type ~= "worker.update.prepare" and message.type ~= "worker.update.file.begin"
+    and message.type ~= "worker.update.file.chunk" and message.type ~= "worker.update.file.end"
+    and message.type ~= "worker.update.activate" and message.type ~= "worker.update.abort" then
+    return fail("unknown update message type")
+  end
+  for _, key in ipairs({ "gatewayBootId", "updateId", "releaseVersion", "workerId" }) do
+    if not identifier(message[key]) then return fail("update." .. key .. " is invalid") end
+  end
+  if not release_version(message.releaseVersion) then return fail("update.releaseVersion is invalid") end
+  if message.path ~= nil and not M.is_update_path(message.path) then return fail("update.path is invalid") end
+  if message.type == "worker.update.file.chunk" then
+    if not integer(message.chunkNumber) or message.chunkNumber < 0 then return fail("chunkNumber is invalid") end
+    if not integer(message.totalChunks) or message.totalChunks < 1 then return fail("totalChunks is invalid") end
+    if type(message.content) ~= "string" then return fail("chunk content is invalid") end
   end
   return true
 end

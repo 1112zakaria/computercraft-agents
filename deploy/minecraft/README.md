@@ -42,6 +42,22 @@ the legacy CraftOS loader resolves modules from the current filesystem.
 The gateway and turtle programs must be configured locally and must not receive secrets through
 Git.
 
+## Gateway-managed updates
+
+Keep the stable `startup.lua`, `update_bootstrap.lua`, and `update_manager.lua` files installed on
+each gateway/turtle. After that bootstrap, the VPS operator can queue a tagged release without
+manual copy/paste:
+
+```text
+npm run cli -- update --target worker:alice --version v0.2.0
+npm run cli -- update --target gateway:gateway-main --version v0.2.0
+```
+
+The gateway downloads `release-manifest.json` over HTTPS and transfers only managed runtime Lua
+files over Rednet. `gateway.conf`, `worker.conf`, state, command caches, logs, and outbox files
+are preserved. The turtle must be idle; activation uses a rollback journal and the stable
+bootstrap. Inspect progress with `npm run cli -- update-status <update-id>`.
+
 The gateway computer must have ComputerCraft HTTP enabled and allow the configured public VPS
 hostname over HTTPS. No WireGuard client or inbound Minecraft-host port is required: the gateway
 initiates every HTTPS request. Before enabling the VPS allowlist, verify the Minecraft host's

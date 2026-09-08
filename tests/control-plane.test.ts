@@ -9,12 +9,14 @@ import type {
   GatewayHeartbeat,
   GatewayRegistration,
   StopControl,
+  UpdateRequest,
 } from "@computercraft-agents/protocol";
 
 import {
   GatewayService,
   type GatewayServiceStore,
 } from "../apps/control-plane/src/gateway-service";
+import type { GatewayPollResult, UpdateRolloutRecord } from "@computercraft-agents/database";
 import { createControlPlaneServer } from "../apps/control-plane/src/http";
 
 const gatewayId = "gateway-test";
@@ -40,6 +42,7 @@ class FakeGatewayStore implements GatewayServiceStore {
   public readonly eventBatches: EventBatch[] = [];
   public readonly commands: Command[] = [];
   public readonly stopControls: StopControl[] = [];
+  public readonly updates: UpdateRolloutRecord[] = [];
 
   public async register(payload: GatewayRegistration): Promise<void> {
     this.registrations.push(payload);
@@ -49,11 +52,7 @@ class FakeGatewayStore implements GatewayServiceStore {
     this.heartbeats.push(payload);
   }
 
-  public async poll(): Promise<{
-    commands: readonly Command[];
-    stopControls: readonly StopControl[];
-    nextCursor: string;
-  }> {
+  public async poll(): Promise<GatewayPollResult> {
     return {
       commands: [command()],
       stopControls: [
@@ -65,6 +64,7 @@ class FakeGatewayStore implements GatewayServiceStore {
           workerId: "worker-test",
         },
       ],
+      updates: [],
       nextCursor: "1",
     };
   }
@@ -80,6 +80,27 @@ class FakeGatewayStore implements GatewayServiceStore {
 
   public async enqueueStopControl(payload: StopControl): Promise<void> {
     this.stopControls.push(payload);
+  }
+
+  public async enqueueUpdate(payload: UpdateRequest): Promise<UpdateRolloutRecord> {
+    const record: UpdateRolloutRecord = {
+      ...payload,
+      status: "QUEUED",
+      gatewayId,
+      workerIds: payload.target.startsWith("worker:")
+        ? [payload.target.slice("worker:".length)]
+        : [],
+    };
+    this.updates.push(record);
+    return record;
+  }
+
+  public async listUpdates(): Promise<readonly UpdateRolloutRecord[]> {
+    return this.updates;
+  }
+
+  public async getUpdate(updateId: string): Promise<UpdateRolloutRecord | undefined> {
+    return this.updates.find((update) => update.updateId === updateId);
   }
 
   public async listWorkers(): Promise<readonly Record<string, unknown>[]> {
@@ -170,9 +191,14 @@ test("control-plane gateway API returns commands/stops and acknowledges events",
       headers: gatewayHeaders(),
     });
     assert.equal(poll.status, 200);
-    const pollBody = (await poll.json()) as { commands: Command[]; stopControls: StopControl[] };
+    const pollBody = (await poll.json()) as {
+      commands: Command[];
+      stopControls: StopControl[];
+      updates: unknown[];
+    };
     assert.equal(pollBody.commands[0]?.commandId, "command-test");
     assert.equal(pollBody.stopControls[0]?.type, "worker.stop");
+    assert.deepEqual(pollBody.updates, []);
 
     const events = await fetch(`${server.baseUrl}/v1/gateway/events`, {
       method: "POST",
@@ -246,6 +272,32 @@ test("operator API supports inspection and deterministic command/stop enqueueing
     });
     assert.equal(stop.status, 200);
     assert.equal(store.stopControls[0]?.controlId, "stop-admin-test");
+
+    const update = await fetch(`${server.baseUrl}/v1/updates`, {
+      method: "POST",
+      headers: adminHeaders(),
+      body: JSON.stringify({
+        protocolVersion: 1,
+        updateId: "update-admin-test",
+        target: "worker:worker-test",
+        releaseVersion: "v0.2.0",
+        manifestUrl:
+          "https://github.com/1112zakaria/computercraft-agents/releases/download/v0.2.0/release-manifest.json",
+        issuedAt: "2026-09-08T12:00:00.000Z",
+        expiresAt: "2026-09-08T12:30:00.000Z",
+      }),
+    });
+    assert.equal(update.status, 202);
+    assert.equal((await update.json()).updateId, "update-admin-test");
+
+    const updateList = await fetch(`${server.baseUrl}/v1/updates`, { headers: adminHeaders() });
+    assert.equal(updateList.status, 200);
+    assert.equal((await updateList.json()).updates[0].status, "QUEUED");
+
+    const updateStatus = await fetch(`${server.baseUrl}/v1/updates/update-admin-test`, {
+      headers: adminHeaders(),
+    });
+    assert.equal(updateStatus.status, 200);
   } finally {
     await server.close();
   }
