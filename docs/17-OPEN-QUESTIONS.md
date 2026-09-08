@@ -48,8 +48,10 @@ print(response and response.getResponseCode() or "request failed")
 if response then response.close() end
 ```
 
-The expected result is `204`. This uses the same headers as the gateway runtime and confirms the
-bearer secret without mutating gateway state.
+Observed result on 2026-09-08: the ComputerCraft HTTP API returned a response table and
+`response.getResponseCode()` returned `204`. This used the same headers as the gateway runtime and
+confirmed the bearer secret without mutating gateway state. The secret value was not printed or
+committed.
 
 ## OQ-003 — Wireless modem/rednet range and loaded chunks
 
