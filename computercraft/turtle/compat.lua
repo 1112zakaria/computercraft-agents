@@ -1,7 +1,8 @@
 -- Legacy ComputerCraft has JSON encoding, but no JSON decoder or UTC clock.
 -- Decode data only (never loadstring). UTC is anchored to authenticated VPS responses.
 local M = {}
-local anchor, tick
+-- `textutils` is supplied by CraftOS and shared by the isolated environments used by loadfile.
+-- Store the synchronization anchor there so startup.lua and direct_http_client.lua agree on UTC.
 local function leap(y) return y % 4 == 0 and (y % 100 ~= 0 or y % 400 == 0) end
 local function months(y) return {31, leap(y) and 29 or 28,31,30,31,30,31,31,30,31,30,31} end
 function M.parse_time(s)
@@ -18,10 +19,13 @@ end
 function M.sync(s)
   local value = M.parse_time(s)
   if not value then return false end
-  anchor, tick = value, os.clock()
+  textutils._agents_utc_anchor, textutils._agents_utc_tick = value, os.clock()
   return true
 end
-function M.now() return anchor and anchor + os.clock() - tick or nil end
+function M.now()
+  local anchor, tick = textutils._agents_utc_anchor, textutils._agents_utc_tick
+  return anchor and tick and anchor + os.clock() - tick or nil
+end
 function M.iso()
   local value = assert(M.now(), "UTC clock has not synchronized with VPS")
   local days = math.floor(value / 86400)

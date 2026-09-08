@@ -16,6 +16,7 @@ assert(not compat.now())
 assert(not compat.sync("bad"))
 assert(compat.sync("2026-09-08T23:59:59.123Z"))
 assert(os.date("!%Y-%m-%dT%H:%M:%SZ")=="2026-09-08T23:59:59Z")
+assert(assert(loadfile("computercraft/turtle/compat.lua"))().now(), "clock must span isolated modules")
 ticks=2
 assert(compat.iso()=="2026-09-09T00:00:01Z")
 assert(not compat.parse_time("2026-02-29T00:00:00Z"))
