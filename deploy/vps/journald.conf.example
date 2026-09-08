@@ -1,0 +1,6 @@
+# Install as /etc/systemd/journald.conf.d/computercraft-agents.conf.
+# The control-plane service emits structured, secret-free lifecycle/error messages to journald.
+[Journal]
+SystemMaxUse=1G
+MaxRetentionSec=30day
+ForwardToSyslog=no
