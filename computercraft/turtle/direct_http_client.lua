@@ -1,7 +1,8 @@
 -- Direct HTTPS worker transport. This client intentionally mirrors the small interface exposed
 -- by rednet_client.lua so the deterministic turtle executor is transport-independent.
 local M = {}
-local compat = require("compat")
+-- CraftOS gives programs separate environments, so do not rely on startup.lua's loader here.
+local compat = assert(loadfile("compat.lua"))()
 
 local function now_iso()
   return os.date("!%Y-%m-%dT%H:%M:%SZ")

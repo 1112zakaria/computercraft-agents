@@ -1,4 +1,5 @@
 local M = {}
+local compat = assert(loadfile("compat.lua"))()
 
 M.VERSION = 1
 
@@ -184,10 +185,9 @@ function M.validate_update_message(message)
 end
 
 function M.is_expired(timestamp)
-  local clock = require("compat")
-  if clock.now() then
-    local expiry = clock.parse_time(timestamp)
-    return not expiry or expiry <= clock.now()
+  if compat.now() then
+    local expiry = compat.parse_time(timestamp)
+    return not expiry or expiry <= compat.now()
   end
   if type(timestamp) ~= "string" then
     return true
