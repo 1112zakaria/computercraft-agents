@@ -3,6 +3,16 @@
 # Caddy obtains a publicly trusted certificate for this sslip.io hostname through HTTP-01 on port 80.
 
 https://192-99-69-46.sslip.io:8443 {
+  @connectivityProbe {
+    remote_ip 51.161.113.44
+    method GET
+    path /v1/gateway/connectivity
+  }
+
+  handle @connectivityProbe {
+    respond "" 204
+  }
+
   @allowlistedGateway {
     remote_ip 51.161.113.44
     path /v1/gateway/*

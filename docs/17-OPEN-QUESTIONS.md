@@ -16,6 +16,19 @@ Acceptance:
 ```text
 Gateway Computer → HTTPS request → `https://192-99-69-46.sslip.io:8443` → successful response
 VPS ingress log → source address `51.161.113.44` → request admitted
+
+Friend-side canary:
+
+```lua
+local response, error_message = http.get(
+  "https://192-99-69-46.sslip.io:8443/v1/gateway/connectivity"
+)
+print(response and response.getResponseCode() or error_message)
+if response then response.close() end
+```
+
+The expected result is `204`. A timeout means the request did not originate from the allowlisted
+address or cannot reach the VPS; any other response is diagnostic evidence to retain.
 ```
 
 ## OQ-003 — Wireless modem/rednet range and loaded chunks

@@ -89,6 +89,10 @@ Operator and health interfaces remain local/VPS-only. The current deployment use
 requires persistent `DOCKER-USER` firewall rules; see `deploy/vps/Caddyfile.example` and
 `deploy/vps/computercraft-agents-docker-firewall.service.example`.
 
+The allowlisted `GET /v1/gateway/connectivity` probe returns HTTP 204 without gateway credentials.
+It exists solely to verify the friend's host egress address before the gateway secret is installed;
+all other gateway routes retain bearer authentication.
+
 ## 5. ComputerCraft HTTPS
 
 Friend-side setup SHALL verify that the installed ComputerCraft 1.75 HTTP configuration permits
