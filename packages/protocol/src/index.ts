@@ -3,6 +3,8 @@ import { z } from "zod";
 export const protocolVersion = 1 as const;
 
 export const ProtocolVersionSchema = z.literal(protocolVersion);
+export const WorkerTransportSchema = z.enum(["gateway-rednet", "direct-http"]);
+export type WorkerTransport = z.infer<typeof WorkerTransportSchema>;
 export const IdentifierSchema = z
   .string()
   .min(1)
@@ -111,6 +113,59 @@ export const WorkerHeartbeatSchema = z
 
 export type WorkerRegistration = z.infer<typeof WorkerRegistrationSchema>;
 export type WorkerHeartbeat = z.infer<typeof WorkerHeartbeatSchema>;
+
+export const DirectWorkerRegistrationSchema = z
+  .object({
+    protocolVersion: ProtocolVersionSchema,
+    workerId: IdentifierSchema,
+    workerBootId: IdentifierSchema,
+    minecraftServerId: IdentifierSchema,
+    computerId: NonNegativeIntegerSchema,
+    runtimeVersion: z.string().min(1).max(64),
+    capabilities: CapabilitiesSchema,
+  })
+  .strict();
+
+export type DirectWorkerRegistration = z.infer<typeof DirectWorkerRegistrationSchema>;
+
+export const DirectWorkerProvisionSchema = z
+  .object({
+    protocolVersion: ProtocolVersionSchema,
+    transport: z.literal("direct-http"),
+    workerId: IdentifierSchema,
+    minecraftServerId: IdentifierSchema,
+    computerId: NonNegativeIntegerSchema,
+    runtimeVersion: z.string().min(1).max(64),
+    capabilities: CapabilitiesSchema,
+  })
+  .strict();
+
+export type DirectWorkerProvision = z.infer<typeof DirectWorkerProvisionSchema>;
+
+export const DirectWorkerHeartbeatSchema = z
+  .object({
+    protocolVersion: ProtocolVersionSchema,
+    minecraftServerId: IdentifierSchema,
+    ...WorkerHeartbeatSchema.shape,
+  })
+  .strict();
+
+export type DirectWorkerHeartbeat = z.infer<typeof DirectWorkerHeartbeatSchema>;
+
+export const DirectWorkerRegistrationResponseSchema = z
+  .object({
+    protocolVersion: ProtocolVersionSchema,
+    accepted: z.literal(true),
+    workerId: IdentifierSchema,
+    workerBootId: IdentifierSchema,
+    serverTime: TimestampSchema,
+    pollIntervalSeconds: PositiveIntegerSchema,
+  })
+  .strict();
+
+export type DirectWorkerRegistrationResponse = z.infer<
+  typeof DirectWorkerRegistrationResponseSchema
+>;
 
 export const GatewayRegistrationSchema = z
   .object({
@@ -403,11 +458,24 @@ export const UpdateControlSchema = z
     status: UpdateStatusSchema.default("QUEUED"),
     gatewayId: IdentifierSchema,
     workerIds: z.array(IdentifierSchema).max(64).default([]),
+    transport: z.literal("gateway-rednet").default("gateway-rednet"),
   })
   .strict()
   .superRefine(updateExpiryRefinement);
 
 export type UpdateControl = z.infer<typeof UpdateControlSchema>;
+
+export const DirectUpdateControlSchema = z
+  .object({
+    ...UpdateRequestShape,
+    status: UpdateStatusSchema.default("QUEUED"),
+    workerId: IdentifierSchema,
+    transport: z.literal("direct-http"),
+  })
+  .strict()
+  .superRefine(updateExpiryRefinement);
+
+export type DirectUpdateControl = z.infer<typeof DirectUpdateControlSchema>;
 
 const UpdateEventPayloadSchema = z
   .object({
@@ -527,6 +595,19 @@ export const CommandPollResponseSchema = z
 
 export type CommandPollResponse = z.infer<typeof CommandPollResponseSchema>;
 
+export const DirectWorkerPollResponseSchema = z
+  .object({
+    protocolVersion: ProtocolVersionSchema,
+    serverTime: TimestampSchema,
+    commands: z.array(CommandSchema).max(128),
+    nextCursor: IdentifierSchema.nullable(),
+    stopControls: z.array(StopControlSchema).max(128).default([]),
+    updates: z.array(DirectUpdateControlSchema).max(32).default([]),
+  })
+  .strict();
+
+export type DirectWorkerPollResponse = z.infer<typeof DirectWorkerPollResponseSchema>;
+
 export const ProtocolErrorCodeSchema = z.enum([
   "INVALID_PAYLOAD",
   "UNSUPPORTED_PROTOCOL_VERSION",
@@ -565,7 +646,7 @@ export type ErrorResponse = z.infer<typeof ErrorResponseSchema>;
 const EventBaseShape = {
   protocolVersion: ProtocolVersionSchema,
   eventId: IdentifierSchema,
-  gatewayId: IdentifierSchema,
+  gatewayId: IdentifierSchema.nullable().optional(),
   workerId: IdentifierSchema.nullable().optional(),
   commandId: IdentifierSchema.nullable().optional(),
   sequence: NonNegativeIntegerSchema,
@@ -779,7 +860,18 @@ export const EventBatchSchema = z
     batchId: IdentifierSchema,
     events: z.array(EventSchema).min(1).max(256),
   })
-  .strict();
+  .strict()
+  .superRefine((batch, context) => {
+    for (const [index, eventValue] of batch.events.entries()) {
+      if (eventValue.gatewayId !== batch.gatewayId) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["events", index, "gatewayId"],
+          message: "event gateway identity does not match batch",
+        });
+      }
+    }
+  });
 
 export const EventAckSchema = z
   .object({
@@ -791,7 +883,41 @@ export const EventAckSchema = z
   .strict();
 
 export type EventBatch = z.infer<typeof EventBatchSchema>;
+
+export const DirectWorkerEventBatchSchema = z
+  .object({
+    protocolVersion: ProtocolVersionSchema,
+    workerId: IdentifierSchema,
+    workerBootId: IdentifierSchema,
+    batchId: IdentifierSchema,
+    events: z.array(EventSchema).min(1).max(256),
+  })
+  .strict()
+  .superRefine((batch, context) => {
+    for (const [index, eventValue] of batch.events.entries()) {
+      if (eventValue.workerId !== batch.workerId || eventValue.gatewayId) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["events", index],
+          message: "direct worker event identity does not match batch",
+        });
+      }
+    }
+  });
+
+export type DirectWorkerEventBatch = z.infer<typeof DirectWorkerEventBatchSchema>;
 export type EventAck = z.infer<typeof EventAckSchema>;
+
+export const DirectWorkerEventAckSchema = z
+  .object({
+    protocolVersion: ProtocolVersionSchema,
+    workerId: IdentifierSchema,
+    workerBootId: IdentifierSchema,
+    acceptedEventIds: z.array(IdentifierSchema).max(256),
+  })
+  .strict();
+
+export type DirectWorkerEventAck = z.infer<typeof DirectWorkerEventAckSchema>;
 
 export function parseProtocolPayload<T>(schema: z.ZodType<T>, input: unknown): T {
   return schema.parse(input);

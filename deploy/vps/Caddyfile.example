@@ -27,5 +27,14 @@ https://192.99.69.46.sslip.io:8443 {
     reverse_proxy 172.18.0.1:8787
   }
 
+  @allowlistedWorker {
+    remote_ip 51.161.113.44
+    path /v1/worker/*
+  }
+
+  handle @allowlistedWorker {
+    reverse_proxy 172.18.0.1:8787
+  }
+
   respond "forbidden" 403
 }

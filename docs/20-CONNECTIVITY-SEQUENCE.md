@@ -1,7 +1,8 @@
 # Public HTTPS Connectivity Sequence
 
-The gateway, not the VPS, initiates every HTTP connection. The VPS sends commands in responses
-to the gateway's poll; the turtle communicates only with the local gateway over Rednet.
+The ComputerCraft client, not the VPS, initiates every HTTP connection. Gateway-backed turtles
+communicate with their local gateway over Rednet; direct turtles communicate with the VPS over
+the dedicated worker API.
 
 Current gateway URL: `https://192.99.69.46.sslip.io:8443`.
 
@@ -62,6 +63,47 @@ sequenceDiagram
     Note over V,G: The VPS never initiates an unsolicited HTTP request to ComputerCraft.
 ```
 
+## Direct turtle transport
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant O as Operator CLI
+    participant V as VPS Control Plane
+    participant I as VPS HTTPS Ingress<br/>(firewall + Caddy)
+    participant T as Direct Turtle
+
+    Note over I,T: HTTPS ingress accepts only source 51.161.113.44/32.<br/>Worker ID and shared bearer secret are also required.
+
+    T->>I: POST /v1/worker/register (HTTPS)
+    I->>I: Verify source IP, TLS, bearer, worker header
+    I->>V: Forward authenticated worker request
+    V-->>I: Registration response
+    I-->>T: HTTPS response
+
+    loop Fixed bounded polling
+        T->>I: POST heartbeat / GET commands?after=cursor
+        I->>V: Forward authenticated worker request
+        V-->>I: commands, stopControls, updates, nextCursor
+        I-->>T: HTTPS response
+        T->>T: Execute one bounded command or stage update
+        T->>I: POST /v1/worker/events (durable outbox)
+        I->>V: Deduplicate event IDs and persist observations
+        V-->>T: acceptedEventIds
+    end
+
+    O->>V: update --target worker:alice --version v0.4.0
+    V->>V: Persist direct rollout and reject overlap
+    T->>I: GET /v1/worker/commands?after=cursor
+    V-->>T: Direct update control with immutable GitHub manifest URL
+    T->>T: Download manifest/files from GitHub
+    T->>T: Stop, stage, preserve config/state, activate, reboot
+    T->>I: POST /v1/worker/events (activated or rolled_back)
+    V-->>O: update-status reports result
+
+    Note over V,T: The VPS never opens an inbound connection to the turtle.<br/>No gateway computer or modem is required.
+```
+
 ## Boundary summary
 
 - The public boundary is HTTPS port 8443 on the VPS proxy, not the Node.js control-plane port.
@@ -69,4 +111,6 @@ sequenceDiagram
 - The firewall and proxy restrict the public endpoint to `51.161.113.44/32`.
 - HTTPS protects the gateway bearer secret in transit; the bearer secret authenticates the
   gateway after network admission.
-- The turtle does not access the internet or VPS directly.
+- A gateway-backed turtle does not access the internet or VPS directly; it uses local Rednet.
+- A direct turtle does access the same public HTTPS VPS endpoint directly and therefore needs the
+  ComputerCraft HTTP allowlist, but no modem.

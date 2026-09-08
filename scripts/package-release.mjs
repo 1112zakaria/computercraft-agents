@@ -43,8 +43,19 @@ const stableBootstrapFiles = new Set([
   "computercraft/turtle/update_bootstrap.lua",
   "computercraft/turtle/update_manager.lua",
 ]);
+const persistentRuntimeFiles = new Set([
+  "gateway.conf",
+  "worker.conf",
+  "gateway-outbox.json",
+  "worker-state.json",
+  "worker-command-cache.json",
+  "worker-poll-cursor.json",
+  "worker-event-outbox.json",
+  "worker-update-journal.json",
+]);
 const runtimeFiles = filesUnder(staging)
   .filter((path) => path.endsWith(".lua"))
+  .filter((path) => !persistentRuntimeFiles.has(path.split("/").pop()))
   .filter((path) => !stableBootstrapFiles.has(path))
   .sort();
 
@@ -64,6 +75,7 @@ const manifest = {
   archiveUrl: `https://github.com/${repository}/releases/download/${requestedVersion}/computercraft-lua.zip`,
   manifestUrl: `https://github.com/${repository}/releases/download/${requestedVersion}/release-manifest.json`,
   stableBootstrapFiles: [...stableBootstrapFiles].sort(),
+  excludedPersistentFiles: [...persistentRuntimeFiles].sort(),
   generatedBy: "npm run release:lua",
 };
 writeFileSync(

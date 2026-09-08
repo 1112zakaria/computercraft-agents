@@ -32,6 +32,10 @@ function M.new(config, state, inventory, fuel, protocol, logger)
     end
   end
 
+  function client:is_sender(sender_id)
+    return sender_id == self.config.gateway_rednet_id
+  end
+
   function client:send(message)
     local ok, sent = pcall(rednet.send, self.config.gateway_rednet_id, self.protocol.encode(message), self.config.rednet_protocol)
     if not ok or not sent then

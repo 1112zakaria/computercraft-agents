@@ -31,6 +31,53 @@ inbound connection to ComputerCraft.
 
 Exact URLs are implementation details; semantic behavior is normative.
 
+## 2a. VPS ↔ direct worker model
+
+Workers configured with `transport = "direct-http"` use the same outbound HTTPS ingress without a
+gateway computer or modem:
+
+```text
+POST /v1/worker/register
+POST /v1/worker/heartbeat
+GET  /v1/worker/commands?after=<cursor>
+POST /v1/worker/events
+```
+
+Each request includes:
+
+```text
+Authorization: Bearer <GATEWAY_BEARER_SECRET>
+X-Agent-Worker-Id: alice
+```
+
+The worker ID in the header, authenticated request context, and JSON payload MUST agree. The
+shared gateway bearer secret is a v1 deployment trade-off; a turtle that possesses it could
+impersonate another worker. Per-worker credentials and rotation are future hardening.
+
+Registration includes `protocolVersion`, `workerId`, `workerBootId`, `minecraftServerId`,
+`computerId`, `runtimeVersion`, and `capabilities`. Heartbeats reuse the worker heartbeat shape
+and add `minecraftServerId`. The poll response is:
+
+```json
+{
+  "protocolVersion": 1,
+  "serverTime": "2026-09-08T12:00:00.000Z",
+  "commands": [],
+  "stopControls": [],
+  "updates": [],
+  "nextCursor": "123"
+}
+```
+
+The turtle persists `nextCursor` before processing newly delivered work. It uses bounded polling,
+not long-polling, and retries with backoff. Commands, urgent stop controls, and direct update
+controls use the same semantic envelopes as the gateway path. Direct updates are individual
+worker rollouts; `fleet:<gateway-id>` remains gateway-only.
+
+Direct event submission contains `workerId`, `workerBootId`, `batchId`, and a bounded list of
+events. Each event has the worker identity and no `gatewayId`. Event IDs are deduplicated by the
+control plane, so a durable turtle outbox can retry after an HTTP failure.
+
 ## 3. Gateway registration
 
 Example:
@@ -58,7 +105,7 @@ The HTTPS ingress SHALL admit only configured source CIDRs (initially `51.161.11
 terminate a publicly trusted TLS certificate. This network control does not identify a specific
 gateway or replace application-level authentication.
 
-Possible v1 mechanism:
+Possible v1 mechanism for gateway requests:
 
 ```text
 X-Agent-Gateway-Id
@@ -66,6 +113,8 @@ Authorization: Bearer <gateway secret>
 ```
 
 Secrets SHALL be distributed privately and never committed.
+
+Direct workers use the corresponding `X-Agent-Worker-Id` header with the same bearer secret.
 
 ## 5. Command envelope
 

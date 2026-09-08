@@ -56,8 +56,8 @@ TLS reverse proxy (Caddy or equivalent)
 ```
 
 The Node.js control plane SHOULD bind only to a non-public listener (loopback or a private
-container-network bridge). A TLS reverse proxy is the sole public gateway boundary and SHALL
-expose only `/v1/gateway/*` on its dedicated HTTPS port.
+container-network bridge). A TLS reverse proxy is the sole public boundary and SHALL expose only
+the authenticated `/v1/gateway/*` and `/v1/worker/*` routes on its dedicated HTTPS port.
 
 ## 4. Public gateway endpoint and source allowlist
 
@@ -70,7 +70,7 @@ The initial source allowlist is:
 Minecraft host public IPv4: 51.161.113.44/32
 ```
 
-The VPS firewall and reverse proxy SHALL both admit HTTPS gateway requests only from this CIDR.
+The VPS firewall and reverse proxy SHALL both admit HTTPS ComputerCraft requests only from this CIDR.
 This source restriction is defense in depth; the gateway ID plus bearer secret remain mandatory.
 The address MUST be verified from the friend's host before enablement and updated if the host's
 egress address changes. An IP allowlist identifies the host/network's public egress address, not
@@ -82,7 +82,8 @@ or another certificate-management method compatible with keeping the gateway rou
 HTTP-01 and TLS-ALPN validation normally require temporary public reachability; if used, restrict
 that exposure to certificate issuance and remove it before enabling the gateway route.
 
-The public proxy MUST forward only `/v1/gateway/*` to a non-public control-plane listener.
+The public proxy MUST forward only `/v1/gateway/*` and `/v1/worker/*` to a non-public control-plane
+listener. The same source allowlist and TLS certificate apply to both transports.
 Operator and health interfaces remain local/VPS-only. The current deployment uses
 `https://192.99.69.46.sslip.io:8443`, forwarding to a private Docker bridge at
 `172.18.0.1:8787`. Docker-published ports bypass ordinary UFW filtering, so this deployment also
@@ -132,7 +133,7 @@ Because direct filesystem paths for ComputerCraft worlds vary, the repo SHOULD i
 
 ## 7. Turtle installation
 
-Each turtle receives:
+Each gateway-backed turtle receives:
 
 ```text
 startup.lua
@@ -143,6 +144,45 @@ worker config:
 ```
 
 A bootstrap disk/program SHOULD eventually automate this for new turtles.
+
+### Direct HTTP turtle installation
+
+A direct worker does not need a modem, gateway computer, `gateway_rednet_id`, or
+`rednet_protocol`. Provision it from the operator CLI first:
+
+```bash
+npm run cli -- provision-worker \
+  --id alice \
+  --server friends-server \
+  --computer-id 21 \
+  --version v0.4.0
+```
+
+Copy the turtle runtime and stable bootstrap files from the release archive. Create `worker.conf`
+from the example with:
+
+```lua
+return {
+  worker_id = "alice",
+  minecraft_server_id = "friends-server",
+  transport = "direct-http",
+  vps_url = "https://192.99.69.46.sslip.io:8443",
+  vps_bearer_secret = "set-locally",
+  runtime_version = "v0.4.0",
+  poll_interval_seconds = 2,
+  heartbeat_interval_seconds = 10,
+}
+```
+
+The ComputerCraft HTTP allowlist must permit the VPS hostname over HTTPS. Run `startup`; the
+turtle registers, heartbeats, and polls `/v1/worker/commands`. Confirm it with:
+
+```bash
+npm run cli -- workers alice
+```
+
+The turtle's cursor and event outbox are local persistent files. Do not commit the populated
+configuration or secret.
 
 ## 8. Secrets
 

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import {
   DirectionSchema,
+  DirectWorkerProvisionSchema,
   ReleaseVersionSchema,
   UpdateRequestSchema,
   UpdateTargetSchema,
@@ -13,6 +14,7 @@ export function usage(): string {
   return [
     `${cliName} workers`,
     `${cliName} workers <worker-id>`,
+    `${cliName} provision-worker --id <worker-id> --server <server-id> --computer-id <number> --version <version>`,
     `${cliName} diagnose`,
     `${cliName} move <worker-id> <N|E|S|W|UP|DOWN>`,
     `${cliName} stop <worker-id|all>`,
@@ -72,6 +74,35 @@ function manifestUrl(version: string): string {
 
 export async function runCli(args: readonly string[]): Promise<void> {
   const [command, first, second] = args.map((argument) => argument.trim());
+  if (command === "provision-worker") {
+    const workerId = flag(args, "--id");
+    const minecraftServerId = flag(args, "--server");
+    const computerId = flag(args, "--computer-id");
+    const runtimeVersion = flag(args, "--version");
+    if (!workerId || !minecraftServerId || !computerId || !runtimeVersion) {
+      throw new Error(
+        `usage: ${cliName} provision-worker --id <worker-id> --server <server-id> --computer-id <number> --version <version>`,
+      );
+    }
+    const parsedComputerId = Number(computerId);
+    const provision = DirectWorkerProvisionSchema.parse({
+      protocolVersion: 1,
+      transport: "direct-http",
+      workerId,
+      minecraftServerId,
+      computerId: parsedComputerId,
+      runtimeVersion,
+      capabilities: [],
+    });
+    console.log(
+      JSON.stringify(
+        await request("/v1/workers/provision", { method: "POST", body: JSON.stringify(provision) }),
+        null,
+        2,
+      ),
+    );
+    return;
+  }
   if (command === "workers") {
     const path = first ? `/v1/workers/${encodeURIComponent(first)}` : "/v1/workers";
     console.log(JSON.stringify(await request(path), null, 2));

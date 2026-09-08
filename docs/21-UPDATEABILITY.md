@@ -1,9 +1,9 @@
 # Gateway-managed runtime updates
 
-This project treats remote runtime delivery as an OTA-style operation coordinated by the gateway.
-The gateway is the only ComputerCraft component that talks to the VPS. It polls for an update
-control, downloads a pinned GitHub release over HTTPS, and transfers only allowlisted turtle
-runtime files over Rednet.
+This project treats remote runtime delivery as an OTA-style operation coordinated by the control
+plane. A gateway-backed turtle receives a control through the gateway and Rednet; a direct turtle
+receives the same semantic control through `/v1/worker/commands` and downloads the release itself.
+Both paths update only allowlisted runtime files and preserve local configuration/state.
 
 ## Terminology
 
@@ -53,9 +53,9 @@ the manifest URL to the repository's GitHub release asset; `--manifest-url` or
 `UPDATE_MANIFEST_URL_TEMPLATE` can be used for a GitHub-hosted release asset.
 
 The control plane validates the target, immutable version, HTTPS manifest URL, and expiry; it
-persists the rollout and rejects overlapping active updates for the same gateway. Repeating the
-same `updateId` with the same rollout data is idempotent. Update status and failure information
-are visible through `GET /v1/updates` and `GET /v1/updates/:updateId`.
+persists the rollout and rejects overlapping active updates for the same gateway or direct worker.
+Repeating the same `updateId` with the same rollout data is idempotent. Update status and failure
+information are visible through `GET /v1/updates` and `GET /v1/updates/:updateId`.
 
 ## Worker rollout
 
@@ -75,6 +75,30 @@ For `fleet:<gateway-id>`, the gateway applies the release to its currently regis
 sequence. A failed worker halts the rollout and emits a failure event; a worker that has already
 activated can be rolled back by its bootstrap recovery path.
 
+## Direct worker rollout
+
+Direct workers are updated individually:
+
+```bash
+npm run cli -- update --target worker:alice --version v0.4.0
+```
+
+The control plane resolves `alice` as `transport: direct-http` and includes a direct update
+control in the turtle's next fixed-interval poll. The turtle then:
+
+1. downloads the immutable GitHub manifest and HTTPS runtime files directly;
+2. rejects unsafe paths, mismatched release versions, non-HTTPS URLs, and expired controls;
+3. stages files under the update-specific staging directory;
+4. emits `worker.update.started` and `worker.update.staged` through its durable event outbox;
+5. preserves `worker.conf`, state, command cache, cursor, outbox, logs, and update journal;
+6. activates through the stable bootstrap and reboots;
+7. registers/heartbeats with the new runtime version;
+8. restores the previous runtime and emits `worker.update.rolled_back` if startup recovery fails.
+
+The direct turtle is not a gateway proxy: it needs the ComputerCraft HTTP allowlist for the VPS
+and GitHub release URLs, but it needs no modem. Direct fleet rollouts and automatic direct/gateway
+fallback are deferred.
+
 ## Gateway self-update
 
 Gateway updates use the same manifest and release source. The gateway stages only
@@ -87,8 +111,9 @@ the previous runtime.
 
 - No update may write a configuration, secret, state, cache, log, or outbox path.
 - No branch URL is accepted as a release source.
-- The gateway remains the initiator of every VPS HTTP request; the VPS never opens a connection
-  to ComputerCraft.
+- The gateway or direct turtle remains the initiator of every VPS HTTP request; the VPS never
+  opens a connection to ComputerCraft.
 - Update transfer is bounded by file and chunk limits and has acknowledgement deadlines.
 - Update requests, state transitions, and failure/rollback events are persisted for audit.
-- Live enablement still requires the gateway and turtle modems and a small canary first.
+- Live gateway-rednet enablement requires gateway/turtle modems; live direct enablement requires
+  only ComputerCraft HTTP and a small canary first.

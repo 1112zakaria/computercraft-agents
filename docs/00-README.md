@@ -6,7 +6,7 @@ Primary execution backend: **ComputerCraft 1.75 turtles and computers**
 Control plane: **VPS-hosted**  
 Reasoning backend: **Codex CLI behind a provider-neutral interface**  
 Initial scale: **3–5 logical worker agents**  
-Network: **gateway-initiated HTTPS to a public VPS endpoint, restricted by source-IP allowlist**
+Network: **outbound HTTPS from gateways or turtles to a public VPS endpoint, restricted by source-IP allowlist**
 
 ## Purpose
 
@@ -46,19 +46,25 @@ The following are explicitly not core requirements:
                                                 │
 ════════════ HTTPS ingress (source allowlisted) ═╪══════════════════════════
                                                 │
-                                      ComputerCraft Gateway
-                                                │
-                                            Rednet/modem
-                                  ┌─────────────┼─────────────┐
-                                  ▼             ▼             ▼
-                              Alice Turtle   Bob Turtle   Charlie Turtle
-                                  │             │             │
-                                  └─────────────┼─────────────┘
+                         ┌──────────────────────┴──────────────────────┐
+                         ▼                                             ▼
+                ComputerCraft Gateway                         Direct HTTP Turtle
+                         │                                             │
+                     Rednet/modem                                     │
+                 ┌───────┼────────┐                                   │
+                 ▼       ▼        ▼                                   │
+             Alice Turtle Bob Turtle Charlie Turtle                    │
+                 │       │        │                                   │
+                 └───────┴────────┴───────────────────────────────────┘
                                                 ▼
                                        Minecraft + modpack
 ```
 
-The preferred v1 topology uses one ComputerCraft gateway computer to communicate with the VPS and Rednet/wireless modems to communicate with turtles. A direct HTTP-per-turtle topology MAY be supported later.
+Two worker transports are supported. `gateway-rednet` uses one ComputerCraft gateway to
+communicate with the VPS and Rednet/modems to communicate with turtles. `direct-http` has each
+turtle poll the same HTTPS control plane directly and does not require a modem. The gateway
+topology remains preferred for fleets because it centralizes local routing and buffering; direct
+HTTP is the primary low-hardware path for a single turtle.
 
 ## Document map
 

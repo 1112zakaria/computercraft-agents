@@ -41,12 +41,22 @@ function M.load(path)
 
   local result = {}
   result.worker_id = required_string(value, "worker_id")
-  result.modem_side = value.modem_side or "back"
-  result.gateway_rednet_id = value.gateway_rednet_id
-  if type(result.gateway_rednet_id) ~= "number" or result.gateway_rednet_id < 0 then
-    fail("gateway_rednet_id must be a non-negative computer id")
+  result.transport = value.transport or "gateway-rednet"
+  if result.transport ~= "gateway-rednet" and result.transport ~= "direct-http" then
+    fail("transport must be gateway-rednet or direct-http")
   end
-  result.rednet_protocol = required_string(value, "rednet_protocol")
+  if result.transport == "gateway-rednet" then
+    result.modem_side = value.modem_side or "back"
+    result.gateway_rednet_id = value.gateway_rednet_id
+    if type(result.gateway_rednet_id) ~= "number" or result.gateway_rednet_id < 0 then
+      fail("gateway_rednet_id must be a non-negative computer id")
+    end
+    result.rednet_protocol = required_string(value, "rednet_protocol")
+  else
+    result.vps_url = required_string(value, "vps_url")
+    result.vps_bearer_secret = required_string(value, "vps_bearer_secret")
+    result.minecraft_server_id = required_string(value, "minecraft_server_id")
+  end
   result.runtime_version_path = value.runtime_version_path or "worker-runtime-version.txt"
   result.runtime_version = configured_runtime_version(value, result.runtime_version_path)
   result.state_path = value.state_path or "worker-state.json"
@@ -54,8 +64,13 @@ function M.load(path)
   result.update_journal_path = value.update_journal_path or "worker-update-journal.json"
   result.update_staging_path = value.update_staging_path or "worker-update-staging"
   result.update_backup_path = value.update_backup_path or "worker-update-backup"
+  result.poll_cursor_path = value.poll_cursor_path or "worker-poll-cursor.json"
+  result.event_outbox_path = value.event_outbox_path or "worker-event-outbox.json"
   result.update_chunk_size = value.update_chunk_size or 768
   result.max_cached_commands = value.max_cached_commands or 64
+  result.max_outbox_events = value.max_outbox_events or 256
+  result.max_event_batch = value.max_event_batch or 32
+  result.poll_interval_seconds = value.poll_interval_seconds or 2
   result.heartbeat_interval_seconds = value.heartbeat_interval_seconds or 10
   result.receive_timeout_seconds = value.receive_timeout_seconds or 1
   result.fuel_low_threshold = value.fuel_low_threshold or 100

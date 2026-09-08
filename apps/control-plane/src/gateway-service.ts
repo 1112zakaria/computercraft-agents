@@ -4,6 +4,12 @@ import type { IncomingHttpHeaders } from "node:http";
 import {
   CommandPollResponseSchema,
   CommandSchema,
+  DirectWorkerEventBatchSchema,
+  DirectWorkerHeartbeatSchema,
+  DirectWorkerPollResponseSchema,
+  DirectWorkerProvisionSchema,
+  DirectWorkerRegistrationResponseSchema,
+  DirectWorkerRegistrationSchema,
   ErrorResponseSchema,
   EventAckSchema,
   EventBatchSchema,
@@ -16,6 +22,10 @@ import {
 import type {
   CommandPollResponse,
   Command,
+  DirectWorkerEventBatch,
+  DirectWorkerHeartbeat,
+  DirectWorkerRegistration,
+  DirectWorkerProvision,
   EventAck,
   EventBatch,
   GatewayHeartbeat,
@@ -25,6 +35,7 @@ import type {
 } from "@computercraft-agents/protocol";
 import { RepositoryError } from "@computercraft-agents/database";
 import type {
+  DirectWorkerPollResult,
   GatewayPollResult,
   GatewayRuntimeRepository,
   UpdateRolloutRecord,
@@ -53,10 +64,25 @@ export interface GatewayServiceStore {
   listWorkers(): Promise<readonly Record<string, unknown>[]>;
   getWorker(workerId: string): Promise<Record<string, unknown> | undefined>;
   listGateways(): Promise<readonly Record<string, unknown>[]>;
+  provisionDirectWorker(payload: DirectWorkerProvision): Promise<Record<string, unknown>>;
+  registerDirectWorker(payload: DirectWorkerRegistration): Promise<{
+    readonly workerId: string;
+    readonly workerBootId: string;
+  }>;
+  heartbeatDirectWorker(payload: DirectWorkerHeartbeat): Promise<{
+    readonly workerId: string;
+    readonly workerBootId: string;
+  }>;
+  pollDirectWorker(workerId: string, after: string | null): Promise<DirectWorkerPollResult>;
+  ingestDirectWorkerEvents(payload: DirectWorkerEventBatch): Promise<string[]>;
 }
 
 export interface GatewayRequestContext {
   readonly gatewayId: string;
+}
+
+export interface WorkerRequestContext {
+  readonly workerId: string;
 }
 
 export class HttpError extends Error {
@@ -109,6 +135,18 @@ export class GatewayService {
     return { gatewayId };
   }
 
+  public authenticateWorker(headers: IncomingHttpHeaders): WorkerRequestContext {
+    const workerId = headerValue(headers, "x-agent-worker-id");
+    const token = parseBearerSecret(headerValue(headers, "authorization"));
+    if (!workerId || !IdentifierSchema.safeParse(workerId).success || !token) {
+      throw new HttpError(401, "AUTHENTICATION_FAILED", "worker authentication failed");
+    }
+    if (!secretsEqual(token, this.config.bearerSecret)) {
+      throw new HttpError(401, "AUTHENTICATION_FAILED", "worker authentication failed");
+    }
+    return { workerId };
+  }
+
   public async register(context: GatewayRequestContext, input: unknown): Promise<object> {
     const payload = this.parsePayload(GatewayRegistrationSchema, input);
     this.assertGatewayMatches(context, payload.gatewayId);
@@ -118,6 +156,73 @@ export class GatewayService {
       accepted: true,
       gatewayId: payload.gatewayId,
       bootId: payload.bootId,
+    };
+  }
+
+  public async provisionDirectWorker(input: unknown): Promise<object> {
+    const payload = this.parsePayload(DirectWorkerProvisionSchema, input);
+    return this.store.provisionDirectWorker(payload);
+  }
+
+  public async registerDirectWorker(
+    context: WorkerRequestContext,
+    input: unknown,
+  ): Promise<object> {
+    const payload = this.parsePayload(DirectWorkerRegistrationSchema, input);
+    this.assertWorkerMatches(context, payload.workerId);
+    const result = await this.store.registerDirectWorker(payload);
+    return DirectWorkerRegistrationResponseSchema.parse({
+      protocolVersion: 1,
+      accepted: true,
+      workerId: result.workerId,
+      workerBootId: result.workerBootId,
+      serverTime: new Date().toISOString(),
+      pollIntervalSeconds: 2,
+    });
+  }
+
+  public async heartbeatDirectWorker(
+    context: WorkerRequestContext,
+    input: unknown,
+  ): Promise<object> {
+    const payload = this.parsePayload(DirectWorkerHeartbeatSchema, input);
+    this.assertWorkerMatches(context, payload.workerId);
+    const result = await this.store.heartbeatDirectWorker(payload);
+    return {
+      protocolVersion: 1,
+      accepted: true,
+      workerId: result.workerId,
+      workerBootId: result.workerBootId,
+      serverTime: new Date().toISOString(),
+    };
+  }
+
+  public async pollDirectWorker(
+    context: WorkerRequestContext,
+    after: string | null,
+  ): Promise<object> {
+    if (after !== null && !IdentifierSchema.safeParse(after).success) {
+      throw new HttpError(400, "INVALID_PAYLOAD", "after cursor is invalid");
+    }
+    const result = await this.store.pollDirectWorker(context.workerId, after);
+    return DirectWorkerPollResponseSchema.parse({
+      protocolVersion: 1,
+      serverTime: new Date().toISOString(),
+      commands: result.commands,
+      stopControls: result.stopControls,
+      updates: result.updates,
+      nextCursor: result.nextCursor,
+    });
+  }
+
+  public async directWorkerEvents(context: WorkerRequestContext, input: unknown): Promise<object> {
+    const payload = this.parsePayload(DirectWorkerEventBatchSchema, input);
+    this.assertWorkerMatches(context, payload.workerId);
+    return {
+      protocolVersion: 1,
+      workerId: payload.workerId,
+      workerBootId: payload.workerBootId,
+      acceptedEventIds: await this.store.ingestDirectWorkerEvents(payload),
     };
   }
 
@@ -278,6 +383,12 @@ export class GatewayService {
       );
     }
   }
+
+  private assertWorkerMatches(context: WorkerRequestContext, payloadWorkerId: string): void {
+    if (context.workerId !== payloadWorkerId) {
+      throw new HttpError(401, "AUTHENTICATION_FAILED", "worker identity does not match request");
+    }
+  }
 }
 
 export function repositoryErrorToHttp(error: unknown): HttpError {
@@ -290,11 +401,17 @@ export function repositoryErrorToHttp(error: unknown): HttpError {
         ? "UNKNOWN_WORKER"
         : error.code === "UNKNOWN_UPDATE"
           ? "UNKNOWN_UPDATE"
-          : error.code === "STALE_GATEWAY_BOOT"
+          : error.code === "STALE_WORKER_BOOT"
             ? "INVALID_PAYLOAD"
-            : error.code === "UPDATE_OVERLAP" || error.code === "UPDATE_ID_REUSE"
+            : error.code === "INVALID_TARGET"
               ? "INVALID_PAYLOAD"
-              : "INTERNAL_ERROR";
+              : error.code === "WORKER_BOUND_ELSEWHERE"
+                ? "INVALID_PAYLOAD"
+                : error.code === "STALE_GATEWAY_BOOT"
+                  ? "INVALID_PAYLOAD"
+                  : error.code === "UPDATE_OVERLAP" || error.code === "UPDATE_ID_REUSE"
+                    ? "INVALID_PAYLOAD"
+                    : "INTERNAL_ERROR";
     return new HttpError(error.statusCode, protocolCode, error.message, error.statusCode >= 500);
   }
   return new HttpError(500, "INTERNAL_ERROR", "internal control-plane error", true);

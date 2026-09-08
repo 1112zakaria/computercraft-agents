@@ -5,6 +5,10 @@ import test from "node:test";
 
 import {
   CommandSchema,
+  DirectWorkerEventBatchSchema,
+  DirectWorkerPollResponseSchema,
+  DirectWorkerProvisionSchema,
+  DirectWorkerRegistrationSchema,
   ErrorResponseSchema,
   EventBatchSchema,
   GatewayHeartbeatSchema,
@@ -147,5 +151,89 @@ test("update controls require immutable releases and validate transfer envelopes
       chunkNumber: 0,
     }).success,
     true,
+  );
+});
+
+test("direct worker transport schemas require worker-scoped identity", () => {
+  const registration = DirectWorkerRegistrationSchema.parse({
+    protocolVersion: 1,
+    workerId: "alice",
+    workerBootId: "worker-boot-1",
+    minecraftServerId: "friends-server",
+    computerId: 21,
+    runtimeVersion: "v0.4.0",
+    capabilities: ["movement.step"],
+  });
+  assert.equal(registration.workerId, "alice");
+
+  const provision = DirectWorkerProvisionSchema.parse({
+    protocolVersion: 1,
+    transport: "direct-http",
+    workerId: "alice",
+    minecraftServerId: "friends-server",
+    computerId: 21,
+    runtimeVersion: "v0.4.0",
+    capabilities: [],
+  });
+  assert.equal(provision.transport, "direct-http");
+
+  const poll = DirectWorkerPollResponseSchema.parse({
+    protocolVersion: 1,
+    serverTime: "2026-09-08T12:00:00.000Z",
+    commands: [],
+    stopControls: [],
+    updates: [],
+    nextCursor: null,
+  });
+  assert.equal(poll.nextCursor, null);
+
+  const events = DirectWorkerEventBatchSchema.safeParse({
+    protocolVersion: 1,
+    workerId: "alice",
+    workerBootId: "worker-boot-1",
+    batchId: "batch-1",
+    events: [
+      {
+        protocolVersion: 1,
+        eventId: "event-1",
+        workerId: "alice",
+        sequence: 1,
+        type: "worker.state",
+        occurredAt: "2026-09-08T12:00:00.000Z",
+        payload: {
+          state: "IDLE",
+          position: null,
+          fuel: null,
+          currentCommandId: null,
+        },
+      },
+    ],
+  });
+  assert.equal(events.success, true);
+  assert.equal(
+    DirectWorkerEventBatchSchema.safeParse({
+      protocolVersion: 1,
+      workerId: "alice",
+      workerBootId: "worker-boot-1",
+      batchId: "batch-1",
+      events: [
+        {
+          protocolVersion: 1,
+          eventId: "event-2",
+          workerId: "alice",
+          gatewayId: "gateway-main",
+          sequence: 2,
+          type: "worker.state",
+          occurredAt: "2026-09-08T12:00:00.000Z",
+          payload: {
+            state: "IDLE",
+            position: null,
+            fuel: null,
+            currentCommandId: null,
+          },
+        },
+      ],
+    }).success,
+    false,
   );
 });

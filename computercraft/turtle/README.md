@@ -5,5 +5,7 @@ This directory contains the deterministic turtle runtime described in
 bounded movement/observation/inventory/fuel actions, emits heartbeats/events, handles urgent stops,
 and persists a bounded command idempotency cache.
 
-Install `worker.conf.example` as `worker.conf` on the turtle and configure the gateway computer ID
-and modem side locally. The runtime never executes arbitrary Lua received over Rednet.
+Install `worker.conf.example` as `worker.conf` on the turtle and choose one transport locally.
+`gateway-rednet` requires the gateway computer ID, modem side, and Rednet protocol. The
+`direct-http` transport requires the VPS URL, worker/server identity, and bearer secret, but no
+modem or gateway ID. The runtime never executes arbitrary Lua received over Rednet or HTTP.

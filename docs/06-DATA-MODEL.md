@@ -45,7 +45,9 @@ Represents physical execution devices.
 ```text
 id PK
 backend_type = 'computercraft'
-gateway_id
+transport_type = 'gateway-rednet' | 'direct-http'
+gateway_id nullable
+minecraft_server_id
 computer_id
 label
 online
@@ -54,6 +56,11 @@ runtime_version
 last_seen_at
 capabilities_json
 ```
+
+Workers using `gateway-rednet` require `gateway_id`; workers using `direct-http` require
+`gateway_id IS NULL`. Existing gateway workers are backfilled as `gateway-rednet`. Direct worker
+registration, command delivery, event ingestion, and individual update rollouts reuse the durable
+delivery/event tables with the transport recorded explicitly.
 
 ### worker_observations
 

@@ -1,5 +1,10 @@
 return {
   worker_id = "alice",
+  -- Use direct-http when no wireless modem is available.
+  transport = "gateway-rednet",
+  minecraft_server_id = "friends-server",
+  vps_url = "https://192.99.69.46.sslip.io:8443",
+  vps_bearer_secret = "set-locally",
   gateway_rednet_id = 42,
   modem_side = "back",
   rednet_protocol = "computercraft-agents-v1",
@@ -10,6 +15,11 @@ return {
   update_journal_path = "worker-update-journal.json",
   update_staging_path = "worker-update-staging",
   update_backup_path = "worker-update-backup",
+  poll_cursor_path = "worker-poll-cursor.json",
+  event_outbox_path = "worker-event-outbox.json",
+  max_outbox_events = 256,
+  max_event_batch = 32,
+  poll_interval_seconds = 2,
   update_chunk_size = 768,
   max_cached_commands = 64,
   heartbeat_interval_seconds = 10,

@@ -14,18 +14,42 @@
 
 Reasoning, persistent state, scheduling, memory, and project planning remain outside the legacy Minecraft JVM and ComputerCraft runtime.
 
-## ADR-003 — Gateway computer between VPS and turtles
+## ADR-003 — Support gateway-rednet and direct-http worker transports
 
-**Decision:** Preferred v1 topology.
+**Decision:** Accepted dual transport model. `gateway-rednet` remains the preferred topology for
+fleets; `direct-http` is a first-class option for a single turtle or installations where modem
+hardware is unavailable.
 
-One gateway reduces HTTP/network configuration and centralizes Rednet routing, buffering, authentication, and diagnostics.
+The gateway transport is:
+
+```text
+VPS ⇄ HTTPS ⇄ Gateway ⇄ Rednet ⇄ Turtle
+```
+
+The direct transport is:
+
+```text
+VPS ⇄ HTTPS ⇄ Turtle
+```
+
+Direct workers have no gateway association. Both transports use the same deterministic turtle
+executor, control-plane command model, stop path, telemetry, and OTA/update lifecycle.
+
+**Rationale:** One gateway reduces HTTP/network configuration and centralizes Rednet routing,
+buffering, and diagnostics for multiple workers. Direct HTTP removes the gateway and wireless
+modem requirement and is materially simpler for the current one-turtle deployment.
+
+**Consequence:** The control plane and database must be transport-aware. Direct turtles need their
+own bounded HTTP polling, durable cursor, event outbox, and update download path. Fleet rollout
+remains gateway-only initially, and v1 reuses the shared gateway bearer secret; per-worker
+credentials are future hardening.
 
 ## ADR-004 — Gateway-initiated HTTPS through a source-allowlisted public endpoint
 
 **Decision:** Accepted; replaces the prior WireGuard baseline.
 
-The ComputerCraft gateway makes outbound HTTPS requests to a public VPS hostname. The TLS reverse
-proxy and VPS firewall admit the friend's verified Minecraft-host public address
+The ComputerCraft gateway or direct turtle makes outbound HTTPS requests to a public VPS hostname.
+The TLS reverse proxy and VPS firewall admit the friend's verified Minecraft-host public address
 (`51.161.113.44/32` initially); application-level gateway ID and bearer-secret authentication
 remain mandatory. The control-plane process stays on a non-public listener; the current Docker
 ingress integration uses a private bridge address rather than loopback.
@@ -37,13 +61,14 @@ to ComputerCraft.
 
 **Consequence:** Deployment requires a DNS hostname, trusted certificate, reverse proxy, and
 verification that `51.161.113.44` is the host's actual egress address. If that address changes,
-the allowlist must be updated before the gateway can reconnect.
+the allowlist must be updated before a gateway or direct turtle can reconnect.
 
 ## ADR-005 — Rednet/modem for gateway↔worker transport
 
 **Decision:** Accepted.
 
-Workers remain lightweight and local to the Minecraft world.
+Workers using `gateway-rednet` remain lightweight and local to the Minecraft world. This ADR does
+not require direct HTTP workers to install a modem.
 
 ## ADR-006 — TypeScript/Node on VPS
 

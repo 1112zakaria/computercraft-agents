@@ -23,6 +23,7 @@ const luaFiles = [
   "gateway/update_manager.lua",
   "turtle/cancellation.lua",
   "turtle/config.lua",
+  "turtle/direct_http_client.lua",
   "turtle/executor.lua",
   "turtle/fuel.lua",
   "turtle/id.lua",

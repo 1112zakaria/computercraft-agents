@@ -33,15 +33,15 @@ The project is a distributed autonomous-agent control system with a ComputerCraf
 ═══════════════════════════╪══════════════════════════════════════════
                            ▼
 ┌──────────────────── Minecraft host ────────────────────────────────┐
-│                    Gateway Computer                                │
-│           HTTP client + Rednet dispatcher                          │
-│                           │                                        │
-│                  Rednet / wireless modem                           │
-│           ┌───────────────┼───────────────┐                        │
-│           ▼               ▼               ▼                        │
-│      Alice Turtle     Bob Turtle      Charlie Turtle               │
-│           │               │               │                        │
-│           └───────────────┼───────────────┘                        │
+│  Gateway computer                         Direct HTTP turtle        │
+│  HTTP client + Rednet dispatcher             HTTP client            │
+│       │                                           │                 │
+│  Rednet / wireless modem                         │                 │
+│   ┌───┼──────────┐                               │                 │
+│   ▼   ▼          ▼                               │                 │
+│ Alice Turtle  Bob Turtle  Charlie Turtle         │                 │
+│       │          │          │                     │                 │
+│       └──────────┴──────────┴────────────────────┘                 │
 │                           ▼                                        │
 │                Minecraft world + peripherals                      │
 └────────────────────────────────────────────────────────────────────┘
@@ -81,6 +81,17 @@ The project is a distributed autonomous-agent control system with a ComputerCraf
 - heartbeat aggregation;
 - local bounded buffering during short VPS outages;
 - translating versioned gateway messages to turtle runtime messages.
+
+The gateway is required only for workers using `gateway-rednet`. It is not a proxy for
+`direct-http` workers.
+
+### Direct HTTP turtle owns
+
+- outbound HTTPS registration, heartbeat, command polling, and event submission;
+- durable poll cursor and bounded event outbox;
+- direct update manifest/file downloads from immutable GitHub releases;
+- the same deterministic command executor, stop path, and rollback bootstrap as a
+  gateway-backed turtle.
 
 ### Turtle runtime owns
 
@@ -136,8 +147,10 @@ ComputerCraft is the first implementation:
 
 ```text
 ComputerCraftBackend
-  └── GatewayClient
-      └── Turtle Runtime
+  ├── GatewayClient
+  │   └── Rednet Turtle Runtime
+  └── DirectWorkerClient
+      └── HTTP Turtle Runtime
 ```
 
 Future implementations MAY include CustomNPC+ or Forge workers without replacing the scheduler or agent model.
@@ -219,7 +232,7 @@ The VPS SHALL not pretend cached physical state is authoritative after disconnec
 
 ## 8. Transport topology
 
-Preferred v1:
+Gateway-backed transport:
 
 ```text
 Gateway Computer ──HTTPS request/poll──► VPS public ingress
@@ -229,16 +242,24 @@ Gateway Computer ──HTTPS event batch───► VPS public ingress
 Gateway Computer ⇄ Rednet ⇄ Turtles
 ```
 
+Direct transport:
+
+```text
+Direct Turtle ──HTTPS request/poll──► VPS public ingress
+Direct Turtle ◄──── HTTPS response ── VPS public ingress
+Direct Turtle ──HTTPS event batch───► VPS public ingress
+```
+
 The VPS ingress SHALL allow gateway traffic only from configured source CIDRs. The first
 deployment allowlist is `51.161.113.44/32`, the friend's Minecraft-host address, and MUST be
 verified before enabling live access. The control-plane process itself SHALL bind only to a
 non-public listener (loopback or a private container-network bridge); a TLS reverse proxy is the
 public boundary.
 
-The gateway initiates every HTTP connection. The VPS returns commands only in responses to
-registration, heartbeat, event, or command-poll requests; it does not make unsolicited HTTP
-requests to a ComputerCraft computer. This is intentionally simpler than a custom Forge RPC
-listener.
+The ComputerCraft endpoint initiates every HTTP connection in both transports. The VPS returns
+commands only in responses to registration, heartbeat, event, or command-poll requests; it does
+not make unsolicited HTTP requests to a ComputerCraft computer. This is intentionally simpler than
+a custom Forge RPC listener.
 
 If ComputerCraft 1.75 HTTP restrictions prevent HTTPS access to the configured public hostname,
 resolve that through ComputerCraft configuration or a minimal bridge before redesigning the whole
@@ -255,6 +276,10 @@ A gateway reduces complexity:
 - easier diagnostics;
 - turtle worker programs remain small;
 - future peripheral services can be attached to the gateway.
+
+These benefits apply when multiple turtles use `gateway-rednet`. A direct turtle trades the
+gateway's centralized buffering and local routing for lower hardware/setup cost and one fewer
+runtime hop.
 
 ## 10. Architecture constraints
 

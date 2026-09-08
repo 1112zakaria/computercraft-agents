@@ -2,23 +2,18 @@
 
 ## 1. Execution topology
 
-The Minecraft-side implementation consists of:
+The Minecraft-side implementation supports two worker transports:
 
-1. one **gateway computer** connected to the VPS through gateway-initiated ComputerCraft HTTPS to the public, source-allowlisted control-plane endpoint;
-2. one or more **worker turtles** communicating with the gateway over Rednet/wireless modems;
+1. **gateway-rednet**: one gateway computer connected to the VPS through gateway-initiated
+   ComputerCraft HTTPS, with worker turtles communicating over Rednet/wireless modems;
+2. **direct-http**: a turtle connected to the same public, source-allowlisted control-plane
+   endpoint through outbound ComputerCraft HTTPS, without a gateway or modem;
 3. optional **peripheral computers** attached to AE2 or other machines when useful.
 
 ```text
-VPS
+VPS ──HTTPS──► Gateway Computer ──Rednet──► Alice/Bob/Charlie Turtles
  │
- │ HTTP/JSON
- ▼
-Gateway Computer
- │
- │ Rednet
- ├──────────────┬──────────────┐
- ▼              ▼              ▼
-Alice Turtle    Bob Turtle     Charlie Turtle
+ └──────────────HTTPS──────────────► Direct Turtle
 ```
 
 ## 2. Gateway runtime responsibilities
@@ -39,7 +34,7 @@ gateway/
   update.lua
 ```
 
-The gateway SHALL:
+The gateway SHALL, for `gateway-rednet` workers:
 
 - identify itself to the VPS;
 - send a protocol version and capability set;
@@ -62,6 +57,7 @@ turtle/
   config.lua
   protocol.lua
   rednet_client.lua
+  direct_http_client.lua
   state.lua
   inventory.lua
   movement.lua

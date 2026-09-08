@@ -49,6 +49,8 @@ Test:
 - command polling;
 - event ingestion;
 - gateway↔fake turtle Rednet protocol;
+- direct worker registration, bounded command polling, cursor persistence, and event outbox retry;
+- direct worker identity/authentication mismatch and stale boot rejection;
 - gateway-managed update controls and fake Rednet file/chunk transfer;
 - duplicate/out-of-order chunks, stale boot IDs, unsafe paths, interruption, and rollback;
 - PostgreSQL persistence;
@@ -67,6 +69,36 @@ Small bounded experiments on the real server.
 5. CLI issues one `turn` or `forward` command.
 6. Turtle result arrives and is persisted.
 7. `stop alice` is effective without Codex.
+
+## Direct HTTP worker acceptance
+
+The fake transport must prove the no-modem path independently of Rednet:
+
+1. provision a `direct-http` worker and register it with the worker header and payload identity;
+2. reject a header/payload identity mismatch;
+3. persist a heartbeat and expose `transport: direct-http` through worker inspection;
+4. deliver one bounded movement command and an urgent stop control through `/v1/worker/commands`;
+5. accept a duplicate event batch without duplicating the event;
+6. preserve the poll cursor and retry the durable event outbox after a simulated HTTP failure;
+7. deliver an individual update control, then prove activation and rollback leave `worker.conf`
+   and worker state untouched.
+
+Live direct canary:
+
+```text
+direct turtle startup
+→ HTTPS registration
+→ heartbeat visible on VPS
+→ CLI movement command
+→ bounded turtle poll/execution
+→ direct event submission
+→ CLI worker inspection
+→ explicit runtime update
+→ reboot and new-version heartbeat
+```
+
+This canary requires only ComputerCraft HTTP access and the VPS allowlist; it does not require a
+gateway computer or wireless modem.
 
 ## Gateway-managed update acceptance
 
