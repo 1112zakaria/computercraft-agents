@@ -181,7 +181,7 @@ turtle registers, heartbeats, and polls `/v1/worker/commands`. Confirm it with:
 npm run cli -- workers alice
 ```
 
-The turtle's cursor and event outbox are local persistent files. Do not commit the populated
+The turtle's cursor, authenticated UTC clock handoff, and event outbox are local persistent files. Do not commit the populated
 configuration or secret.
 
 For a reviewed development build, download `deploy/minecraft/install-direct.lua` from a pinned

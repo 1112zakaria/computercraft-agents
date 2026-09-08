@@ -1,8 +1,9 @@
 -- Legacy ComputerCraft has JSON encoding, but no JSON decoder or UTC clock.
 -- Decode data only (never loadstring). UTC is anchored to authenticated VPS responses.
 local M = {}
--- `textutils` is supplied by CraftOS and shared by the isolated environments used by loadfile.
--- Store the synchronization anchor there so startup.lua and direct_http_client.lua agree on UTC.
+-- CraftOS gives loadfile calls isolated environments. Persist the anchor in a small local file so
+-- startup.lua, direct_http_client.lua and command modules use the same authenticated UTC clock.
+local clock_path = "worker-clock.txt"
 local function leap(y) return y % 4 == 0 and (y % 100 ~= 0 or y % 400 == 0) end
 local function months(y) return {31, leap(y) and 29 or 28,31,30,31,30,31,31,30,31,30,31} end
 function M.parse_time(s)
@@ -19,11 +20,22 @@ end
 function M.sync(s)
   local value = M.parse_time(s)
   if not value then return false end
-  textutils._agents_utc_anchor, textutils._agents_utc_tick = value, os.clock()
+  local handle = fs.open(clock_path .. ".tmp", "w")
+  if not handle then return false end
+  handle.write(tostring(value) .. "|" .. tostring(os.clock()))
+  handle.close()
+  if fs.exists(clock_path) then fs.delete(clock_path) end
+  fs.move(clock_path .. ".tmp", clock_path)
   return true
 end
 function M.now()
-  local anchor, tick = textutils._agents_utc_anchor, textutils._agents_utc_tick
+  if not fs.exists(clock_path) then return nil end
+  local handle = fs.open(clock_path, "r")
+  if not handle then return nil end
+  local value = handle.readAll()
+  handle.close()
+  local anchor, tick = string.match(value or "", "^(%-?[%d%.]+)|(%-?[%d%.]+)$")
+  anchor, tick = tonumber(anchor), tonumber(tick)
   return anchor and tick and anchor + os.clock() - tick or nil
 end
 function M.iso()

@@ -53,6 +53,7 @@ const persistentRuntimeFiles = new Set([
   "worker-poll-cursor.json",
   "worker-event-outbox.json",
   "worker-update-journal.json",
+  "worker-clock.txt",
 ]);
 const runtimeFiles = filesUnder(staging)
   .filter((path) => path.endsWith(".lua"))

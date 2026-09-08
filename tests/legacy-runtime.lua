@@ -3,6 +3,15 @@ local ticks=0
 os.clock=function() return ticks end
 os.date=nil
 textutils={}
+fs={
+  exists=function(path) return _G[path] ~= nil end,
+  open=function(path,mode)
+    if mode=="r" then local v=_G[path]; return v and {readAll=function() return v end,close=function() end} end
+    return {write=function(v) _G[path]=v end,close=function() end}
+  end,
+  delete=function(path) _G[path]=nil end,
+  move=function(a,b) _G[b]=_G[a]; _G[a]=nil end,
+}
 package.path="computercraft/turtle/?.lua;"..package.path
 local compat=require("compat")
 compat.install()
