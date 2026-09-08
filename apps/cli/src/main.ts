@@ -7,6 +7,7 @@ export const cliName = "computercraft-agents" as const;
 export function usage(): string {
   return [
     `${cliName} workers`,
+    `${cliName} workers <worker-id>`,
     `${cliName} diagnose`,
     `${cliName} move <worker-id> <N|E|S|W|UP|DOWN>`,
     `${cliName} stop <worker-id|all>`,
@@ -53,7 +54,8 @@ function timestampAfterMinutes(minutes: number): string {
 export async function runCli(args: readonly string[]): Promise<void> {
   const [command, first, second] = args.map((argument) => argument.trim());
   if (command === "workers") {
-    console.log(JSON.stringify(await request("/v1/workers"), null, 2));
+    const path = first ? `/v1/workers/${encodeURIComponent(first)}` : "/v1/workers";
+    console.log(JSON.stringify(await request(path), null, 2));
     return;
   }
   if (command === "diagnose") {

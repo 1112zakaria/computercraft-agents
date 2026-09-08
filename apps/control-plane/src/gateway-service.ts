@@ -42,6 +42,7 @@ export interface GatewayServiceStore {
   enqueueCommand(command: Command): Promise<void>;
   enqueueStopControl(control: StopControl): Promise<void>;
   listWorkers(): Promise<readonly Record<string, unknown>[]>;
+  getWorker(workerId: string): Promise<Record<string, unknown> | undefined>;
   listGateways(): Promise<readonly Record<string, unknown>[]>;
 }
 
@@ -181,6 +182,17 @@ export class GatewayService {
 
   public async listWorkers(): Promise<readonly Record<string, unknown>[]> {
     return this.store.listWorkers();
+  }
+
+  public async getWorker(workerId: string): Promise<Record<string, unknown>> {
+    if (!IdentifierSchema.safeParse(workerId).success) {
+      throw new HttpError(400, "INVALID_PAYLOAD", "worker id is invalid");
+    }
+    const worker = await this.store.getWorker(workerId);
+    if (!worker) {
+      throw new HttpError(404, "UNKNOWN_WORKER", "worker was not found");
+    }
+    return worker;
   }
 
   public async diagnostics(): Promise<object> {

@@ -45,6 +45,7 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
     try {
       const url = new URL(request.url ?? "/", "http://control-plane.local");
       const method = requestMethod(request);
+      const workerPathMatch = url.pathname.match(/^\/v1\/workers(?:\/([^/]+))?$/);
 
       if (method === "GET" && url.pathname === "/healthz") {
         sendJson(response, 200, options.service.health());
@@ -52,14 +53,25 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
       }
 
       if (
-        url.pathname === "/v1/workers" ||
+        workerPathMatch ||
         url.pathname === "/v1/diagnostics" ||
         url.pathname === "/v1/commands" ||
         url.pathname === "/v1/stop-controls"
       ) {
         options.service.authenticateAdmin(request.headers);
-        if (method === "GET" && url.pathname === "/v1/workers") {
-          sendJson(response, 200, { workers: await options.service.listWorkers() });
+        if (method === "GET" && workerPathMatch) {
+          const encodedWorkerId = workerPathMatch[1];
+          if (encodedWorkerId) {
+            let workerId: string;
+            try {
+              workerId = decodeURIComponent(encodedWorkerId);
+            } catch {
+              throw new HttpError(400, "INVALID_PAYLOAD", "worker id is not valid URL encoding");
+            }
+            sendJson(response, 200, await options.service.getWorker(workerId));
+          } else {
+            sendJson(response, 200, { workers: await options.service.listWorkers() });
+          }
           return;
         }
         if (method === "GET" && url.pathname === "/v1/diagnostics") {
