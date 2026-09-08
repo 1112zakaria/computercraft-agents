@@ -39,6 +39,7 @@ boundary.
 ```bash
 sudo install -o root -g root -m 0700 deploy/vps/computercraft-agents-postgres-backup \
   /usr/local/libexec/computercraft-agents-postgres-backup
+sudo install -d -o ubuntu -g ubuntu -m 0700 /var/backups/computercraft-agents
 sudo install -o root -g root -m 0644 deploy/vps/computercraft-agents-postgres-backup.service.example \
   /etc/systemd/system/computercraft-agents-postgres-backup.service
 sudo install -o root -g root -m 0644 deploy/vps/computercraft-agents-postgres-backup.timer.example \
