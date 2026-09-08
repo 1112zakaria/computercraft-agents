@@ -26,6 +26,10 @@ npm test
 workspace does not require a live Minecraft server, PostgreSQL instance, or Codex credentials for
 these baseline checks.
 
+To package the ComputerCraft programs for friend-side installation, run
+`npm run release:lua`. The resulting `dist/release/computercraft-lua.zip` contains no populated
+configuration or secrets.
+
 ## Repository layout
 
 ```text

@@ -86,6 +86,12 @@ class FakeGatewayStore implements GatewayServiceStore {
     return [];
   }
 
+  public async getWorker(workerId: string): Promise<Record<string, unknown> | undefined> {
+    return workerId === "worker-test"
+      ? { workerId, computerId: 7, online: true, observation: null }
+      : undefined;
+  }
+
   public async listGateways(): Promise<readonly Record<string, unknown>[]> {
     return [];
   }
@@ -208,6 +214,17 @@ test("operator API supports inspection and deterministic command/stop enqueueing
       headers: adminHeaders(),
     });
     assert.equal(diagnostics.status, 200);
+
+    const worker = await fetch(`${server.baseUrl}/v1/workers/worker-test`, {
+      headers: adminHeaders(),
+    });
+    assert.equal(worker.status, 200);
+    assert.equal((await worker.json()).workerId, "worker-test");
+
+    const missingWorker = await fetch(`${server.baseUrl}/v1/workers/missing`, {
+      headers: adminHeaders(),
+    });
+    assert.equal(missingWorker.status, 404);
 
     const enqueue = await fetch(`${server.baseUrl}/v1/commands`, {
       method: "POST",

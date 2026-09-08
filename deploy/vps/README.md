@@ -50,6 +50,10 @@ For routine updates, pull the desired commit, run `npm ci`, `npm run build`, run
 command, and restart the service. Migrations are checksum-protected and run under a PostgreSQL
 advisory lock.
 
+The service lifecycle, journald policy, and PostgreSQL backup timer are documented in
+[OPERATIONS.md](OPERATIONS.md). The backup job is intentionally a template: install it on the
+VPS only after confirming the local backup retention and off-host recovery policy.
+
 ## Checks
 
 ```bash

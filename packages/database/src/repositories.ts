@@ -370,6 +370,79 @@ export class GatewayRuntimeRepository {
     return result.rows;
   }
 
+  public async getWorker(workerId: string): Promise<Record<string, unknown> | undefined> {
+    const result = await this.pool.query(
+      `
+        SELECT w.worker_key AS "workerId", w.computer_id AS "computerId", w.online,
+               w.boot_id AS "bootId", w.runtime_version AS "runtimeVersion",
+               w.last_seen_at AS "lastSeenAt", w.capabilities_json AS capabilities,
+               observation.observed_at AS "observedAt",
+               observation.dimension, observation.x, observation.y, observation.z,
+               observation.facing, observation.position_confidence AS "positionConfidence",
+               observation.fuel_level AS "fuelLevel",
+               observation.current_command_id AS "currentCommandId",
+               observation.status AS "observedStatus"
+        FROM workers w
+        LEFT JOIN LATERAL (
+          SELECT observed_at, dimension, x, y, z, facing, position_confidence,
+                 fuel_level, current_command_id, status
+          FROM worker_observations
+          WHERE worker_id = w.id
+          ORDER BY observed_at DESC, id DESC
+          LIMIT 1
+        ) observation ON TRUE
+        WHERE w.worker_key = $1
+      `,
+      [workerId],
+    );
+    const row = result.rows[0] as
+      | (Record<string, unknown> & {
+          dimension?: number | null;
+          x?: number | null;
+          y?: number | null;
+          z?: number | null;
+          facing?: string | null;
+          positionConfidence?: string | null;
+          fuelLevel?: number | null;
+          observedAt?: Date | null;
+          currentCommandId?: string | null;
+          observedStatus?: string | null;
+        })
+      | undefined;
+    if (!row) {
+      return undefined;
+    }
+
+    const hasPosition = row.dimension !== null && row.dimension !== undefined;
+    const {
+      dimension,
+      x,
+      y,
+      z,
+      facing,
+      positionConfidence,
+      fuelLevel,
+      observedAt,
+      currentCommandId,
+      observedStatus,
+      ...worker
+    } = row;
+    return {
+      ...worker,
+      observation: observedAt
+        ? {
+            observedAt,
+            status: observedStatus,
+            currentCommandId,
+            position: hasPosition
+              ? { dimension, x, y, z, facing, confidence: positionConfidence }
+              : null,
+            fuel: fuelLevel === null || fuelLevel === undefined ? null : { level: fuelLevel },
+          }
+        : null,
+    };
+  }
+
   public async listGateways(): Promise<readonly Record<string, unknown>[]> {
     const result = await this.pool.query(
       `

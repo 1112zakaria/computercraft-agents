@@ -417,6 +417,8 @@ Wrap forward/back/up/down/turn operations into typed result objects/events.
 
 **Priority:** P0  
 **Dependencies:** CC-022, CC-040
+**Status:** DONE — list and single-worker inspection are available through the protected API and
+CLI; fake Rednet coverage exercises the worker message path.
 
 Add CLI commands to list workers and inspect status/state.
 
@@ -424,6 +426,9 @@ Add CLI commands to list workers and inspect status/state.
 
 **Priority:** P0  
 **Dependencies:** CC-033, CC-042, CC-050
+**Status:** IN PROGRESS — bounded move and stop commands are implemented and fake-integrated; the
+turtle runtime is installed on worker `alice` (ComputerCraft ID 9), while the live-server
+acceptance remains blocked until gateway ID 4 and the turtle have modems attached.
 
 Before Codex, prove `worker move/turn` command path end-to-end.
 
@@ -1031,11 +1036,14 @@ Test whether turtles can continue intended work with humans offline and across r
 
 **Priority:** P0  
 **Dependencies:** CC-030, CC-040
+**Status:** DONE — `npm run release:lua` creates a secret-free, manifest-backed ZIP bundle.
 
 ### CC-176 — Write friend-side installation/update guide
 
 **Priority:** P0  
 **Dependencies:** CC-175, CC-052
+**Status:** DONE — gateway/turtle installation, configuration, manual paste fallback, and bounded
+rollout guidance are documented.
 
 Guide must assume no user SSH access and minimize friend effort.
 
