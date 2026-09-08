@@ -16,6 +16,7 @@ import type {
   WorkerTransport,
 } from "@computercraft-agents/protocol";
 import type { Pool, PoolClient, QueryResultRow } from "pg";
+import { storedPositionConfidence } from "./position-confidence";
 
 export interface GatewayRuntimeConfig {
   readonly gatewayTimeoutSeconds: number;
@@ -243,7 +244,7 @@ export class GatewayRuntimeRepository {
             worker.position?.y ?? null,
             worker.position?.z ?? null,
             worker.position?.facing ?? null,
-            worker.position?.confidence ?? null,
+            storedPositionConfidence(worker.position?.confidence),
             worker.fuel?.level ?? null,
             worker.currentCommandId ?? null,
             worker.status,
@@ -539,7 +540,7 @@ export class GatewayRuntimeRepository {
           payload.position?.y ?? null,
           payload.position?.z ?? null,
           payload.position?.facing ?? null,
-          payload.position?.confidence ?? null,
+          storedPositionConfidence(payload.position?.confidence),
           payload.fuel?.level ?? null,
           payload.currentCommandId ?? null,
           payload.status,
@@ -1329,7 +1330,7 @@ export class GatewayRuntimeRepository {
           payload.position?.y ?? null,
           payload.position?.z ?? null,
           payload.position?.facing ?? null,
-          payload.position?.confidence ?? null,
+          storedPositionConfidence(payload.position?.confidence),
           payload.fuel?.level ?? null,
           payload.currentCommandId,
           payload.state === "IDLE" ? "ONLINE" : "ONLINE",

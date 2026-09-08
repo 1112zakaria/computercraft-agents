@@ -1,6 +1,7 @@
 -- Direct HTTPS worker transport. This client intentionally mirrors the small interface exposed
 -- by rednet_client.lua so the deterministic turtle executor is transport-independent.
 local M = {}
+local compat = require("compat")
 
 local function now_iso()
   return os.date("!%Y-%m-%dT%H:%M:%SZ")
@@ -90,7 +91,10 @@ function M.new(config, state, inventory, fuel, protocol, logger)
     local parsed = nil
     if raw_body and string.len(raw_body) > 0 then
       local decoded, value = pcall(textutils.unserializeJSON, raw_body)
-      if decoded then parsed = value end
+      if decoded then
+        parsed = value
+        if type(value) == "table" and value.serverTime then compat.sync(value.serverTime) end
+      end
     end
     return { ok = true, status = status, body = parsed, rawBody = raw_body }
   end
@@ -141,6 +145,7 @@ function M.new(config, state, inventory, fuel, protocol, logger)
     if not response.ok or type(response.body) ~= "table" then
       return false, response.error or "direct worker registration failed"
     end
+    if not compat.now() then return false, "registration response lacks valid serverTime" end
     self.gateway_boot_id = "direct-" .. self.state.boot_id
     self.last_heartbeat = 0
     self.last_poll = 0
@@ -205,7 +210,7 @@ function M.new(config, state, inventory, fuel, protocol, logger)
       table.insert(self.pending, { senderId = "direct-http", message = { type = "worker.command", gatewayBootId = self.gateway_boot_id, command = command } })
     end
     for _, control in ipairs(body.stopControls or {}) do
-      table.insert(self.pending, { senderId = "direct-http", message = { type = "worker.stop", gatewayBootId = self.gateway_boot_id, workerId = self.config.worker_id, control = control } })
+      table.insert(self.pending, { senderId = "direct-http", message = { protocolVersion = 1, type = "worker.stop", gatewayBootId = self.gateway_boot_id, workerId = self.config.worker_id, control = control } })
     end
     for _, update in ipairs(body.updates or {}) do
       table.insert(self.pending, { senderId = "direct-http", message = update })

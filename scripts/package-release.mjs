@@ -40,6 +40,7 @@ const stableBootstrapFiles = new Set([
   "computercraft/gateway/update_bootstrap.lua",
   "computercraft/gateway/update_manager.lua",
   "computercraft/turtle/startup.lua",
+  "computercraft/turtle/compat.lua",
   "computercraft/turtle/update_bootstrap.lua",
   "computercraft/turtle/update_manager.lua",
 ]);

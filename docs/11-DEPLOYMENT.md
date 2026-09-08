@@ -184,6 +184,18 @@ npm run cli -- workers alice
 The turtle's cursor and event outbox are local persistent files. Do not commit the populated
 configuration or secret.
 
+For a reviewed development build, download `deploy/minecraft/install-direct.lua` from a pinned
+40-character Git commit, then run `install-direct <same-commit>`. It downloads and parses all
+runtime files before replacing them, and retains root files (including configuration/state)
+in a unique `manual-install-backup-*` directory. Configure `worker.conf` locally and run `startup`.
+This manual bootstrap is separate from tagged-release OTA; it does not create a release.
+
+Legacy ComputerCraft 1.75 lacks `os.date`, `os.epoch`, and `textutils.unserializeJSON`.
+The turtle bootstrap installs a non-executing JSON decoder and synchronizes UTC from authenticated
+VPS response `serverTime` values. Expiry checks fail closed until synchronized; in-game time is
+not a UTC clock. `compat.lua` is part of the stable bootstrap and must be installed manually with
+`startup.lua`. Run `lua5.1 tests/legacy-runtime.lua` to exercise these legacy compatibility paths.
+
 ## 8. Secrets
 
 Never commit:
