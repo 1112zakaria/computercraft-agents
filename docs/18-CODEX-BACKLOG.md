@@ -445,7 +445,8 @@ address/allowlist admission, gateway status, worker status, runtime/protocol ver
 
 **Priority:** P0
 **Dependencies:** CC-011, CC-031
-**Status:** IN PROGRESS — VPS infrastructure installed; awaiting Minecraft-host egress canary.
+**Status:** IN PROGRESS — public HTTPS connectivity canary verified; authenticated gateway canary
+remains.
 
 Replace the WireGuard-only gateway route with a public TLS reverse proxy that forwards only
 `/v1/gateway/*` to the loopback-bound control plane. Enforce the firewall and reverse-proxy

@@ -8,14 +8,17 @@ Confirm exact Forge 1.7.10 build and Java 8 build on the server.
 
 ## OQ-002 — ComputerCraft HTTPS public-endpoint behavior
 
+**Status: RESOLVED — verified 2026-09-08.**
+
 Verify the installed ComputerCraft 1.75 configuration can reach the configured public VPS
 hostname over HTTPS, and verify that requests arrive from `51.161.113.44`.
 
 Acceptance:
 
 ```text
-Gateway Computer → HTTPS request → `https://192.99.69.46.sslip.io:8443` → successful response
-VPS ingress log → source address `51.161.113.44` → request admitted
+Gateway Computer → HTTPS request → `https://192.99.69.46.sslip.io:8443` → HTTP 204
+VPS ingress → source address `51.161.113.44` → request admitted
+```
 
 Friend-side canary:
 
@@ -27,9 +30,12 @@ print(response and response.getResponseCode() or error_message)
 if response then response.close() end
 ```
 
-The expected result is `204`. A timeout means the request did not originate from the allowlisted
-address or cannot reach the VPS; any other response is diagnostic evidence to retain.
-```
+Observed result: the ComputerCraft HTTP API returned a response table with no error, and
+`response.getResponseCode()` returned `204`. The VPS firewall counters also recorded traffic on
+the allow rule for `51.161.113.44/32`.
+
+A timeout means the request did not originate from the allowlisted address or cannot reach the VPS;
+any other response is diagnostic evidence to retain.
 
 ## OQ-003 — Wireless modem/rednet range and loaded chunks
 
