@@ -1,3 +1,15 @@
+-- ComputerCraft 1.75 does not provide Lua's package/require loader.
+-- Define the small loader needed by this runtime before loading modules.
+if type(require) ~= "function" then
+  function require(name)
+    local chunk, load_error = loadfile(name .. ".lua")
+    if not chunk then
+      error(load_error, 0)
+    end
+    return chunk()
+  end
+end
+
 local config_loader = require("config")
 local logging = require("logging")
 local id = require("id")
