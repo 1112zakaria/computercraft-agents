@@ -20,7 +20,7 @@
     "format": "prettier --write \"apps/**/*.ts\" \"packages/**/*.ts\" \"tests/**/*.ts\" \"scripts/**/*.mjs\" \"config/**/*.json\" \"eslint.config.mjs\" \"package.json\" \"tsconfig*.json\" \".prettierrc.json\"",
     "format:check": "prettier --check \"apps/**/*.ts\" \"packages/**/*.ts\" \"tests/**/*.ts\" \"scripts/**/*.mjs\" \"config/**/*.json\" \"eslint.config.mjs\" \"package.json\" \"tsconfig*.json\" \".prettierrc.json\"",
     "lint": "eslint .",
-    "test": "npm run build && tsx --test \"tests/**/*.test.ts\"",
+    "test": "npm run build && tsx --test tests/*.test.ts",
     "typecheck": "tsc -b tsconfig.build.json",
     "check": "npm run lint && npm run format:check && npm run typecheck && npm test"
   },
