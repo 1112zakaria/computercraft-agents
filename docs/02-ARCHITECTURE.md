@@ -231,8 +231,9 @@ Gateway Computer ⇄ Rednet ⇄ Turtles
 
 The VPS ingress SHALL allow gateway traffic only from configured source CIDRs. The first
 deployment allowlist is `51.161.113.44/32`, the friend's Minecraft-host address, and MUST be
-verified before enabling live access. The control-plane process itself SHOULD bind only to
-loopback; a TLS reverse proxy is the public boundary.
+verified before enabling live access. The control-plane process itself SHALL bind only to a
+non-public listener (loopback or a private container-network bridge); a TLS reverse proxy is the
+public boundary.
 
 The gateway initiates every HTTP connection. The VPS returns commands only in responses to
 registration, heartbeat, event, or command-poll requests; it does not make unsolicited HTTP

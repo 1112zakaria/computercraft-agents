@@ -1,0 +1,24 @@
+#!/bin/sh
+set -eu
+
+iptables=/usr/sbin/iptables
+chain=DOCKER-USER
+port=8443
+source_ipv4=51.161.113.44
+allow_comment=computercraft-agents-allow-8443
+drop_comment=computercraft-agents-drop-8443
+
+while rule_number=$("$iptables" -L "$chain" --line-numbers -n \
+  | awk -v comment="$allow_comment" '$0 ~ comment { print $1; exit }'); [ -n "$rule_number" ]; do
+  "$iptables" -D "$chain" "$rule_number"
+done
+
+while rule_number=$("$iptables" -L "$chain" --line-numbers -n \
+  | awk -v comment="$drop_comment" '$0 ~ comment { print $1; exit }'); [ -n "$rule_number" ]; do
+  "$iptables" -D "$chain" "$rule_number"
+done
+
+"$iptables" -I "$chain" 1 -p tcp --dport "$port" -m conntrack --ctstate NEW \
+  -m comment --comment "$drop_comment" -j DROP
+"$iptables" -I "$chain" 1 -p tcp -s "$source_ipv4" --dport "$port" \
+  -m conntrack --ctstate NEW -m comment --comment "$allow_comment" -j ACCEPT

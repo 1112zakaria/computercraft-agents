@@ -14,7 +14,7 @@ hostname over HTTPS, and verify that requests arrive from `51.161.113.44`.
 Acceptance:
 
 ```text
-Gateway Computer → HTTPS request → public VPS hostname → successful response
+Gateway Computer → HTTPS request → `https://192-99-69-46.sslip.io:8443` → successful response
 VPS ingress log → source address `51.161.113.44` → request admitted
 ```
 

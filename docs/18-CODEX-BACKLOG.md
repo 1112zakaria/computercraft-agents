@@ -445,6 +445,7 @@ address/allowlist admission, gateway status, worker status, runtime/protocol ver
 
 **Priority:** P0
 **Dependencies:** CC-011, CC-031
+**Status:** IN PROGRESS — VPS infrastructure installed; awaiting Minecraft-host egress canary.
 
 Replace the WireGuard-only gateway route with a public TLS reverse proxy that forwards only
 `/v1/gateway/*` to the loopback-bound control plane. Enforce the firewall and reverse-proxy
@@ -453,7 +454,7 @@ source allowlist for the friend's verified Minecraft-host egress address, initia
 
 **Acceptance criteria**
 
-- control plane binds only to loopback in production;
+- control plane binds only to a non-public listener in production;
 - public ingress accepts HTTPS only and has a publicly trusted certificate;
 - TCP 8787 is not publicly reachable;
 - public ingress forwards only `/v1/gateway/*` and rejects other paths;

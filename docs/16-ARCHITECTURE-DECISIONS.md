@@ -27,7 +27,8 @@ One gateway reduces HTTP/network configuration and centralizes Rednet routing, b
 The ComputerCraft gateway makes outbound HTTPS requests to a public VPS hostname. The TLS reverse
 proxy and VPS firewall admit the friend's verified Minecraft-host public address
 (`51.161.113.44/32` initially); application-level gateway ID and bearer-secret authentication
-remain mandatory. The control-plane process stays loopback-bound.
+remain mandatory. The control-plane process stays on a non-public listener; the current Docker
+ingress integration uses a private bridge address rather than loopback.
 
 **Rationale:** ComputerCraft already supports outbound HTTP requests, so a VPN adds setup burden
 without being required for the request/poll model. HTTPS protects the bearer secret in transit;

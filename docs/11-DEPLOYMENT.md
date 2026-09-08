@@ -55,14 +55,14 @@ systemd
 TLS reverse proxy (Caddy or equivalent)
 ```
 
-The Node.js control plane SHOULD bind only to loopback. A TLS reverse proxy is the sole public
-gateway boundary and SHALL expose only `/v1/gateway/*` on HTTPS port 443.
+The Node.js control plane SHOULD bind only to a non-public listener (loopback or a private
+container-network bridge). A TLS reverse proxy is the sole public gateway boundary and SHALL
+expose only `/v1/gateway/*` on its dedicated HTTPS port.
 
 ## 4. Public gateway endpoint and source allowlist
 
-This is the target topology specified by this branch. It does not by itself change the currently
-running VPS service; the public-ingress work item in `18-CODEX-BACKLOG.md` must be completed and
-verified before the WireGuard-only deployment is retired.
+The current VPS deployment uses this topology. Its final acceptance still requires a live request
+from the friend's Minecraft host, because only that request can verify the claimed source address.
 
 The initial source allowlist is:
 
@@ -82,8 +82,12 @@ or another certificate-management method compatible with keeping the gateway rou
 HTTP-01 and TLS-ALPN validation normally require temporary public reachability; if used, restrict
 that exposure to certificate issuance and remove it before enabling the gateway route.
 
-The public proxy MUST forward only `/v1/gateway/*` to `127.0.0.1:8787`. Operator and health
-interfaces remain local/VPS-only. See `deploy/vps/Caddyfile.example` for a non-secret template.
+The public proxy MUST forward only `/v1/gateway/*` to a non-public control-plane listener.
+Operator and health interfaces remain local/VPS-only. The current deployment uses
+`https://192-99-69-46.sslip.io:8443`, forwarding to a private Docker bridge at
+`172.18.0.1:8787`. Docker-published ports bypass ordinary UFW filtering, so this deployment also
+requires persistent `DOCKER-USER` firewall rules; see `deploy/vps/Caddyfile.example` and
+`deploy/vps/computercraft-agents-docker-firewall.service.example`.
 
 ## 5. ComputerCraft HTTPS
 
