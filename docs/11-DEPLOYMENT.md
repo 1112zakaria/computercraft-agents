@@ -84,7 +84,7 @@ that exposure to certificate issuance and remove it before enabling the gateway 
 
 The public proxy MUST forward only `/v1/gateway/*` to a non-public control-plane listener.
 Operator and health interfaces remain local/VPS-only. The current deployment uses
-`https://192-99-69-46.sslip.io:8443`, forwarding to a private Docker bridge at
+`https://192.99.69.46.sslip.io:8443`, forwarding to a private Docker bridge at
 `172.18.0.1:8787`. Docker-published ports bypass ordinary UFW filtering, so this deployment also
 requires persistent `DOCKER-USER` firewall rules; see `deploy/vps/Caddyfile.example` and
 `deploy/vps/computercraft-agents-docker-firewall.service.example`.
@@ -92,6 +92,10 @@ requires persistent `DOCKER-USER` firewall rules; see `deploy/vps/Caddyfile.exam
 The allowlisted `GET /v1/gateway/connectivity` probe returns HTTP 204 without gateway credentials.
 It exists solely to verify the friend's host egress address before the gateway secret is installed;
 all other gateway routes retain bearer authentication.
+
+The endpoint certificate is configured as RSA-2048 for compatibility with legacy Java 8 runtimes
+commonly used with Minecraft 1.7.10 and ComputerCraft 1.75. Do not replace it with a self-signed
+certificate; ComputerCraft must be able to validate the public certificate chain.
 
 ## 5. ComputerCraft HTTPS
 

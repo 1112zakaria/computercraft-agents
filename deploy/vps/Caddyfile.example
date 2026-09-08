@@ -2,7 +2,12 @@
 # container's port 8443, and keep the Node.js control plane on the private Docker bridge.
 # Caddy obtains a publicly trusted certificate for this sslip.io hostname through HTTP-01 on port 80.
 
-https://192-99-69-46.sslip.io:8443 {
+https://192.99.69.46.sslip.io:8443 {
+  # ComputerCraft 1.75 commonly runs on an old Java 8 trust/TLS stack; use RSA for compatibility.
+  tls {
+    key_type rsa2048
+  }
+
   @connectivityProbe {
     remote_ip 51.161.113.44
     method GET

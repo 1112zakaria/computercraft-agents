@@ -63,7 +63,7 @@ journalctl -u computercraft-agents-control-plane -n 100 --no-pager
 The deployed gateway URL is:
 
 ```text
-https://192-99-69-46.sslip.io:8443
+https://192.99.69.46.sslip.io:8443
 ```
 
 `sslip.io` resolves this hostname to the VPS's public IPv4. The existing Caddy container obtains

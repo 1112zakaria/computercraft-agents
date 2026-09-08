@@ -3,7 +3,7 @@
 return {
   gateway_id = "gateway-example",
   minecraft_server_id = "friends-server",
-  vps_url = "https://192-99-69-46.sslip.io:8443",
+  vps_url = "https://192.99.69.46.sslip.io:8443",
   gateway_bearer_secret = "set-locally",
   modem_side = "back",
   rednet_protocol = "computercraft-agents-v1",

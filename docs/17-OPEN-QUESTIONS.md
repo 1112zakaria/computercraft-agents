@@ -14,14 +14,14 @@ hostname over HTTPS, and verify that requests arrive from `51.161.113.44`.
 Acceptance:
 
 ```text
-Gateway Computer → HTTPS request → `https://192-99-69-46.sslip.io:8443` → successful response
+Gateway Computer → HTTPS request → `https://192.99.69.46.sslip.io:8443` → successful response
 VPS ingress log → source address `51.161.113.44` → request admitted
 
 Friend-side canary:
 
 ```lua
 local response, error_message = http.get(
-  "https://192-99-69-46.sslip.io:8443/v1/gateway/connectivity"
+  "https://192.99.69.46.sslip.io:8443/v1/gateway/connectivity"
 )
 print(response and response.getResponseCode() or error_message)
 if response then response.close() end

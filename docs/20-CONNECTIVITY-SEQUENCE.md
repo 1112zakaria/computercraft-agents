@@ -3,7 +3,7 @@
 The gateway, not the VPS, initiates every HTTP connection. The VPS sends commands in responses
 to the gateway's poll; the turtle communicates only with the local gateway over Rednet.
 
-Current gateway URL: `https://192-99-69-46.sslip.io:8443`.
+Current gateway URL: `https://192.99.69.46.sslip.io:8443`.
 
 ```mermaid
 sequenceDiagram
