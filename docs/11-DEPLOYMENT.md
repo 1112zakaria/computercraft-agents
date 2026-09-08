@@ -93,6 +93,11 @@ The allowlisted `GET /v1/gateway/connectivity` probe returns HTTP 204 without ga
 It exists solely to verify the friend's host egress address before the gateway secret is installed;
 all other gateway routes retain bearer authentication.
 
+After the public probe succeeds, the authenticated canary is
+`GET /v1/gateway/authenticated-connectivity`. It returns HTTP 204 only after validating both
+`X-Agent-Gateway-Id` and the gateway bearer secret. This endpoint is diagnostic-only and does not
+change gateway or worker state.
+
 The endpoint certificate is configured as RSA-2048 for compatibility with legacy Java 8 runtimes
 commonly used with Minecraft 1.7.10 and ComputerCraft 1.75. Do not replace it with a self-signed
 certificate; ComputerCraft must be able to validate the public certificate chain.

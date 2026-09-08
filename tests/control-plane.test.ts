@@ -145,6 +145,12 @@ test("control-plane gateway API authenticates and validates gateway identity", a
     });
     assert.equal(response.status, 200);
     assert.equal(store.registrations[0]?.gatewayId, gatewayId);
+
+    const authenticatedConnectivity = await fetch(
+      `${server.baseUrl}/v1/gateway/authenticated-connectivity`,
+      { headers: gatewayHeaders() },
+    );
+    assert.equal(authenticatedConnectivity.status, 204);
   } finally {
     await server.close();
   }

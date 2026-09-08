@@ -37,6 +37,20 @@ the allow rule for `51.161.113.44/32`.
 A timeout means the request did not originate from the allowlisted address or cannot reach the VPS;
 any other response is diagnostic evidence to retain.
 
+Authenticated canary for CC-053:
+
+```lua
+local response = http.get(
+  "https://192.99.69.46.sslip.io:8443/v1/gateway/authenticated-connectivity",
+  headers
+)
+print(response and response.getResponseCode() or "request failed")
+if response then response.close() end
+```
+
+The expected result is `204`. This uses the same headers as the gateway runtime and confirms the
+bearer secret without mutating gateway state.
+
 ## OQ-003 — Wireless modem/rednet range and loaded chunks
 
 Determine practical modem topology, relay needs, and how turtles behave when moving outside chunks where gateway/relay infrastructure is loaded.
