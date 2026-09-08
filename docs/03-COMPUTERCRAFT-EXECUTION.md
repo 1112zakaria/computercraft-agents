@@ -4,7 +4,7 @@
 
 The Minecraft-side implementation consists of:
 
-1. one **gateway computer** connected to the VPS through ComputerCraft HTTP over the host's WireGuard route;
+1. one **gateway computer** connected to the VPS through gateway-initiated ComputerCraft HTTPS to the public, source-allowlisted control-plane endpoint;
 2. one or more **worker turtles** communicating with the gateway over Rednet/wireless modems;
 3. optional **peripheral computers** attached to AE2 or other machines when useful.
 

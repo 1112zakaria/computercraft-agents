@@ -8,7 +8,7 @@ without Codex credentials; deterministic gateway connectivity is the first live 
 - Ubuntu 24.04;
 - Node.js 20 or newer;
 - PostgreSQL 16 or newer;
-- WireGuard for the private gateway route;
+- Caddy or an equivalent TLS reverse proxy for the public gateway route;
 - an `ubuntu`-owned checkout at `/opt/computercraft-agents`;
 - a private `control-plane.env` file at `/etc/computercraft-agents/control-plane.env`.
 
@@ -19,7 +19,7 @@ out-of-band and must never be committed.
 
 ```text
 NODE_ENV=production
-CONTROL_PLANE_HOST=10.50.0.1
+CONTROL_PLANE_HOST=127.0.0.1
 CONTROL_PLANE_PORT=8787
 DATABASE_URL=postgresql://ccagents:<database-password>@127.0.0.1:5432/computercraft_agents
 GATEWAY_BEARER_SECRET=<gateway-secret>
@@ -57,6 +57,14 @@ systemctl status computercraft-agents-control-plane
 journalctl -u computercraft-agents-control-plane -n 100 --no-pager
 ```
 
-The gateway endpoint should only be reachable through the WireGuard interface where practical.
-The private addresses are deployment-specific. The current VPS uses `10.66.66.1` on its existing
-`wg0`; the friend-side peer must receive a free address in that same WireGuard network.
+## Public gateway ingress
+
+Use a public DNS hostname with a trusted TLS certificate. Keep the Node.js process on
+`127.0.0.1:8787`; configure Caddy (or equivalent) to expose only `/v1/gateway/*` on port 443.
+The repository's `Caddyfile.example` admits only the current Minecraft-host source address,
+`51.161.113.44`.
+
+Configure the VPS firewall to admit TCP 443 only from `51.161.113.44` and keep TCP 8787 closed
+to the public internet. Retain the gateway bearer secret: an IP allowlist alone is not gateway
+authentication. Before enabling the rule, verify from the friend's host that outbound requests
+actually use `51.161.113.44`; update the proxy and firewall together if it changes.

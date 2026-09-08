@@ -4,14 +4,16 @@
 
 Two application protocols are defined:
 
-1. **VPS ↔ Gateway** over HTTP/JSON using the WireGuard network.
+1. **VPS ↔ Gateway** over gateway-initiated HTTPS/JSON to the public control-plane endpoint.
 2. **Gateway ↔ Turtles** over Rednet/modem using compact versioned tables serialized by ComputerCraft.
 
 They MAY share message concepts but SHOULD not be forced into identical wire formats.
 
 ## 2. VPS ↔ gateway model
 
-For v1, the gateway SHOULD initiate outbound HTTP requests to the VPS. This avoids requiring ComputerCraft to host an HTTP server.
+For v1, the gateway SHALL initiate outbound HTTPS requests to the VPS. This avoids requiring
+ComputerCraft to host an HTTP server and means the VPS never needs a new inbound connection to a
+ComputerCraft computer.
 
 Preferred flows:
 
@@ -48,7 +50,9 @@ Example:
 
 ## 4. Authentication
 
-WireGuard authenticates network peers, but application-level gateway authentication SHOULD remain.
+The HTTPS ingress SHALL admit only configured source CIDRs (initially `51.161.113.44/32`) and
+terminate a publicly trusted TLS certificate. This network control does not identify a specific
+gateway or replace application-level authentication.
 
 Possible v1 mechanism:
 

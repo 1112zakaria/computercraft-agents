@@ -6,14 +6,16 @@ These items should be answered by targeted implementation/research, not addition
 
 Confirm exact Forge 1.7.10 build and Java 8 build on the server.
 
-## OQ-002 — ComputerCraft HTTP private-address behavior
+## OQ-002 — ComputerCraft HTTPS public-endpoint behavior
 
-Verify the installed ComputerCraft 1.75 configuration can reach the VPS WireGuard address and chosen port.
+Verify the installed ComputerCraft 1.75 configuration can reach the configured public VPS
+hostname over HTTPS, and verify that requests arrive from `51.161.113.44`.
 
 Acceptance:
 
 ```text
-Gateway Computer → HTTP request → 10.50.0.1:<port> → successful response
+Gateway Computer → HTTPS request → public VPS hostname → successful response
+VPS ingress log → source address `51.161.113.44` → request admitted
 ```
 
 ## OQ-003 — Wireless modem/rednet range and loaded chunks

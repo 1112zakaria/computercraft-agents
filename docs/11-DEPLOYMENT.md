@@ -51,30 +51,50 @@ Recommended:
 Node.js / TypeScript
 Codex CLI
 PostgreSQL
-WireGuard
 systemd
+TLS reverse proxy (Caddy or equivalent)
 ```
 
-The control plane SHOULD expose its ComputerCraft gateway endpoint only on the WireGuard/private interface when practical.
+The Node.js control plane SHOULD bind only to loopback. A TLS reverse proxy is the sole public
+gateway boundary and SHALL expose only `/v1/gateway/*` on HTTPS port 443.
 
-## 4. WireGuard
+## 4. Public gateway endpoint and source allowlist
 
-Example private topology:
+This is the target topology specified by this branch. It does not by itself change the currently
+running VPS service; the public-ingress work item in `18-CODEX-BACKLOG.md` must be completed and
+verified before the WireGuard-only deployment is retired.
+
+The initial source allowlist is:
 
 ```text
-VPS:              10.50.0.1
-Minecraft host:   10.50.0.2
+Minecraft host public IPv4: 51.161.113.44/32
 ```
 
-The application SHALL treat WireGuard as infrastructure. URLs/ports remain configurable.
+The VPS firewall and reverse proxy SHALL both admit HTTPS gateway requests only from this CIDR.
+This source restriction is defense in depth; the gateway ID plus bearer secret remain mandatory.
+The address MUST be verified from the friend's host before enablement and updated if the host's
+egress address changes. An IP allowlist identifies the host/network's public egress address, not
+an individual ComputerCraft computer.
 
-## 5. ComputerCraft HTTP
+The endpoint requires a public DNS hostname and a publicly trusted TLS certificate. The hostname
+is intentionally a deployment value, not a repository constant. Use DNS-01 certificate issuance
+or another certificate-management method compatible with keeping the gateway route restricted.
+HTTP-01 and TLS-ALPN validation normally require temporary public reachability; if used, restrict
+that exposure to certificate issuance and remove it before enabling the gateway route.
 
-Friend-side setup SHALL verify that the installed ComputerCraft 1.75 HTTP configuration permits the VPS WireGuard address/port.
+The public proxy MUST forward only `/v1/gateway/*` to `127.0.0.1:8787`. Operator and health
+interfaces remain local/VPS-only. See `deploy/vps/Caddyfile.example` for a non-secret template.
+
+## 5. ComputerCraft HTTPS
+
+Friend-side setup SHALL verify that the installed ComputerCraft 1.75 HTTP configuration permits
+the configured public VPS hostname over HTTPS.
 
 This is a milestone-zero connectivity check, not an assumption.
 
-If private-IP access is blocked by configuration, update ComputerCraft config/restart as needed. If version limitations make this impossible, use a small local bridge or revise gateway transport without changing control-plane domain architecture.
+If HTTPS access is blocked by configuration, update ComputerCraft config/restart as needed. If
+version limitations make this impossible, use a small local bridge or revise gateway transport
+without changing control-plane domain architecture.
 
 ## 6. Gateway installation
 
@@ -114,7 +134,6 @@ Never commit:
 - gateway bearer secret;
 - Codex authentication;
 - database password;
-- WireGuard private keys;
 - any private endpoint credentials.
 
 Commit templates such as:
@@ -122,7 +141,7 @@ Commit templates such as:
 ```text
 .env.example
 gateway.conf.example
-wireguard-example.conf
+Caddyfile.example
 ```
 
 ## 9. VPS service lifecycle

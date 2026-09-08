@@ -44,6 +44,7 @@ docs/                 Requirements, architecture, contracts, backlog, and operat
 - [Specification overview](docs/00-README.md)
 - [Architecture](docs/02-ARCHITECTURE.md)
 - [Deployment](docs/11-DEPLOYMENT.md)
+- [Connectivity sequence](docs/20-CONNECTIVITY-SEQUENCE.md)
 - [Safety and operations](docs/12-SAFETY-OPERATIONS.md)
 - [Testing strategy](docs/13-TESTING.md)
 - [Roadmap](docs/15-ROADMAP.md)
@@ -55,6 +56,6 @@ docs/                 Requirements, architecture, contracts, backlog, and operat
 
 ## Safety
 
-Never commit `.env`, gateway bearer secrets, database passwords, WireGuard private keys, or
+Never commit `.env`, gateway bearer secrets, database passwords, TLS private keys, or
 credentials. The first live-world rollout must remain read-only/movement-only and bounded as
 described in the deployment and safety specifications.

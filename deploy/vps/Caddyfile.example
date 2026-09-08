@@ -1,0 +1,16 @@
+# Replace the placeholder with the public DNS name used by the gateway.
+# Obtain and manage a publicly trusted TLS certificate before deployment.
+# This proxy deliberately exposes only the gateway API to the allowlisted Minecraft host.
+
+<CONTROL_PLANE_PUBLIC_HOSTNAME> {
+  @allowlistedGateway {
+    remote_ip 51.161.113.44
+    path /v1/gateway/*
+  }
+
+  handle @allowlistedGateway {
+    reverse_proxy 127.0.0.1:8787
+  }
+
+  respond "forbidden" 403
+}

@@ -3,7 +3,7 @@
 return {
   gateway_id = "gateway-example",
   minecraft_server_id = "friends-server",
-  vps_url = "http://10.50.0.1:8787",
+  vps_url = "https://control.example.invalid",
   gateway_bearer_secret = "set-locally",
   modem_side = "back",
   rednet_protocol = "computercraft-agents-v1",

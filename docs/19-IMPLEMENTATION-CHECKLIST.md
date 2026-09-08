@@ -3,8 +3,9 @@
 ## A. Milestone-zero feasibility
 
 - [ ] Exact Java/Forge builds recorded.
-- [ ] WireGuard peer connectivity verified.
-- [ ] ComputerCraft gateway can HTTP-connect to VPS private endpoint.
+- [ ] Public DNS hostname and trusted TLS certificate verified for the gateway endpoint.
+- [ ] VPS firewall and reverse-proxy allowlist admit only `51.161.113.44/32`.
+- [ ] ComputerCraft gateway can HTTPS-connect to the public VPS endpoint.
 - [ ] Gateway authentication works.
 - [ ] One turtle registers over Rednet.
 - [ ] Worker heartbeat/state visible from CLI.

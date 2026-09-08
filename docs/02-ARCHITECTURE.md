@@ -29,7 +29,7 @@ The project is a distributed autonomous-agent control system with a ComputerCraf
 │                                                                    │
 │ PostgreSQL: agents/projects/jobs/memory/world/conversation/audit   │
 └──────────────────────────┬─────────────────────────────────────────┘
-                           │ HTTP/JSON over WireGuard
+                           │ outbound HTTPS/JSON
 ═══════════════════════════╪══════════════════════════════════════════
                            ▼
 ┌──────────────────── Minecraft host ────────────────────────────────┐
@@ -222,16 +222,26 @@ The VPS SHALL not pretend cached physical state is authoritative after disconnec
 Preferred v1:
 
 ```text
-Gateway Computer ──HTTP request/poll──► VPS API on WireGuard
-Gateway Computer ◄──── response ─────── VPS
-Gateway Computer ──HTTP event batch───► VPS
+Gateway Computer ──HTTPS request/poll──► VPS public ingress
+Gateway Computer ◄──── HTTPS response ── VPS public ingress
+Gateway Computer ──HTTPS event batch───► VPS public ingress
 
 Gateway Computer ⇄ Rednet ⇄ Turtles
 ```
 
-This is intentionally simpler than a custom Forge RPC listener.
+The VPS ingress SHALL allow gateway traffic only from configured source CIDRs. The first
+deployment allowlist is `51.161.113.44/32`, the friend's Minecraft-host address, and MUST be
+verified before enabling live access. The control-plane process itself SHOULD bind only to
+loopback; a TLS reverse proxy is the public boundary.
 
-If ComputerCraft 1.75 HTTP restrictions prevent direct access to the WireGuard address, resolve that through configuration or a minimal bridge before redesigning the whole system.
+The gateway initiates every HTTP connection. The VPS returns commands only in responses to
+registration, heartbeat, event, or command-poll requests; it does not make unsolicited HTTP
+requests to a ComputerCraft computer. This is intentionally simpler than a custom Forge RPC
+listener.
+
+If ComputerCraft 1.75 HTTP restrictions prevent HTTPS access to the configured public hostname,
+resolve that through ComputerCraft configuration or a minimal bridge before redesigning the whole
+system.
 
 ## 9. Why a gateway computer
 

@@ -58,7 +58,7 @@ Small bounded experiments on the real server.
 
 ## 3. Milestone-zero live acceptance
 
-1. Gateway can reach VPS over WireGuard/HTTP.
+1. Gateway can reach the public VPS HTTPS endpoint from the allowlisted Minecraft-host address.
 2. VPS sees gateway heartbeat.
 3. One turtle registers through Rednet.
 4. CLI can request turtle state.

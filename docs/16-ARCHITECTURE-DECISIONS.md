@@ -20,11 +20,23 @@ Reasoning, persistent state, scheduling, memory, and project planning remain out
 
 One gateway reduces HTTP/network configuration and centralizes Rednet routing, buffering, authentication, and diagnostics.
 
-## ADR-004 — HTTP/JSON over WireGuard for VPS↔gateway
+## ADR-004 — Gateway-initiated HTTPS through a source-allowlisted public endpoint
 
-**Decision:** Accepted as baseline subject to a milestone-zero ComputerCraft 1.75 connectivity verification.
+**Decision:** Accepted; replaces the prior WireGuard baseline.
 
-WireGuard supplies private network reachability; HTTP is simple for ComputerCraft and the modern VPS service.
+The ComputerCraft gateway makes outbound HTTPS requests to a public VPS hostname. The TLS reverse
+proxy and VPS firewall admit the friend's verified Minecraft-host public address
+(`51.161.113.44/32` initially); application-level gateway ID and bearer-secret authentication
+remain mandatory. The control-plane process stays loopback-bound.
+
+**Rationale:** ComputerCraft already supports outbound HTTP requests, so a VPN adds setup burden
+without being required for the request/poll model. HTTPS protects the bearer secret in transit;
+the source allowlist reduces public exposure. This design still avoids a VPS-initiated connection
+to ComputerCraft.
+
+**Consequence:** Deployment requires a DNS hostname, trusted certificate, reverse proxy, and
+verification that `51.161.113.44` is the host's actual egress address. If that address changes,
+the allowlist must be updated before the gateway can reconnect.
 
 ## ADR-005 — Rednet/modem for gateway↔worker transport
 
