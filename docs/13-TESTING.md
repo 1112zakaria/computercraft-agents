@@ -49,6 +49,8 @@ Test:
 - command polling;
 - event ingestion;
 - gateway↔fake turtle Rednet protocol;
+- gateway-managed update controls and fake Rednet file/chunk transfer;
+- duplicate/out-of-order chunks, stale boot IDs, unsafe paths, interruption, and rollback;
 - PostgreSQL persistence;
 - Codex adapter with mocked/fixed outputs by default.
 
@@ -65,6 +67,17 @@ Small bounded experiments on the real server.
 5. CLI issues one `turn` or `forward` command.
 6. Turtle result arrives and is persisted.
 7. `stop alice` is effective without Codex.
+
+## Gateway-managed update acceptance
+
+Before a live canary, the fake integration must prove:
+
+1. CLI update request persists once and is idempotent on retry;
+2. gateway poll delivers the update control;
+3. an idle fake turtle stages and activates the allowlisted files;
+4. duplicate/out-of-order chunks do not corrupt the assembled file;
+5. a failed activation restores the previous runtime;
+6. configuration, state, command cache, logs, and outbox files remain untouched.
 
 ## 4. First useful-agent acceptance
 

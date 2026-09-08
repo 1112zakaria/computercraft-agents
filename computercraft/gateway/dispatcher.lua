@@ -19,6 +19,7 @@ function M.new(config, boot_id, registry, outbox, http_client, logger, id, proto
     logger = logger,
     id = id,
     protocol = protocol,
+    update_manager = nil,
     sequences = {},
     cursor = nil,
   }
@@ -26,6 +27,10 @@ function M.new(config, boot_id, registry, outbox, http_client, logger, id, proto
   function dispatcher:next_sequence(worker_id)
     self.sequences[worker_id] = (self.sequences[worker_id] or 0) + 1
     return self.sequences[worker_id]
+  end
+
+  function dispatcher:set_update_manager(manager)
+    self.update_manager = manager
   end
 
   function dispatcher:event(worker_id, command_id, event_type, payload)
@@ -138,6 +143,21 @@ function M.new(config, boot_id, registry, outbox, http_client, logger, id, proto
     for _, command in ipairs(response.commands) do
       self:route_command(command)
     end
+    for _, update in ipairs(response.updates or {}) do
+      if self.update_manager then
+        local updated, update_error = self.update_manager:process(update)
+        if not updated then
+          local target_type, target_key = string.match(update.target, "^(%a+):(.+)$")
+          local event_type = target_type == "gateway" and "gateway.update.failed" or "worker.update.failed"
+          self.outbox:add(self:event(target_type == "worker" and target_key or nil, nil, event_type, {
+            updateId = update.updateId,
+            releaseVersion = update.releaseVersion,
+            message = update_error,
+          }))
+          self.logger.warn("update failed: " .. tostring(update_error))
+        end
+      end
+    end
     if response.nextCursor then
       self.cursor = response.nextCursor
     end
@@ -233,6 +253,12 @@ function M.new(config, boot_id, registry, outbox, http_client, logger, id, proto
       end
       message.event.gatewayId = self.config.gateway_id
       return self.outbox:add(message.event)
+    elseif message.type == "worker.update.ack" then
+      local valid, validation_error = self.protocol.validate_update_ack(message)
+      if not valid then
+        return self:send_protocol_error(sender_id, validation_error)
+      end
+      return true
     end
 
     return self:send_protocol_error(sender_id, "unknown worker message type")

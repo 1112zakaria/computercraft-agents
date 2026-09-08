@@ -11,6 +11,7 @@ import {
   GatewayRegistrationSchema,
   IdentifierSchema,
   StopControlSchema,
+  UpdateRequestSchema,
 } from "@computercraft-agents/protocol";
 import type {
   CommandPollResponse,
@@ -20,9 +21,14 @@ import type {
   GatewayHeartbeat,
   GatewayRegistration,
   StopControl,
+  UpdateRequest,
 } from "@computercraft-agents/protocol";
 import { RepositoryError } from "@computercraft-agents/database";
-import type { GatewayPollResult, GatewayRuntimeRepository } from "@computercraft-agents/database";
+import type {
+  GatewayPollResult,
+  GatewayRuntimeRepository,
+  UpdateRolloutRecord,
+} from "@computercraft-agents/database";
 import type { z } from "zod";
 
 export interface GatewayServiceConfig {
@@ -41,6 +47,9 @@ export interface GatewayServiceStore {
   ingestEvents(batch: EventBatch): Promise<string[]>;
   enqueueCommand(command: Command): Promise<void>;
   enqueueStopControl(control: StopControl): Promise<void>;
+  enqueueUpdate(request: UpdateRequest): Promise<UpdateRolloutRecord>;
+  listUpdates(): Promise<readonly UpdateRolloutRecord[]>;
+  getUpdate(updateId: string): Promise<UpdateRolloutRecord | undefined>;
   listWorkers(): Promise<readonly Record<string, unknown>[]>;
   getWorker(workerId: string): Promise<Record<string, unknown> | undefined>;
   listGateways(): Promise<readonly Record<string, unknown>[]>;
@@ -137,6 +146,7 @@ export class GatewayService {
       serverTime: new Date().toISOString(),
       commands: result.commands,
       stopControls: result.stopControls,
+      updates: result.updates,
       nextCursor: result.nextCursor,
     });
   }
@@ -221,6 +231,34 @@ export class GatewayService {
     return { accepted: true, controlId: control.controlId };
   }
 
+  public async enqueueUpdate(input: unknown): Promise<UpdateRolloutRecord> {
+    const request = this.parsePayload(UpdateRequestSchema, input);
+    const manifestPath = new URL(request.manifestUrl).pathname;
+    if (!manifestPath.includes(`/releases/download/${request.releaseVersion}/`)) {
+      throw new HttpError(
+        400,
+        "INVALID_PAYLOAD",
+        "manifestUrl must reference the requested immutable GitHub release tag",
+      );
+    }
+    return this.store.enqueueUpdate(request);
+  }
+
+  public async listUpdates(): Promise<readonly UpdateRolloutRecord[]> {
+    return this.store.listUpdates();
+  }
+
+  public async getUpdate(updateId: string): Promise<UpdateRolloutRecord> {
+    if (!IdentifierSchema.safeParse(updateId).success) {
+      throw new HttpError(400, "INVALID_PAYLOAD", "update id is invalid");
+    }
+    const update = await this.store.getUpdate(updateId);
+    if (!update) {
+      throw new HttpError(404, "UNKNOWN_UPDATE", "update was not found");
+    }
+    return update;
+  }
+
   private parsePayload<T>(schema: z.ZodType<T>, input: unknown): T {
     const result = schema.safeParse(input);
     if (!result.success) {
@@ -250,9 +288,13 @@ export function repositoryErrorToHttp(error: unknown): HttpError {
     const protocolCode =
       error.code === "UNKNOWN_WORKER"
         ? "UNKNOWN_WORKER"
-        : error.code === "STALE_GATEWAY_BOOT"
-          ? "INVALID_PAYLOAD"
-          : "INTERNAL_ERROR";
+        : error.code === "UNKNOWN_UPDATE"
+          ? "UNKNOWN_UPDATE"
+          : error.code === "STALE_GATEWAY_BOOT"
+            ? "INVALID_PAYLOAD"
+            : error.code === "UPDATE_OVERLAP" || error.code === "UPDATE_ID_REUSE"
+              ? "INVALID_PAYLOAD"
+              : "INTERNAL_ERROR";
     return new HttpError(error.statusCode, protocolCode, error.message, error.statusCode >= 500);
   }
   return new HttpError(500, "INTERNAL_ERROR", "internal control-plane error", true);

@@ -3,6 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "description": "ComputerCraft-first autonomous Minecraft workers",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/1112zakaria/computercraft-agents.git"
+  },
   "workspaces": [
     "apps/*",
     "packages/*"

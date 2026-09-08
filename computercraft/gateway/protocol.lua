@@ -46,6 +46,16 @@ local event_types = {
   ["block.observed"] = true,
   ["peripheral.observed"] = true,
   ["protocol.error"] = true,
+  ["worker.update.started"] = true,
+  ["worker.update.staged"] = true,
+  ["worker.update.activated"] = true,
+  ["worker.update.failed"] = true,
+  ["worker.update.rolled_back"] = true,
+  ["gateway.update.started"] = true,
+  ["gateway.update.staged"] = true,
+  ["gateway.update.activated"] = true,
+  ["gateway.update.failed"] = true,
+  ["gateway.update.rolled_back"] = true,
 }
 
 local function fail(message)
@@ -62,6 +72,19 @@ end
 
 local function is_id(value)
   return is_non_empty_string(value) and string.len(value) <= 128 and string.match(value, "^[A-Za-z0-9][A-Za-z0-9._:-]*$") ~= nil
+end
+
+local function is_release_version(value)
+  return is_non_empty_string(value) and string.match(value, "^v[0-9]+%.[0-9]+%.[0-9]+[-0-9A-Za-z%.]*$") ~= nil
+end
+
+local function is_safe_path(value)
+  return is_non_empty_string(value) and string.len(value) <= 256 and string.sub(value, 1, 1) ~= "/"
+    and string.find(value, "..", 1, true) == nil
+end
+
+function M.is_update_path(value, prefix)
+  return is_safe_path(value) and string.sub(value, 1, string.len(prefix)) == prefix
 end
 
 local function has_only_keys(value, allowed)
@@ -305,6 +328,37 @@ function M.validate_stop(control)
   return true
 end
 
+function M.validate_update_control(update)
+  if type(update) ~= "table" then return fail("update must be a table") end
+  local ok, error_message = validate_version(update)
+  if not ok then return fail(error_message) end
+  for _, key in ipairs({ "updateId", "target", "manifestUrl", "issuedAt", "expiresAt", "gatewayId" }) do
+    if not is_non_empty_string(update[key]) then return fail("update." .. key .. " is required") end
+  end
+  if not is_release_version(update.releaseVersion) then return fail("update.releaseVersion is invalid") end
+  if string.sub(update.manifestUrl, 1, 8) ~= "https://" then return fail("update.manifestUrl must use HTTPS") end
+  if string.match(update.target, "^(gateway|worker|fleet):[A-Za-z0-9][A-Za-z0-9%._:-]*$") == nil then
+    return fail("update.target is invalid")
+  end
+  if update.status ~= "QUEUED" and update.status ~= "RUNNING" and update.status ~= "CANARY" then
+    return fail("update.status is not active")
+  end
+  return true
+end
+
+function M.validate_update_ack(message)
+  if type(message) ~= "table" or message.protocolVersion ~= M.VERSION then return fail("invalid update ack version") end
+  if message.type ~= "worker.update.ack" or not is_id(message.gatewayBootId) or not is_id(message.updateId) then
+    return fail("invalid update ack envelope")
+  end
+  if not is_id(message.workerId) then return fail("invalid update ack worker") end
+  if message.phase ~= "PREPARED" and message.phase ~= "FILE_RECEIVED" and message.phase ~= "ACTIVATED"
+    and message.phase ~= "FAILED" and message.phase ~= "ROLLED_BACK" then
+    return fail("invalid update ack phase")
+  end
+  return true
+end
+
 function M.validate_poll_response(response)
   if type(response) ~= "table" then
     return fail("poll response must be a table")
@@ -331,6 +385,13 @@ function M.validate_poll_response(response)
       if not ok then
         return fail("stopControls[" .. tostring(index) .. "]: " .. error_message)
       end
+    end
+  end
+  if response.updates ~= nil then
+    if type(response.updates) ~= "table" then return fail("poll response.updates must be a table") end
+    for index, update in ipairs(response.updates) do
+      ok, error_message = M.validate_update_control(update)
+      if not ok then return fail("updates[" .. tostring(index) .. "]: " .. error_message) end
     end
   end
   return true

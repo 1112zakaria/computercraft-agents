@@ -46,6 +46,7 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
       const url = new URL(request.url ?? "/", "http://control-plane.local");
       const method = requestMethod(request);
       const workerPathMatch = url.pathname.match(/^\/v1\/workers(?:\/([^/]+))?$/);
+      const updatePathMatch = url.pathname.match(/^\/v1\/updates(?:\/([^/]+))?$/);
 
       if (method === "GET" && url.pathname === "/healthz") {
         sendJson(response, 200, options.service.health());
@@ -54,6 +55,7 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
 
       if (
         workerPathMatch ||
+        updatePathMatch ||
         url.pathname === "/v1/diagnostics" ||
         url.pathname === "/v1/commands" ||
         url.pathname === "/v1/stop-controls"
@@ -78,6 +80,21 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
           sendJson(response, 200, await options.service.diagnostics());
           return;
         }
+        if (method === "GET" && updatePathMatch) {
+          const encodedUpdateId = updatePathMatch[1];
+          if (encodedUpdateId) {
+            let updateId: string;
+            try {
+              updateId = decodeURIComponent(encodedUpdateId);
+            } catch {
+              throw new HttpError(400, "INVALID_PAYLOAD", "update id is not valid URL encoding");
+            }
+            sendJson(response, 200, await options.service.getUpdate(updateId));
+          } else {
+            sendJson(response, 200, { updates: await options.service.listUpdates() });
+          }
+          return;
+        }
         if (method !== "POST") {
           throw new HttpError(405, "INVALID_PAYLOAD", "method is not supported");
         }
@@ -88,6 +105,10 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
         }
         if (url.pathname === "/v1/stop-controls") {
           sendJson(response, 200, await options.service.enqueueStopControl(adminBody));
+          return;
+        }
+        if (url.pathname === "/v1/updates") {
+          sendJson(response, 202, await options.service.enqueueUpdate(adminBody));
           return;
         }
       }

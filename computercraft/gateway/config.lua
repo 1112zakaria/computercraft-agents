@@ -34,6 +34,18 @@ local function non_negative_number(config, key, default)
   return value
 end
 
+local function runtime_version(config, configured, path)
+  if fs.exists(path) then
+    local handle = fs.open(path, "r")
+    if handle then
+      local value = handle.readAll()
+      handle.close()
+      if type(value) == "string" and string.len(value) > 0 then return value end
+    end
+  end
+  return required_string(config, configured)
+end
+
 function M.load(path)
   local config_path = path or "gateway.conf"
   if not fs.exists(config_path) then
@@ -56,7 +68,8 @@ function M.load(path)
   result.vps_url = required_string(value, "vps_url")
   result.gateway_bearer_secret = required_string(value, "gateway_bearer_secret")
   result.rednet_protocol = required_string(value, "rednet_protocol")
-  result.worker_runtime_version = required_string(value, "worker_runtime_version")
+  result.runtime_version_path = value.runtime_version_path or "gateway-runtime-version.txt"
+  result.worker_runtime_version = runtime_version(value, "worker_runtime_version", result.runtime_version_path)
   result.modem_side = value.modem_side or "back"
   result.capabilities = value.capabilities or {}
   result.register_path = value.register_path or "/v1/gateway/register"
@@ -64,6 +77,11 @@ function M.load(path)
   result.commands_path = value.commands_path or "/v1/gateway/commands"
   result.events_path = value.events_path or "/v1/gateway/events"
   result.outbox_path = value.outbox_path or "gateway-outbox.json"
+  result.update_journal_path = value.update_journal_path or "gateway-update-journal.json"
+  result.update_staging_path = value.update_staging_path or "gateway-update-staging"
+  result.update_backup_path = value.update_backup_path or "gateway-update-backup"
+  result.update_chunk_size = positive_number(value, "update_chunk_size", 768)
+  result.update_ack_timeout_seconds = positive_number(value, "update_ack_timeout_seconds", 5)
   result.poll_interval_seconds = positive_number(value, "poll_interval_seconds", 2)
   result.heartbeat_interval_seconds = positive_number(value, "heartbeat_interval_seconds", 10)
   result.http_retry_max_seconds = positive_number(value, "http_retry_max_seconds", 60)

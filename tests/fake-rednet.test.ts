@@ -7,6 +7,7 @@ import {
   EventSchema,
   StopControlSchema,
   WorkerRegistrationSchema,
+  WorkerUpdateMessageSchema,
 } from "@computercraft-agents/protocol";
 
 type RednetFrame = {
@@ -169,4 +170,43 @@ test("fake Rednet keeps protocol messages scoped to the requested channel", () =
   bus.send(turtleId, gatewayId, "other-protocol", { protocolVersion: 1 });
   assert.equal(bus.receive(gatewayId, protocol), undefined);
   assert.ok(bus.receive(gatewayId, "other-protocol"));
+});
+
+test("fake Rednet update transfer is idempotent for duplicate and out-of-order chunks", () => {
+  const bus = new FakeRednet();
+  const update = {
+    protocolVersion: 1 as const,
+    gatewayBootId,
+    updateId: "update-rednet-1",
+    releaseVersion: "v0.2.0",
+    workerId,
+    path: "computercraft/turtle/protocol.lua",
+    totalChunks: 3,
+  };
+  const chunks = ["return ", "{ ok = ", "true }\n"];
+  for (const chunkNumber of [2, 0, 1, 1]) {
+    bus.send(gatewayId, turtleId, protocol, {
+      ...update,
+      type: "worker.update.file.chunk",
+      chunkNumber,
+      content: chunks[chunkNumber],
+    });
+  }
+
+  const received = new Map<number, string>();
+  for (;;) {
+    const frame = bus.receive(turtleId, protocol) as { message: unknown } | undefined;
+    if (!frame) break;
+    const chunk = WorkerUpdateMessageSchema.parse(frame.message);
+    if (chunk.type !== "worker.update.file.chunk") continue;
+    if (!received.has(chunk.chunkNumber)) received.set(chunk.chunkNumber, chunk.content);
+  }
+  assert.deepEqual(
+    [...received.keys()].sort((left, right) => left - right),
+    [0, 1, 2],
+  );
+  assert.equal(
+    [0, 1, 2].map((chunkNumber) => received.get(chunkNumber)).join(""),
+    "return { ok = true }\n",
+  );
 });

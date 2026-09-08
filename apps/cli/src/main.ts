@@ -1,6 +1,11 @@
 import { randomUUID } from "node:crypto";
 
-import { DirectionSchema } from "@computercraft-agents/protocol";
+import {
+  DirectionSchema,
+  ReleaseVersionSchema,
+  UpdateRequestSchema,
+  UpdateTargetSchema,
+} from "@computercraft-agents/protocol";
 
 export const cliName = "computercraft-agents" as const;
 
@@ -11,6 +16,8 @@ export function usage(): string {
     `${cliName} diagnose`,
     `${cliName} move <worker-id> <N|E|S|W|UP|DOWN>`,
     `${cliName} stop <worker-id|all>`,
+    `${cliName} update --target <gateway:id|worker:id|fleet:gateway-id> --version <vX.Y.Z>`,
+    `${cliName} update-status <update-id>`,
   ].join("\n");
 }
 
@@ -49,6 +56,18 @@ async function request(path: string, init: RequestInit = {}): Promise<unknown> {
 
 function timestampAfterMinutes(minutes: number): string {
   return new Date(Date.now() + minutes * 60_000).toISOString();
+}
+
+function flag(args: readonly string[], name: string): string | undefined {
+  const index = args.indexOf(name);
+  return index >= 0 ? args[index + 1]?.trim() : undefined;
+}
+
+function manifestUrl(version: string): string {
+  const template =
+    process.env.UPDATE_MANIFEST_URL_TEMPLATE?.trim() ??
+    "https://github.com/1112zakaria/computercraft-agents/releases/download/{version}/release-manifest.json";
+  return template.replaceAll("{version}", encodeURIComponent(version));
 }
 
 export async function runCli(args: readonly string[]): Promise<void> {
@@ -101,7 +120,41 @@ export async function runCli(args: readonly string[]): Promise<void> {
     );
     return;
   }
+  if (command === "update") {
+    const target = flag(args, "--target");
+    const version = flag(args, "--version");
+    if (!target || !version || !UpdateTargetSchema.safeParse(target).success) {
+      throw new Error(
+        `usage: ${cliName} update --target <gateway:id|worker:id|fleet:gateway-id> --version <vX.Y.Z>`,
+      );
+    }
+    if (!ReleaseVersionSchema.safeParse(version).success) {
+      throw new Error("version must be an immutable semver tag such as v0.2.0");
+    }
+    const request = UpdateRequestSchema.parse({
+      protocolVersion: 1,
+      updateId: `cli-update-${randomUUID()}`,
+      target,
+      releaseVersion: version,
+      manifestUrl: flag(args, "--manifest-url") ?? manifestUrl(version),
+      issuedAt: new Date().toISOString(),
+      expiresAt: timestampAfterMinutes(30),
+    });
+    console.log(JSON.stringify(await requestApi("/v1/updates", request), null, 2));
+    return;
+  }
+  if (command === "update-status") {
+    if (!first || second) {
+      throw new Error(`usage: ${cliName} update-status <update-id>`);
+    }
+    console.log(JSON.stringify(await request(`/v1/updates/${encodeURIComponent(first)}`), null, 2));
+    return;
+  }
   throw new Error(`unknown command\n${usage()}`);
+}
+
+async function requestApi(path: string, body: unknown): Promise<unknown> {
+  return request(path, { method: "POST", body: JSON.stringify(body) });
 }
 
 if (require.main === module) {

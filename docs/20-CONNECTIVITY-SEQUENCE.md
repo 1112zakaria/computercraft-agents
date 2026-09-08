@@ -31,6 +31,27 @@ sequenceDiagram
         I-->>G: HTTPS response
     end
 
+    O->>V: POST /v1/updates (admin CLI)
+    V->>V: Persist QUEUED rollout and reject overlap
+    G->>I: GET commands poll (HTTPS)
+    I->>V: Forward authenticated poll
+    V-->>I: Update control with immutable manifest URL
+    I-->>G: HTTPS response
+    G->>G: Download GitHub manifest/runtime files over HTTPS
+    G->>T: worker.update.prepare
+    T-->>G: worker.update.ack PREPARED
+    loop Bounded runtime file transfer
+        G->>T: begin/chunk/end with update ID and chunk numbers
+        T-->>G: worker.update.ack
+    end
+    G->>T: worker.update.activate
+    T-->>G: worker.update.ack ACTIVATED
+    T->>T: Preserve config/state, activate, reboot, register new version
+    T->>G: worker.update.activated event
+    G->>I: POST /v1/gateway/events (HTTPS)
+    I->>V: Persist update status and event history
+    V-->>O: update-status reports success or rollback
+
     G->>T: Rednet command envelope
     T-->>G: Rednet accepted/progress/result event
     G->>I: POST /v1/gateway/events (HTTPS)

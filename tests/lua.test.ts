@@ -19,6 +19,8 @@ const luaFiles = [
   "gateway/protocol.lua",
   "gateway/worker_registry.lua",
   "gateway/startup.lua",
+  "gateway/update_bootstrap.lua",
+  "gateway/update_manager.lua",
   "turtle/cancellation.lua",
   "turtle/config.lua",
   "turtle/executor.lua",
@@ -32,6 +34,8 @@ const luaFiles = [
   "turtle/protocol.lua",
   "turtle/rednet_client.lua",
   "turtle/startup.lua",
+  "turtle/update_bootstrap.lua",
+  "turtle/update_manager.lua",
   "turtle/state.lua",
 ];
 
