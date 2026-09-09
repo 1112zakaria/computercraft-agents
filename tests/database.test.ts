@@ -9,6 +9,7 @@ import {
   readMigrationFiles,
   runMigrations,
   taskStatusForCommandEvent,
+  transferMeetsQuantity,
 } from "../packages/database/src/index";
 
 const migrationDirectory = join(__dirname, "../packages/database/migrations");
@@ -92,6 +93,12 @@ test("urgent command cancellation pauses the logical task", () => {
   assert.equal(taskStatusForCommandEvent("command.failed"), "FAILED");
   assert.equal(taskStatusForCommandEvent("command.cancelled"), "PAUSED");
   assert.equal(taskStatusForCommandEvent("worker.state"), undefined);
+});
+
+test("workflow deposit requires the complete transfer quantity", () => {
+  assert.equal(transferMeetsQuantity({ moved: 8 }, 8), true);
+  assert.equal(transferMeetsQuantity({ moved: 7 }, 8), false);
+  assert.equal(transferMeetsQuantity({ status: "OK" }, 8), false);
 });
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;

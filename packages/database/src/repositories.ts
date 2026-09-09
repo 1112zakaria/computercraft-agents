@@ -264,6 +264,11 @@ export function taskStatusForCommandEvent(
   }
 }
 
+export function transferMeetsQuantity(result: unknown, requestedQuantity: number): boolean {
+  if (!isRecord(result) || typeof result.moved !== "number") return false;
+  return Number.isSafeInteger(result.moved) && result.moved >= requestedQuantity;
+}
+
 function updateStatusForEvent(type: Event["type"]): UpdateStatus | undefined {
   switch (type) {
     case "worker.update.started":
@@ -1752,6 +1757,19 @@ export class GatewayRuntimeRepository {
     }
 
     if (task.workflow_phase === "DEPOSIT") {
+      const eventPayload = isRecord(event.payload)
+        ? (event.payload as Record<string, unknown>)
+        : {};
+      const result = eventPayload.result;
+      const requestedQuantity = parentArguments.quantity;
+      if (
+        typeof requestedQuantity !== "number" ||
+        !Number.isSafeInteger(requestedQuantity) ||
+        !transferMeetsQuantity(result, requestedQuantity)
+      ) {
+        await block("deposit completed without transferring the requested quantity");
+        return;
+      }
       await client.query(
         `
           UPDATE tasks
