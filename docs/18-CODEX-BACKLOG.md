@@ -1268,9 +1268,9 @@ canary limits, and audit-history integration remain.
 
 **Status:** PARTIAL — physical command, stop-control, update, and addressed gather-goal CLI
 requests support `--dry-run`, which validates and constructs a bounded preview locally without
-contacting the control plane. The opt-in planner loop records plan-only decisions and exposes
-outage status; task planning previews, decision review tooling, and feature-gate integration
-remain.
+contacting the control plane. Route planning and execution requests now also preview their exact
+HTTP method/path locally; the opt-in planner loop records plan-only decisions and exposes outage
+status. Task planning previews, decision review tooling, and feature-gate integration remain.
 
 ### CC-172 — Implement agent/project inspection CLI
 

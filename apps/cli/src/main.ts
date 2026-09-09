@@ -54,8 +54,8 @@ export function usage(): string {
     `${cliName} observe <worker-id> <front|up|down> [--dry-run]`,
     `${cliName} move <worker-id> <N|E|S|W|UP|DOWN> [--dry-run]`,
     `${cliName} path <worker-id> <N|E|S|W|UP|DOWN>... [--dry-run]`,
-    `${cliName} path-to <worker-id> <location-name>`,
-    `${cliName} go-to <worker-id> <location-name>`,
+    `${cliName} path-to <worker-id> <location-name> [--dry-run]`,
+    `${cliName} go-to <worker-id> <location-name> [--dry-run]`,
     `${cliName} excavate <worker-id> <width> <height> <depth> [--dry-run]`,
     `${cliName} gather <worker-id> <item-key> <quantity> <max-depth> [--dry-run]`,
     `${cliName} deposit <worker-id> [quantity] [slot] [--container-id <id>] [--item-key <id>] [--dry-run]`,
@@ -139,6 +139,8 @@ export async function runCli(args: readonly string[]): Promise<void> {
         "peripherals",
         "observe",
         "path",
+        "path-to",
+        "go-to",
         "excavate",
         "gather",
         "deposit",
@@ -149,7 +151,7 @@ export async function runCli(args: readonly string[]): Promise<void> {
       ]).has(command))
   ) {
     throw new Error(
-      "--dry-run is supported for goal, move, inspect, peripherals, observe, path, excavate, gather, deposit, withdraw, stop, and update",
+      "--dry-run is supported for goal, move, inspect, peripherals, observe, path, path-to, go-to, excavate, gather, deposit, withdraw, stop, and update",
     );
   }
   if (command === "provision-worker") {
@@ -648,14 +650,9 @@ export async function runCli(args: readonly string[]): Promise<void> {
     if (!first || !locationName) {
       throw new Error(`usage: ${cliName} path-to <worker-id> <location-name>`);
     }
+    const path = `/v1/workers/${encodeURIComponent(first)}/path-to/${encodeURIComponent(locationName)}`;
     console.log(
-      JSON.stringify(
-        await request(
-          `/v1/workers/${encodeURIComponent(first)}/path-to/${encodeURIComponent(locationName)}`,
-        ),
-        null,
-        2,
-      ),
+      JSON.stringify(dryRun ? { dryRun: true, method: "GET", path } : await request(path), null, 2),
     );
     return;
   }
@@ -664,14 +661,10 @@ export async function runCli(args: readonly string[]): Promise<void> {
     if (!first || !locationName) {
       throw new Error(`usage: ${cliName} go-to <worker-id> <location-name>`);
     }
+    const path = `/v1/workers/${encodeURIComponent(first)}/path-to/${encodeURIComponent(locationName)}`;
     console.log(
       JSON.stringify(
-        await request(
-          `/v1/workers/${encodeURIComponent(first)}/path-to/${encodeURIComponent(locationName)}`,
-          {
-            method: "POST",
-          },
-        ),
+        dryRun ? { dryRun: true, method: "POST", path } : await request(path, { method: "POST" }),
         null,
         2,
       ),

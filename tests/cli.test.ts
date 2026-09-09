@@ -747,6 +747,48 @@ test("CLI requests a bounded path to a named location", async () => {
   }
 });
 
+test("CLI dry-run previews named-location planning without contacting the control plane", async () => {
+  const previousFetch = globalThis.fetch;
+  const previousLog = console.log;
+  const previousUrl = process.env.CONTROL_PLANE_URL;
+  const previousSecret = process.env.CONTROL_PLANE_ADMIN_SECRET;
+  let fetchCalled = false;
+  let output = "";
+  process.env.CONTROL_PLANE_URL = "http://control-plane.test";
+  process.env.CONTROL_PLANE_ADMIN_SECRET = "test-admin-secret";
+  globalThis.fetch = async () => {
+    fetchCalled = true;
+    return new Response("{}", { status: 200 });
+  };
+  console.log = (...values: unknown[]) => {
+    output = values.map(String).join(" ");
+  };
+  try {
+    await runCli(["path-to", "alice", "Test Chest", "--dry-run"]);
+    assert.equal(fetchCalled, false);
+    assert.deepEqual(JSON.parse(output), {
+      dryRun: true,
+      method: "GET",
+      path: "/v1/workers/alice/path-to/Test%20Chest",
+    });
+
+    await runCli(["go-to", "alice", "Test Chest", "--dry-run"]);
+    assert.equal(fetchCalled, false);
+    assert.deepEqual(JSON.parse(output), {
+      dryRun: true,
+      method: "POST",
+      path: "/v1/workers/alice/path-to/Test%20Chest",
+    });
+  } finally {
+    globalThis.fetch = previousFetch;
+    console.log = previousLog;
+    if (previousUrl === undefined) delete process.env.CONTROL_PLANE_URL;
+    else process.env.CONTROL_PLANE_URL = previousUrl;
+    if (previousSecret === undefined) delete process.env.CONTROL_PLANE_ADMIN_SECRET;
+    else process.env.CONTROL_PLANE_ADMIN_SECRET = previousSecret;
+  }
+});
+
 test("CLI queues a bounded path to a named location", async () => {
   const previousFetch = globalThis.fetch;
   const previousUrl = process.env.CONTROL_PLANE_URL;
