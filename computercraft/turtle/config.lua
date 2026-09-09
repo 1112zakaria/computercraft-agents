@@ -83,6 +83,7 @@ function M.load(path)
     "inventory.deposit",
     "inventory.withdraw",
     "mining.excavate",
+    "mining.gather",
     "fuel.refuel",
   }
   result.acceptable_fuel_items = value.acceptable_fuel_items or {}

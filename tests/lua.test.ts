@@ -73,3 +73,17 @@ test("turtle executor emits a world observation event after block inspection", (
   assert.match(source, /command\.skill == "observation\.block"/);
   assert.match(source, /self:emit\(command\.commandId, "block\.observed"/);
 });
+
+test("turtle runtime exposes bounded target-aware gathering", () => {
+  const protocol = readFileSync(join(runtimeRoot, "turtle/protocol.lua"), "utf8");
+  const excavation = readFileSync(join(runtimeRoot, "turtle/excavation.lua"), "utf8");
+  const executor = readFileSync(join(runtimeRoot, "turtle/executor.lua"), "utf8");
+  assert.match(protocol, /\["mining\.gather"\] = true/);
+  assert.match(protocol, /maxDepth/);
+  assert.match(excavation, /function excavation:gather\(item_key, quantity, max_depth\)/);
+  assert.match(excavation, /TARGET_NOT_REACHED/);
+  assert.match(
+    executor,
+    /self\.excavation:gather\(args\.itemKey, args\.quantity, args\.maxDepth\)/,
+  );
+});

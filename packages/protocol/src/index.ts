@@ -217,6 +217,7 @@ export const SkillNameSchema = z.enum([
   "inventory.deposit",
   "inventory.withdraw",
   "mining.excavate",
+  "mining.gather",
   "fuel.refuel",
 ]);
 
@@ -262,6 +263,14 @@ const MiningExcavateArgumentsSchema = z
     width: PositiveIntegerSchema.max(64),
     height: PositiveIntegerSchema.max(64),
     depth: PositiveIntegerSchema.max(64),
+  })
+  .strict();
+
+const MiningGatherArgumentsSchema = z
+  .object({
+    itemKey: ItemKeySchema,
+    quantity: QuantitySchema,
+    maxDepth: PositiveIntegerSchema.max(64),
   })
   .strict();
 
@@ -328,6 +337,13 @@ const CommandUnionSchema = z.discriminatedUnion("skill", [
       ...commandBaseShape,
       skill: z.literal("mining.excavate"),
       arguments: MiningExcavateArgumentsSchema,
+    })
+    .strict(),
+  z
+    .object({
+      ...commandBaseShape,
+      skill: z.literal("mining.gather"),
+      arguments: MiningGatherArgumentsSchema,
     })
     .strict(),
   z

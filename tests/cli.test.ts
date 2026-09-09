@@ -121,6 +121,40 @@ test("CLI constructs a bounded excavation command", async () => {
   }
 });
 
+test("CLI constructs a bounded target-aware gather command", async () => {
+  const previousFetch = globalThis.fetch;
+  const previousUrl = process.env.CONTROL_PLANE_URL;
+  const previousSecret = process.env.CONTROL_PLANE_ADMIN_SECRET;
+  let capturedInit: RequestInit | undefined;
+  process.env.CONTROL_PLANE_URL = "http://control-plane.test";
+  process.env.CONTROL_PLANE_ADMIN_SECRET = "test-admin-secret";
+  globalThis.fetch = async (_input, init) => {
+    capturedInit = init;
+    return new Response(JSON.stringify({ accepted: true }), { status: 200 });
+  };
+  try {
+    await runCli(["gather", "alice", "minecraft:cobblestone", "8", "12"]);
+    const body = JSON.parse(String(capturedInit?.body)) as {
+      skill: string;
+      arguments: { itemKey: string; quantity: number; maxDepth: number };
+      budget: { maxPrimitives: number; maxBlockChanges: number };
+    };
+    assert.equal(body.skill, "mining.gather");
+    assert.deepEqual(body.arguments, {
+      itemKey: "minecraft:cobblestone",
+      quantity: 8,
+      maxDepth: 12,
+    });
+    assert.deepEqual(body.budget, { maxPrimitives: 48, maxBlockChanges: 12 });
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousUrl === undefined) delete process.env.CONTROL_PLANE_URL;
+    else process.env.CONTROL_PLANE_URL = previousUrl;
+    if (previousSecret === undefined) delete process.env.CONTROL_PLANE_ADMIN_SECRET;
+    else process.env.CONTROL_PLANE_ADMIN_SECRET = previousSecret;
+  }
+});
+
 test("CLI submits the first addressed gather goal", async () => {
   const previousFetch = globalThis.fetch;
   const previousUrl = process.env.CONTROL_PLANE_URL;

@@ -23,6 +23,7 @@ export function usage(): string {
     `${cliName} world-cells`,
     `${cliName} move <worker-id> <N|E|S|W|UP|DOWN>`,
     `${cliName} excavate <worker-id> <width> <height> <depth>`,
+    `${cliName} gather <worker-id> <item-key> <quantity> <max-depth>`,
     `${cliName} deposit <worker-id> [quantity] [slot]`,
     `${cliName} stop <worker-id|all>`,
     `${cliName} update --target <gateway:id|worker:id|fleet:gateway-id> --version <vX.Y.Z>`,
@@ -243,6 +244,31 @@ export async function runCli(args: readonly string[]): Promise<void> {
         ...(quantity === undefined ? {} : { quantity }),
         ...(slot === undefined ? {} : { slot }),
       },
+    };
+    console.log(
+      JSON.stringify(await request("/v1/commands", { method: "POST", body: JSON.stringify(body) })),
+    );
+    return;
+  }
+  if (command === "gather") {
+    const quantity = Number(args[3]);
+    const maxDepth = Number(args[4]);
+    if (
+      !first ||
+      !second ||
+      ![quantity, maxDepth].every((value) => Number.isInteger(value) && value >= 1 && value <= 64)
+    ) {
+      throw new Error(`usage: ${cliName} gather <worker-id> <item-key> <quantity> <max-depth>`);
+    }
+    const body = {
+      protocolVersion: 1,
+      commandId: `cli-${randomUUID()}`,
+      workerId: first,
+      issuedAt: new Date().toISOString(),
+      expiresAt: timestampAfterMinutes(10),
+      budget: { maxPrimitives: maxDepth * 4, maxBlockChanges: maxDepth },
+      skill: "mining.gather" as const,
+      arguments: { itemKey: second, quantity, maxDepth },
     };
     console.log(
       JSON.stringify(await request("/v1/commands", { method: "POST", body: JSON.stringify(body) })),

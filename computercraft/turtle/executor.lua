@@ -69,6 +69,8 @@ function M.new(config, client, state, cancellation, movement, observation, inven
       return self.fuel:refuel(args.maxItems)
     elseif skill == "mining.excavate" then
       return self.excavation:run(args.width, args.height, args.depth)
+    elseif skill == "mining.gather" then
+      return self.excavation:gather(args.itemKey, args.quantity, args.maxDepth)
     end
     return { status = "UNIMPLEMENTED", error = "skill is reserved for a later runtime slice" }
   end

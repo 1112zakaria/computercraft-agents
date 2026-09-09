@@ -1,9 +1,10 @@
 local M = {}
 
-function M.new(movement, observation)
+function M.new(movement, observation, inventory)
   local excavation = {
     movement = movement,
     observation = observation,
+    inventory = inventory,
   }
 
   function excavation:tunnel(depth)
@@ -53,6 +54,67 @@ function M.new(movement, observation)
       }
     end
     return self:tunnel(depth)
+  end
+
+  function excavation:gather(item_key, quantity, max_depth)
+    local initial_count = self.inventory:count(item_key)
+    if initial_count >= quantity then
+      return {
+        status = "OK",
+        itemKey = item_key,
+        quantity = quantity,
+        collected = initial_count,
+        depth = 0,
+      }
+    end
+
+    local inspected_depth = 0
+    for step = 1, max_depth do
+      local inspected = self.observation:inspect("front")
+      if inspected.status ~= "OK" then
+        return inspected
+      end
+      inspected_depth = step
+
+      if inspected.block then
+        local dug = self.observation:dig("front")
+        if dug.status ~= "OK" and dug.status ~= "NOTHING_TO_DIG" then
+          dug.itemKey = item_key
+          dug.depth = inspected_depth
+          return dug
+        end
+      end
+
+      local collected = self.inventory:count(item_key)
+      if collected >= quantity then
+        return {
+          status = "OK",
+          itemKey = item_key,
+          quantity = quantity,
+          collected = collected,
+          depth = inspected_depth,
+        }
+      end
+
+      if step < max_depth then
+        local moved = self.movement:move("FORWARD")
+        if moved.status ~= "OK" then
+          moved.itemKey = item_key
+          moved.collected = collected
+          moved.depth = inspected_depth
+          return moved
+        end
+      end
+    end
+
+    return {
+      status = "TARGET_NOT_REACHED",
+      itemKey = item_key,
+      quantity = quantity,
+      collected = self.inventory:count(item_key),
+      depth = inspected_depth,
+      error = "target quantity was not reached within maxDepth",
+    }
   end
 
   return excavation

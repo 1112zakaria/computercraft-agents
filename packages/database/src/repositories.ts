@@ -315,6 +315,19 @@ export class GatewayRuntimeRepository {
     return result.rows;
   }
 
+  public async listWorldCells(): Promise<readonly Record<string, unknown>[]> {
+    const result = await this.pool.query(
+      `
+        SELECT dimension, x, y, z, block_name AS "blockName", block_metadata AS "blockMetadata",
+               walkable, observed_at AS "observedAt", source_worker_id::text AS "sourceWorkerId"
+        FROM world_cells
+        ORDER BY observed_at DESC
+        LIMIT 1000
+      `,
+    );
+    return result.rows;
+  }
+
   public async register(
     payload: Omit<GatewayRegistration, "capabilities"> & { readonly capabilities?: unknown },
   ): Promise<GatewayIdentity> {

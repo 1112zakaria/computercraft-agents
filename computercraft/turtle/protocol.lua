@@ -11,6 +11,7 @@ local skills = {
   ["inventory.deposit"] = true,
   ["inventory.withdraw"] = true,
   ["mining.excavate"] = true,
+  ["mining.gather"] = true,
   ["fuel.refuel"] = true,
 }
 
@@ -103,6 +104,20 @@ local function arguments_valid(skill, args)
       if not integer(args[key]) or args[key] < 1 or args[key] > 64 then
         return fail("mining.excavate dimensions are invalid")
       end
+    end
+  elseif skill == "mining.gather" then
+    local ok, error_message = only_keys(args, { itemKey = true, quantity = true, maxDepth = true })
+    if not ok then
+      return fail(error_message)
+    end
+    if not identifier(args.itemKey) then
+      return fail("mining.gather.itemKey is required")
+    end
+    if not integer(args.quantity) or args.quantity < 1 or args.quantity > 64 then
+      return fail("mining.gather.quantity is invalid")
+    end
+    if not integer(args.maxDepth) or args.maxDepth < 1 or args.maxDepth > 64 then
+      return fail("mining.gather.maxDepth is invalid")
     end
   elseif skill == "fuel.refuel" then
     local ok, error_message = only_keys(args, { maxItems = true })

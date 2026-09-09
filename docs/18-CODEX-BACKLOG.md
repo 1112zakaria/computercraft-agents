@@ -831,8 +831,9 @@ Represent item ID/damage/NBT constraints sufficiently for 1.7.10 inventory plann
 **Priority:** P0  
 **Dependencies:** CC-044, CC-062
 
-**Status:** PARTIAL — safe one-block-wide, one-block-high tunnel primitive and CLI command exist;
-box patterns remain intentionally rejected.
+**Status:** PARTIAL — safe one-block-wide, one-block-high tunnel and target-aware gather
+primitives have bounded CLI commands; box patterns and full delivery orchestration remain
+intentionally incomplete.
 
 Start with simple tunnel/box patterns; every operation bounded.
 
@@ -840,6 +841,10 @@ Start with simple tunnel/box patterns; every operation bounded.
 
 **Priority:** P0  
 **Dependencies:** CC-101, CC-045, CC-064
+
+**Status:** NOT STARTED — the bounded `mining.gather` primitive now provides a safe execution
+building block, but persistent source selection, destination delivery, inventory-full handling,
+and postcondition verification still need to be orchestrated as a resumable task state machine.
 
 ### CC-103 — Implement known-container deposit skill
 

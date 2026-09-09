@@ -105,6 +105,12 @@ FAILED
 7. verify delivered quantity;
 8. report completion/failure.
 
+The current deterministic runtime slice exposes the narrower `mining.gather` command for a
+target item, quantity, and explicit maximum tunnel depth. It checks the existing inventory,
+inspects and digs one block ahead at a time, and stops with `TARGET_NOT_REACHED` when the depth
+bound is exhausted. It is intentionally not yet the full location-aware gather state machine
+described above.
+
 ## 7. Excavation
 
 Turtles are especially suitable for bounded grid work.

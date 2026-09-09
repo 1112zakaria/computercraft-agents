@@ -71,6 +71,27 @@ test("unknown skills and malformed arguments are rejected", () => {
   );
 });
 
+test("bounded gather commands require a target and depth budget", () => {
+  const command = CommandSchema.parse({
+    protocolVersion: 1,
+    commandId: "command-gather-1",
+    workerId: "alice",
+    issuedAt: "2026-09-08T12:00:00.000Z",
+    expiresAt: "2026-09-08T12:10:00.000Z",
+    budget: { maxPrimitives: 32, maxBlockChanges: 8 },
+    skill: "mining.gather",
+    arguments: { itemKey: "minecraft:cobblestone", quantity: 8, maxDepth: 8 },
+  });
+  assert.equal(command.skill, "mining.gather");
+  assert.equal(
+    CommandSchema.safeParse({
+      ...command,
+      arguments: { ...command.arguments, maxDepth: 65 },
+    }).success,
+    false,
+  );
+});
+
 test("command events require command correlation and error responses are typed", () => {
   assert.equal(
     EventBatchSchema.safeParse(fixture("invalid/event-missing-command-id.json")).success,

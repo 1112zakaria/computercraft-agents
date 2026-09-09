@@ -10,6 +10,7 @@ local skill_names = {
   ["inventory.deposit"] = true,
   ["inventory.withdraw"] = true,
   ["mining.excavate"] = true,
+  ["mining.gather"] = true,
   ["fuel.refuel"] = true,
 }
 
@@ -195,6 +196,21 @@ local function validate_arguments(skill, arguments)
       if not is_integer(arguments[key]) or arguments[key] < 1 or arguments[key] > 64 then
         return fail("mining.excavate." .. key .. " is invalid")
       end
+    end
+    return true
+  elseif skill == "mining.gather" then
+    local ok, error_message = has_only_keys(arguments, { itemKey = true, quantity = true, maxDepth = true })
+    if not ok then
+      return fail(error_message)
+    end
+    if not is_id(arguments.itemKey) then
+      return fail("mining.gather.itemKey is required")
+    end
+    if not is_integer(arguments.quantity) or arguments.quantity < 1 or arguments.quantity > 64 then
+      return fail("mining.gather.quantity is invalid")
+    end
+    if not is_integer(arguments.maxDepth) or arguments.maxDepth < 1 or arguments.maxDepth > 64 then
+      return fail("mining.gather.maxDepth is invalid")
     end
     return true
   elseif skill == "fuel.refuel" then
