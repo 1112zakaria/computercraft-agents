@@ -157,11 +157,16 @@ function M.new(config, client, state, cancellation, movement, observation, inven
       event_type = "command.failed"
       payload = error_payload("INVALID_ARGUMENTS", result.error or "container is not configured", false, result)
     elseif result.status == "INVENTORY_FULL" then
+      self:emit(command.commandId, "inventory.full", { freeSlots = 0 })
       event_type = "command.failed"
       payload = error_payload("INVALID_ARGUMENTS", "worker inventory is full; deposit items before gathering", true, result)
     elseif result.status ~= "OK" then
       event_type = "command.failed"
       payload = error_payload("INTERNAL_ERROR", result.error or result.status, true, result)
+    end
+
+    if event_type == "command.failed" then
+      payload.position = self.state:position()
     end
 
     self:emit(command.commandId, event_type, payload)

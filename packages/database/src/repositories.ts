@@ -325,6 +325,58 @@ export function isInventoryFullFailure(event: Event): boolean {
   return isRecord(result) && result.status === "INVENTORY_FULL";
 }
 
+export interface InventoryFullRecoveryPlan {
+  readonly targetWorkerId: string;
+  readonly itemKey: string;
+  readonly destination: string;
+  readonly quantity: number;
+  readonly depositQuantity: number;
+}
+
+/**
+ * Convert an inventory-full gather failure into a bounded delivery/resume plan.
+ * The database workflow still decides whether the named destination is known and
+ * whether a safe route exists; this helper only validates the event evidence and
+ * preserves the requested quantity for the next gather step.
+ */
+export function inventoryFullRecoveryPlan(
+  event: Event,
+  parentArguments: Record<string, unknown>,
+): InventoryFullRecoveryPlan | undefined {
+  if (!isInventoryFullFailure(event)) return undefined;
+  const targetWorkerId = parentArguments.targetWorkerId;
+  const itemKey = parentArguments.itemKey;
+  const destination = parentArguments.destination;
+  const configuredQuantity = parentArguments.quantity;
+  const remainingQuantity = integerArgument(parentArguments, "remainingQuantity", 0);
+  const quantity = remainingQuantity > 0 ? remainingQuantity : configuredQuantity;
+  const payload = isRecord(event.payload) ? (event.payload as Record<string, unknown>) : undefined;
+  const error = payload && isRecord(payload.error) ? payload.error : undefined;
+  const details = error && isRecord(error.details) ? error.details : undefined;
+  const result = details && isRecord(details.result) ? details.result : undefined;
+  const collected = result?.collected;
+  if (
+    typeof targetWorkerId !== "string" ||
+    typeof itemKey !== "string" ||
+    typeof destination !== "string" ||
+    typeof quantity !== "number" ||
+    !Number.isSafeInteger(quantity) ||
+    quantity < 1 ||
+    typeof collected !== "number" ||
+    !Number.isSafeInteger(collected) ||
+    collected < 1
+  ) {
+    return undefined;
+  }
+  return {
+    targetWorkerId,
+    itemKey,
+    destination,
+    quantity,
+    depositQuantity: Math.min(quantity, collected),
+  };
+}
+
 export function blockedMovementForReplan(
   event: Event,
 ): { readonly position: Coordinate; readonly direction: string } | undefined {
@@ -439,6 +491,153 @@ export class GatewayRuntimeRepository {
       `,
       [position.dimension, position.x, position.y, position.z, observedAt, workerId],
     );
+  }
+
+  private async queueGatherDelivery(
+    client: PoolClient,
+    input: {
+      readonly jobId: string;
+      readonly parentTaskId: string;
+      readonly targetWorkerId: string;
+      readonly destination: string;
+      readonly position: Coordinate;
+      readonly depositQuantity: number;
+      readonly remainingQuantity: number;
+      readonly resumeGatherAfterDeposit: boolean;
+    },
+  ): Promise<boolean> {
+    const locationResult = await client.query<{
+      dimension: number;
+      x: number;
+      y: number;
+      z: number;
+      approach: unknown;
+    }>(
+      `
+        SELECT dimension, x, y, z, approach_json AS approach
+        FROM named_locations
+        WHERE LOWER(name) = LOWER($1)
+        LIMIT 1
+      `,
+      [input.destination.trim()],
+    );
+    const location = locationResult.rows[0];
+    const target = coordinateFromUnknown(location?.approach) ?? coordinateFromUnknown(location);
+    if (!target || target.dimension !== input.position.dimension) return false;
+
+    const world = new SparseWorldModel();
+    const worldResult = await client.query<{
+      dimension: number;
+      x: number;
+      y: number;
+      z: number;
+      walkable: boolean;
+      observed_at: Date;
+      source_worker_id: string | null;
+    }>(
+      `
+        SELECT dimension, x, y, z, walkable, observed_at, source_worker_id::text
+        FROM world_cells
+        WHERE observed_at >= NOW() - ($1::text || ' seconds')::interval
+        LIMIT 10000
+      `,
+      [this.config.worldCellMaxAgeSeconds],
+    );
+    for (const cell of worldResult.rows) {
+      world.setCell({
+        dimension: cell.dimension,
+        x: cell.x,
+        y: cell.y,
+        z: cell.z,
+        walkable: cell.walkable,
+        observedAt: cell.observed_at.toISOString(),
+        source: cell.source_worker_id ?? "unknown",
+      });
+    }
+    const path = findKnownPath(world, input.position, target, { maxNodes: 10_000 });
+    if (!path || path.directions.length > 1024) return false;
+
+    const containerId = normalizeContainerId(input.destination);
+    if (!containerId) return false;
+
+    const active = await client.query(
+      `
+        SELECT 1
+        FROM tasks
+        WHERE parent_task_id = $1
+          AND workflow_phase IN ('NAVIGATE', 'DEPOSIT')
+          AND status IN ('READY', 'RUNNING')
+        LIMIT 1
+      `,
+      [input.parentTaskId],
+    );
+    if (active.rowCount) return true;
+
+    if (input.resumeGatherAfterDeposit) {
+      await client.query(
+        `
+          UPDATE tasks
+          SET status = 'RUNNING',
+              arguments_json = jsonb_set(
+                jsonb_set(
+                  jsonb_set(arguments_json, '{pendingDepositQuantity}', to_jsonb($2::int), true),
+                  '{resumeGatherAfterDeposit}', 'true'::jsonb, true
+                ),
+                '{remainingQuantity}', to_jsonb($4::int), true
+              ),
+              last_error_json = $3
+          WHERE id = $1 AND status IN ('READY', 'RUNNING')
+        `,
+        [
+          input.parentTaskId,
+          input.depositQuantity,
+          asJson({
+            reason: "worker inventory full; returning to the named container before resuming",
+            depositQuantity: input.depositQuantity,
+          }),
+          input.remainingQuantity,
+        ],
+      );
+    } else {
+      await client.query(`UPDATE tasks SET status = 'RUNNING' WHERE id = $1 AND status = 'READY'`, [
+        input.parentTaskId,
+      ]);
+    }
+
+    if (path.directions.length > 0) {
+      await client.query(
+        `
+          INSERT INTO tasks (
+            job_id, kind, status, skill_name, arguments_json, parent_task_id, workflow_phase
+          )
+          VALUES ($1, 'workflow-step', 'READY', 'navigate.path', $2, $3, 'NAVIGATE')
+        `,
+        [
+          input.jobId,
+          asJson({ targetWorkerId: input.targetWorkerId, steps: path.directions }),
+          input.parentTaskId,
+        ],
+      );
+    } else {
+      await client.query(
+        `
+          INSERT INTO tasks (
+            job_id, kind, status, skill_name, arguments_json, parent_task_id, workflow_phase
+          )
+          VALUES ($1, 'workflow-step', 'READY', 'inventory.deposit', $2, $3, 'DEPOSIT')
+        `,
+        [
+          input.jobId,
+          asJson({
+            targetWorkerId: input.targetWorkerId,
+            containerId,
+            quantity: input.depositQuantity,
+          }),
+          input.parentTaskId,
+        ],
+      );
+    }
+    return true;
   }
 
   public async createGoal(input: CreateGoalInput): Promise<GoalTaskRecord> {
@@ -2521,8 +2720,49 @@ export class GatewayRuntimeRepository {
 
     if (event.type === "command.failed") {
       if (inventoryFull) {
+        const recovery = inventoryFullRecoveryPlan(event, parentArguments);
+        if (recovery && event.workerId) {
+          const failedPayload = isRecord(event.payload)
+            ? (event.payload as Record<string, unknown>)
+            : undefined;
+          let position = coordinateFromUnknown(failedPayload?.position);
+          if (!position) {
+            const positionResult = await client.query<{
+              dimension: number | null;
+              x: number | null;
+              y: number | null;
+              z: number | null;
+            }>(
+              `
+                SELECT dimension, x, y, z
+                FROM worker_observations
+                WHERE worker_id = (SELECT id FROM workers WHERE worker_key = $1)
+                  AND dimension IS NOT NULL AND x IS NOT NULL AND y IS NOT NULL AND z IS NOT NULL
+                ORDER BY observed_at DESC, id DESC
+                LIMIT 1
+              `,
+              [event.workerId],
+            );
+            position = coordinateFromUnknown(positionResult.rows[0]);
+          }
+          if (
+            position &&
+            (await this.queueGatherDelivery(client, {
+              jobId: task.job_id,
+              parentTaskId: task.parent_task_id,
+              targetWorkerId: recovery.targetWorkerId,
+              destination: recovery.destination,
+              position,
+              depositQuantity: recovery.depositQuantity,
+              remainingQuantity: recovery.quantity - recovery.depositQuantity,
+              resumeGatherAfterDeposit: true,
+            }))
+          ) {
+            return;
+          }
+        }
         const reason =
-          "worker inventory is full; deposit items, then explicitly resume the gather task";
+          "worker inventory is full; automatic return-to-container was unavailable; deposit items, then explicitly resume the gather task";
         await client.query(
           `
             UPDATE tasks
@@ -2671,6 +2911,8 @@ export class GatewayRuntimeRepository {
       const targetWorkerId = parentArguments.targetWorkerId;
       const destination = parentArguments.destination;
       const quantity = parentArguments.quantity;
+      const pendingDepositQuantity = integerArgument(parentArguments, "pendingDepositQuantity", 0);
+      const remainingQuantity = integerArgument(parentArguments, "remainingQuantity", 0);
       const containerId =
         typeof destination === "string" ? normalizeContainerId(destination) : undefined;
       if (
@@ -2697,7 +2939,20 @@ export class GatewayRuntimeRepository {
           )
           VALUES ($1, 'workflow-step', 'READY', 'inventory.deposit', $2, $3, 'DEPOSIT')
         `,
-        [task.job_id, asJson({ targetWorkerId, containerId, quantity }), task.parent_task_id],
+        [
+          task.job_id,
+          asJson({
+            targetWorkerId,
+            containerId,
+            quantity:
+              parentArguments.resumeGatherAfterDeposit === true && pendingDepositQuantity > 0
+                ? pendingDepositQuantity
+                : remainingQuantity > 0
+                  ? remainingQuantity
+                  : quantity,
+          }),
+          task.parent_task_id,
+        ],
       );
       return;
     }
@@ -2707,13 +2962,88 @@ export class GatewayRuntimeRepository {
         ? (event.payload as Record<string, unknown>)
         : {};
       const result = eventPayload.result;
-      const requestedQuantity = parentArguments.quantity;
+      const configuredQuantity = parentArguments.quantity;
+      const remainingQuantity = integerArgument(parentArguments, "remainingQuantity", 0);
+      const requestedQuantity = remainingQuantity > 0 ? remainingQuantity : configuredQuantity;
+      const pendingDepositQuantity = integerArgument(parentArguments, "pendingDepositQuantity", 0);
+      const depositQuantity =
+        parentArguments.resumeGatherAfterDeposit === true && pendingDepositQuantity > 0
+          ? pendingDepositQuantity
+          : requestedQuantity;
       if (
-        typeof requestedQuantity !== "number" ||
-        !Number.isSafeInteger(requestedQuantity) ||
-        !transferMeetsQuantity(result, requestedQuantity)
+        typeof depositQuantity !== "number" ||
+        !Number.isSafeInteger(depositQuantity) ||
+        !transferMeetsQuantity(result, depositQuantity)
       ) {
         await block("deposit completed without transferring the requested quantity");
+        return;
+      }
+      if (parentArguments.resumeGatherAfterDeposit === true) {
+        const targetWorkerId = parentArguments.targetWorkerId;
+        const itemKey = parentArguments.itemKey;
+        if (typeof targetWorkerId !== "string" || typeof itemKey !== "string") {
+          await block("gather resume lacks a complete worker or item key");
+          return;
+        }
+        if (remainingQuantity < 1) {
+          await client.query(
+            `
+              UPDATE tasks
+              SET status = 'DONE', assigned_worker_id = NULL, last_error_json = NULL
+              WHERE id = $1
+            `,
+            [task.parent_task_id],
+          );
+          await client.query(
+            `UPDATE jobs SET status = 'DONE' WHERE id = $1 AND status IN ('READY', 'RUNNING')`,
+            [task.job_id],
+          );
+          await client.query(
+            `
+              UPDATE projects
+              SET status = 'COMPLETED'
+              WHERE id = (SELECT project_id FROM jobs WHERE id = $1)
+                AND status IN ('ACTIVE', 'PLANNING')
+            `,
+            [task.job_id],
+          );
+          return;
+        }
+        const activeGather = await client.query(
+          `
+            SELECT 1
+            FROM tasks
+            WHERE parent_task_id = $1
+              AND workflow_phase = 'GATHER'
+              AND status IN ('READY', 'RUNNING')
+            LIMIT 1
+          `,
+          [task.parent_task_id],
+        );
+        if (activeGather.rowCount) return;
+        await client.query(
+          `
+            UPDATE tasks
+            SET status = 'RUNNING',
+                arguments_json = arguments_json - 'pendingDepositQuantity' - 'resumeGatherAfterDeposit',
+                last_error_json = NULL
+            WHERE id = $1
+          `,
+          [task.parent_task_id],
+        );
+        await client.query(
+          `
+            INSERT INTO tasks (
+              job_id, kind, status, skill_name, arguments_json, parent_task_id, workflow_phase
+            )
+            VALUES ($1, 'workflow-step', 'READY', 'mining.gather', $2, $3, 'GATHER')
+          `,
+          [
+            task.job_id,
+            asJson({ targetWorkerId, itemKey, quantity: remainingQuantity, maxDepth: 64 }),
+            task.parent_task_id,
+          ],
+        );
         return;
       }
       await client.query(

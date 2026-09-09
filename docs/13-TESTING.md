@@ -147,7 +147,8 @@ Acceptance:
 - scheduler assigns Alice;
 - Alice moves/mines with bounded logic;
 - inventory fullness is handled;
-- an inventory-full command pauses the workflow and explicit resume reactivates its current step;
+- an inventory-full command attempts a bounded return-to-container/deposit/resume loop and falls
+  back to an explicit pause when the position or route evidence is insufficient;
 - Alice reaches deposit location;
 - a blocked route records the contradicted cell and deterministically replans when a known alternate
   route exists, without retrying indefinitely;

@@ -135,6 +135,8 @@ test("turtle gathering stops safely before digging with no usable inventory slot
   assert.match(excavation, /self\.inventory:free_slots\(\) == 0/);
   assert.match(excavation, /status = "INVENTORY_FULL"/);
   assert.match(executor, /worker inventory is full; deposit items before gathering/);
+  assert.match(executor, /self:emit\(command\.commandId, "inventory\.full"/);
+  assert.match(executor, /payload\.position = self\.state:position\(\)/);
 });
 
 test("turtle inventory normalizes bare item keys for count and withdrawal", () => {

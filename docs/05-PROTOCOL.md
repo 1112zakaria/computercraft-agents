@@ -137,6 +137,12 @@ infer neighboring cells, and later fresher observations may replace it. A gather
 step may use the refreshed map to queue at most three deterministic replans; if no known route is
 available, the workflow is blocked for operator review rather than retrying indefinitely.
 
+When a bounded `mining.gather` command reports `INVENTORY_FULL` with a positive collected count,
+the control plane may route the worker back to the goal's named destination, deposit only the
+reported collected quantity, and queue another bounded gather step for the original target. This
+return-and-resume path is idempotent and requires a fresh worker position plus a known safe route.
+If those facts are unavailable, the workflow pauses and requires explicit operator intervention.
+
 ```text
 GET  /v1/tasks
 GET  /v1/tasks/runnable

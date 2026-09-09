@@ -6,6 +6,7 @@ import test from "node:test";
 import {
   createDatabasePool,
   blockedMovementForReplan,
+  inventoryFullRecoveryPlan,
   isInventoryFullFailure,
   migrationChecksum,
   readMigrationFiles,
@@ -223,6 +224,70 @@ test("inventory-full failures are identified as resumable workflow pauses", () =
   assert.match(
     repositories,
     /UPDATE jobs SET status = 'READY' WHERE id = \$1 AND status = 'PAUSED'/,
+  );
+  assert.match(repositories, /queueGatherDelivery/);
+  assert.match(repositories, /resumeGatherAfterDeposit/);
+});
+
+test("inventory-full gather failures produce a bounded return-and-resume plan", () => {
+  const event = {
+    protocolVersion: 1,
+    eventId: "event-full",
+    workerId: "alice",
+    commandId: "command-full",
+    sequence: 1,
+    occurredAt: new Date().toISOString(),
+    type: "command.failed",
+    payload: {
+      error: {
+        code: "INTERNAL_ERROR",
+        message: "worker inventory is full",
+        retryable: true,
+        details: {
+          result: { status: "INVENTORY_FULL", collected: 23 },
+        },
+      },
+    },
+  } as Event;
+  assert.deepEqual(
+    inventoryFullRecoveryPlan(event, {
+      targetWorkerId: "alice",
+      itemKey: "minecraft:cobblestone",
+      quantity: 64,
+      destination: "Test Chest",
+    }),
+    {
+      targetWorkerId: "alice",
+      itemKey: "minecraft:cobblestone",
+      quantity: 64,
+      destination: "Test Chest",
+      depositQuantity: 23,
+    },
+  );
+  assert.equal(
+    inventoryFullRecoveryPlan(event, {
+      targetWorkerId: "alice",
+      itemKey: "minecraft:cobblestone",
+      quantity: 64,
+      destination: "Test Chest",
+    })?.depositQuantity,
+    23,
+  );
+  assert.deepEqual(
+    inventoryFullRecoveryPlan(event, {
+      targetWorkerId: "alice",
+      itemKey: "minecraft:cobblestone",
+      quantity: 64,
+      remainingQuantity: 41,
+      destination: "Test Chest",
+    }),
+    {
+      targetWorkerId: "alice",
+      itemKey: "minecraft:cobblestone",
+      quantity: 41,
+      destination: "Test Chest",
+      depositQuantity: 23,
+    },
   );
 });
 
