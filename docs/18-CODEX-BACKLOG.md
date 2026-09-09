@@ -906,9 +906,9 @@ Discover existing peripheral support; otherwise specify the smallest Forge chat 
 **Priority:** P0  
 **Dependencies:** CC-045
 
-**Status:** PARTIAL — bare item names are normalized to canonical `minecraft:<name>` IDs at the
-CLI and turtle gathering/inventory boundaries. Damage/NBT constraints and a complete 1.7.10 item
-registry remain future work.
+**Status:** PARTIAL — bare and namespaced item names are normalized to lowercase canonical
+`namespace:name` IDs at the CLI, domain, and turtle gathering/inventory boundaries. Damage/NBT
+constraints and a complete 1.7.10 item registry remain future work.
 
 Represent item ID/damage/NBT constraints sufficiently for 1.7.10 inventory planning.
 

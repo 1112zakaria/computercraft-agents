@@ -4,6 +4,7 @@ import test from "node:test";
 import { protocolVersion } from "../packages/protocol/src/index";
 import {
   advanceGatherTask,
+  normalizeItemKey,
   parseAddressedGatherGoal,
   parseAddressedCommand,
   type GatherTaskState,
@@ -81,6 +82,11 @@ test("addressed gather goal parser produces a bounded structured goal", () => {
       },
     },
   );
+});
+
+test("item keys normalize namespaced and bare values canonically", () => {
+  assert.equal(normalizeItemKey(" CobbleStone "), "minecraft:cobblestone");
+  assert.equal(normalizeItemKey("Minecraft:CoBbleStone"), "minecraft:cobblestone");
 });
 
 test("address parser handles workers, groups, lists, and all without interpretation", () => {

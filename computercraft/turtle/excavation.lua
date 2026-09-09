@@ -1,10 +1,11 @@
 local M = {}
 
 local function normalize_item_key(item_key)
-  if string.find(item_key, ":", 1, true) then
-    return item_key
+  local normalized = string.lower(item_key)
+  if string.find(normalized, ":", 1, true) then
+    return normalized
   end
-  return "minecraft:" .. string.lower(item_key)
+  return "minecraft:" .. normalized
 end
 
 function M.new(movement, observation, inventory)

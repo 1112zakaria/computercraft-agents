@@ -114,12 +114,22 @@ test("turtle runtime exposes bounded target-aware gathering", () => {
   assert.match(protocol, /\["mining\.gather"\] = true/);
   assert.match(protocol, /maxDepth/);
   assert.match(excavation, /function excavation:gather\(item_key, quantity, max_depth\)/);
-  assert.match(excavation, /minecraft:" \.\. string\.lower\(item_key\)/);
+  assert.match(excavation, /local normalized = string\.lower\(item_key\)/);
+  assert.match(excavation, /return "minecraft:" \.\. normalized/);
   assert.match(excavation, /TARGET_NOT_REACHED/);
   assert.match(
     executor,
     /self\.excavation:gather\(args\.itemKey, args\.quantity, args\.maxDepth\)/,
   );
+});
+
+test("turtle inventory and excavation normalize namespaced item keys", () => {
+  const excavation = readFileSync(join(runtimeRoot, "turtle/excavation.lua"), "utf8");
+  const inventory = readFileSync(join(runtimeRoot, "turtle/inventory.lua"), "utf8");
+  assert.match(excavation, /local normalized = string\.lower\(item_key\)/);
+  assert.match(inventory, /local normalized = string\.lower\(item_key\)/);
+  assert.match(excavation, /return normalized/);
+  assert.match(inventory, /return normalized/);
 });
 
 test("turtle runtime supports allowlisted named container sides", () => {

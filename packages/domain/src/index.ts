@@ -317,5 +317,6 @@ export function parseAddressedGatherGoal(input: string): AddressedGoalParseResul
 
 /** Convert a user-facing bare item name to the canonical Minecraft ID. */
 export function normalizeItemKey(value: string): string {
-  return value.includes(":") ? value : `minecraft:${value.toLowerCase()}`;
+  const normalized = value.trim().toLowerCase();
+  return normalized.includes(":") ? normalized : `minecraft:${normalized}`;
 }
