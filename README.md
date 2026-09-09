@@ -85,6 +85,7 @@ npm run cli -- gather alice minecraft:cobblestone 8 12
 npm run cli -- deposit alice 8 --container-id test-chest
 npm run cli -- withdraw alice minecraft:cobblestone 8 --container-id test-chest
 npm run cli -- goal "@alice get 64 cobblestone and deposit it in Test Chest"
+npm run cli -- goal-preflight "@alice get 64 cobblestone and deposit it in Test Chest"
 npm run cli -- goal "@alice get 64 cobblestone and deposit it in Test Chest" --start
 npm run cli -- goal "@alice get 64 cobblestone and deposit it in Test Chest" --dry-run
 npm run cli -- locations
@@ -109,6 +110,11 @@ npm run cli -- set-location "Test Chest" 0 10 64 -2 E
 See [architecture](docs/02-ARCHITECTURE.md), [protocol](docs/05-PROTOCOL.md), and
 [Minecraft-side deployment](deploy/minecraft/README.md) for endpoint and installation details.
 The gateway route remains available for modem-equipped fleets.
+
+Run `goal-preflight` before creating the first useful gather goal. It is read-only and reports
+worker capability, online/idle state, confirmed position, named destination, and known-route
+blockers. It cannot verify the physical chest side inside `worker.conf`; that remains an operator
+advisory.
 
 ## Repository layout
 

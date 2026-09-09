@@ -42,6 +42,53 @@ test("CLI exposes agent and project inspection endpoints", async () => {
   }
 });
 
+test("CLI constructs a read-only goal preflight request", async () => {
+  const previousFetch = globalThis.fetch;
+  const previousUrl = process.env.CONTROL_PLANE_URL;
+  const previousSecret = process.env.CONTROL_PLANE_ADMIN_SECRET;
+  let capturedUrl = "";
+  let capturedInit: RequestInit | undefined;
+  process.env.CONTROL_PLANE_URL = "http://control-plane.test";
+  process.env.CONTROL_PLANE_ADMIN_SECRET = "test-admin-secret";
+  globalThis.fetch = async (input, init) => {
+    capturedUrl = String(input);
+    capturedInit = init;
+    return new Response(JSON.stringify({ ready: false, blockers: [] }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  };
+  try {
+    await runCli([
+      "goal-preflight",
+      "@alice",
+      "get",
+      "8",
+      "cobblestone",
+      "and",
+      "deposit",
+      "it",
+      "in",
+      "Test",
+      "Chest",
+    ]);
+    assert.equal(capturedUrl, "http://control-plane.test/v1/goals/preflight");
+    assert.equal(capturedInit?.method, "POST");
+    assert.deepEqual(JSON.parse(String(capturedInit?.body)), {
+      protocolVersion: 1,
+      goalText: "@alice get 8 cobblestone and deposit it in Test Chest",
+      createdByPrincipal: "cli",
+      priority: 0,
+    });
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousUrl === undefined) delete process.env.CONTROL_PLANE_URL;
+    else process.env.CONTROL_PLANE_URL = previousUrl;
+    if (previousSecret === undefined) delete process.env.CONTROL_PLANE_ADMIN_SECRET;
+    else process.env.CONTROL_PLANE_ADMIN_SECRET = previousSecret;
+  }
+});
+
 test("CLI constructs an authenticated immutable update request", async () => {
   const previousFetch = globalThis.fetch;
   const previousUrl = process.env.CONTROL_PLANE_URL;

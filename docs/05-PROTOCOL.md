@@ -84,6 +84,7 @@ The protected operator API accepts the first narrow addressed gather goal:
 
 ```text
 POST /v1/goals
+POST /v1/goals/preflight
 GET  /v1/goals
 GET  /v1/goals/:taskId/report
 GET  /v1/planner/triggers?limit=<1..200>
@@ -100,6 +101,14 @@ multi-step gather workflow. Goal creation persists a parent `resource.gather` ta
 `mining.gather` workflow step; the bounded scheduler can dispatch that protocol-level child.
 The normalized `targetWorkerId` is retained in task arguments and scheduler/database dispatch
 checks enforce it, so an addressed goal cannot be silently assigned to another worker.
+
+`POST /v1/goals/preflight` accepts the same request shape as goal creation but is read-only. It
+parses the addressed goal and reports `ready`, stable blocker codes, the worker's online/idle
+state and advertised capabilities, the latest confirmed position, the named destination, and a
+known-cell route summary. It never creates a project, task, command, or world mutation. A local
+container-side mapping in `worker.conf` cannot be observed by the control plane, so the response
+also includes an operator advisory to confirm the destination's physical chest side before
+dispatch.
 
 `GET /v1/goals/:taskId/report` is a protected, read-only completion view. The path may identify
 the root goal task or any workflow child. The control plane resolves the containing project and

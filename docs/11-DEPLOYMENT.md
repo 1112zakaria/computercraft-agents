@@ -291,6 +291,17 @@ Natural-language `resource.gather` goals remain multi-step workflow records and 
 dispatched as a single command. Use `task <task-id>` to inspect one workflow step or parent task,
 including its phase, assignment, attempt count, and persisted blocking error.
 
+Before creating the first live gather goal, run the read-only preflight:
+
+```bash
+npm run cli -- goal-preflight "@alice get 64 cobblestone and deposit it in Test Chest"
+```
+
+Resolve every reported blocker. In particular, the worker must advertise `mining.gather`,
+`navigate.path`, and `inventory.deposit`, and its position must be re-anchored after manual
+relocation. The preflight cannot inspect the turtle's local `container_sides` table, so verify the
+matching physical chest-side mapping in `worker.conf` separately.
+
 The control plane also supports an opt-in bounded background scheduler loop. Set
 `SCHEDULER_ENABLED=true` and choose `SCHEDULER_INTERVAL_SECONDS` (10 seconds by default) after
 reviewing the task set. Each interval performs at most one non-overlapping scheduler tick; the

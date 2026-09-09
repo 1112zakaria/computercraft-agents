@@ -27,6 +27,7 @@ export function usage(): string {
     `${cliName} feature-gates`,
     `${cliName} audit [limit]`,
     `${cliName} goal <@worker get ... and deposit it in ...> [--start] [--dry-run]`,
+    `${cliName} goal-preflight <@worker get ... and deposit it in ...>`,
     `${cliName} goal-report <task-id>`,
     `${cliName} planner-triggers [limit]`,
     `${cliName} planner-status`,
@@ -262,6 +263,26 @@ export async function runCli(args: readonly string[]): Promise<void> {
       return;
     }
     console.log(JSON.stringify(goal, null, 2));
+    return;
+  }
+  if (command === "goal-preflight") {
+    const goalText = positionalArgs.slice(1).join(" ").trim();
+    if (!goalText) {
+      throw new Error(`usage: ${cliName} goal-preflight <@worker get ... and deposit it in ...>`);
+    }
+    const body = GoalCreateRequestSchema.parse({
+      protocolVersion: 1,
+      goalText,
+      createdByPrincipal: process.env.CONTROL_PLANE_PRINCIPAL?.trim() || "cli",
+      priority: 0,
+    });
+    console.log(
+      JSON.stringify(
+        await request("/v1/goals/preflight", { method: "POST", body: JSON.stringify(body) }),
+        null,
+        2,
+      ),
+    );
     return;
   }
   if (command === "tasks") {

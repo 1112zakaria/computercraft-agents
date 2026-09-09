@@ -41,6 +41,8 @@ Test:
 - operator pause/cancel stops active delivery atomically and resume returns work to `READY`;
 - agent and project inspection API/CLI responses;
 - environment-backed feature-gate inspection and disabled-skill rejection;
+- read-only first-use goal preflight reports missing capabilities, anchors, destinations, and
+  known routes without creating work;
 - outage transitions.
 
 ### Unit tests — Lua
@@ -136,6 +138,15 @@ Before a live canary, the fake integration must prove:
 6. configuration, state, command cache, logs, and outbox files remain untouched.
 
 ## 4. First useful-agent acceptance
+
+Before creating the goal, run:
+
+```bash
+npm run cli -- goal-preflight "@alice get 64 cobblestone and deposit it in Test Chest"
+```
+
+The preflight is advisory and read-only. A `ready: true` result still requires the operator to
+confirm the local `worker.conf` container-side mapping before dispatching the live canary.
 
 Natural language:
 

@@ -64,6 +64,7 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
       const featureGatesPath = url.pathname === "/v1/feature-gates";
       const auditPath = url.pathname === "/v1/audit";
       const goalsPath = url.pathname === "/v1/goals";
+      const goalPreflightPath = url.pathname === "/v1/goals/preflight";
       const goalReportPathMatch = url.pathname.match(/^\/v1\/goals\/([^/]+)\/report$/);
       const plannerTriggersPath = url.pathname === "/v1/planner/triggers";
       const plannerStatusPath = url.pathname === "/v1/planner/status";
@@ -95,6 +96,7 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
         featureGatesPath ||
         auditPath ||
         goalsPath ||
+        goalPreflightPath ||
         goalReportPathMatch ||
         plannerTriggersPath ||
         plannerStatusPath ||
@@ -235,6 +237,14 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
             sendJson(response, 202, await options.service.createGoal(goalBody));
             return;
           }
+        }
+        if (goalPreflightPath) {
+          if (method !== "POST") {
+            throw new HttpError(405, "INVALID_PAYLOAD", "method is not supported");
+          }
+          const goalBody = options.service.parseBody(await readBody(request, options.maxBodyBytes));
+          sendJson(response, 200, await options.service.preflightGoal(goalBody));
+          return;
         }
         if (runnableTasksPath) {
           if (method !== "GET") {

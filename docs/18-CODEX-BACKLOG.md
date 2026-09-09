@@ -960,6 +960,11 @@ remain.
 **Priority:** P0  
 **Dependencies:** CC-097, CC-102, CC-103
 
+**Status:** PARTIAL — the protected read-only `goal-preflight` API and CLI now report the
+control-plane prerequisites (worker online/idle state, advertised capabilities, confirmed anchor,
+named destination, and known walkable route) without persisting work. Live execution and verified
+delivery remain outstanding.
+
 Pass live acceptance:
 
 ```text

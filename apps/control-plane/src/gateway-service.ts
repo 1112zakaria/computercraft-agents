@@ -145,6 +145,12 @@ export interface SchedulerTickResult {
   readonly skipped?: readonly Record<string, unknown>[];
 }
 
+interface GoalPreflightBlocker {
+  readonly code: string;
+  readonly message: string;
+  readonly details?: Record<string, unknown>;
+}
+
 export class HttpError extends Error {
   public constructor(
     public readonly statusCode: number,
@@ -526,6 +532,195 @@ export class GatewayService {
       arguments: parsed.goal,
       requiredCapabilities: ["mining.gather", "navigate.path", "inventory.deposit"],
     });
+  }
+
+  /**
+   * Check the control-plane prerequisites for the first useful gather goal
+   * without creating a project, task, command, or world mutation.
+   *
+   * This is deliberately conservative: an operator-confirmed anchor and a
+   * completely known walkable route are required before the scheduler is
+   * allowed to dispatch the goal. Local turtle configuration (for example the
+   * physical side of a named chest) remains an explicit operator advisory.
+   */
+  public async preflightGoal(input: unknown): Promise<Record<string, unknown>> {
+    const request = this.parsePayload(GoalCreateRequestSchema, input);
+    const parsed = parseAddressedGatherGoal(request.goalText);
+    if (!parsed.ok) {
+      throw new HttpError(400, "INVALID_PAYLOAD", parsed.error);
+    }
+
+    const goal = parsed.goal;
+    const requiredCapabilities = ["mining.gather", "navigate.path", "inventory.deposit"];
+    const blockers: GoalPreflightBlocker[] = [];
+    const enabledSkills = new Set(this.config.enabledSkills ?? SkillNameSchema.options);
+    const disabledSkills = requiredCapabilities.filter(
+      (skill) => !enabledSkills.has(skill as SkillName),
+    );
+    if (disabledSkills.length > 0) {
+      blockers.push({
+        code: "SKILLS_DISABLED",
+        message: "one or more skills required by the gather workflow are disabled",
+        details: { skills: disabledSkills },
+      });
+    }
+
+    const worker = await this.store.getWorker(goal.targetWorkerId);
+    let start: Coordinate | undefined;
+    let target: Coordinate | undefined;
+    let path: Record<string, unknown> = { status: "NOT_CHECKED" };
+
+    if (!worker) {
+      blockers.push({
+        code: "UNKNOWN_WORKER",
+        message: "the addressed worker is not provisioned",
+        details: { workerId: goal.targetWorkerId },
+      });
+    } else {
+      if (worker.online !== true) {
+        blockers.push({
+          code: "WORKER_OFFLINE",
+          message: "the addressed worker is not online",
+          details: { workerId: goal.targetWorkerId },
+        });
+      }
+      if (typeof worker.currentTaskId === "string" && worker.currentTaskId.length > 0) {
+        blockers.push({
+          code: "WORKER_BUSY",
+          message: "the addressed worker already has an active task",
+          details: { currentTaskId: worker.currentTaskId },
+        });
+      }
+      const capabilities = stringList(worker.capabilities);
+      const missingCapabilities = requiredCapabilities.filter(
+        (capability) => !capabilities.includes(capability),
+      );
+      if (missingCapabilities.length > 0) {
+        blockers.push({
+          code: "MISSING_CAPABILITIES",
+          message: "the worker does not advertise all gather workflow capabilities",
+          details: { missingCapabilities },
+        });
+      }
+
+      const observation = isRecord(worker.observation) ? worker.observation : undefined;
+      const position =
+        observation && isRecord(observation.position) ? observation.position : undefined;
+      start = coordinateFromUnknown(position);
+      if (!start) {
+        blockers.push({
+          code: "POSITION_UNKNOWN",
+          message: "the worker has no complete observed position",
+        });
+      } else if (position?.confidence !== "CONFIRMED_ANCHOR") {
+        blockers.push({
+          code: "POSITION_NOT_CONFIRMED",
+          message: "the worker position must be confirmed with the operator anchor command",
+          details: { confidence: position?.confidence ?? null },
+        });
+      }
+    }
+
+    const destination = await this.store.resolveNamedLocation(goal.destination);
+    if (!destination) {
+      blockers.push({
+        code: "UNKNOWN_LOCATION",
+        message: "the destination is not a known named location",
+        details: { destination: goal.destination },
+      });
+    } else {
+      const approach = destination.approach;
+      target = coordinateFromUnknown(approach) ?? coordinateFromUnknown(destination);
+      if (!target) {
+        blockers.push({
+          code: "LOCATION_INCOMPLETE",
+          message: "the named destination has no complete coordinate",
+        });
+      } else if (start && target.dimension !== start.dimension) {
+        blockers.push({
+          code: "DIMENSION_MISMATCH",
+          message: "the worker and destination are in different dimensions",
+          details: { workerDimension: start.dimension, destinationDimension: target.dimension },
+        });
+      }
+    }
+
+    if (start && target && start.dimension === target.dimension) {
+      let planned: ReturnType<typeof findKnownPath>;
+      if (start.x === target.x && start.y === target.y && start.z === target.z) {
+        planned = { directions: [], coordinates: [start], expandedNodes: 0 };
+      } else {
+        const world = new SparseWorldModel();
+        for (const cell of await this.store.listWorldCells()) {
+          const coordinate = coordinateFromUnknown(cell);
+          if (!coordinate || typeof cell.walkable !== "boolean") continue;
+          world.setCell({
+            ...coordinate,
+            walkable: cell.walkable,
+            observedAt: String(cell.observedAt ?? ""),
+            source: String(cell.sourceWorkerId ?? "unknown"),
+          });
+        }
+        planned = findKnownPath(world, start, target, { maxNodes: 10_000 });
+      }
+      if (!planned) {
+        blockers.push({
+          code: "PATH_NOT_KNOWN",
+          message: "no completely known walkable path exists to the destination",
+        });
+        path = { status: "NOT_KNOWN" };
+      } else {
+        path = {
+          status: "KNOWN",
+          stepCount: planned.directions.length,
+          directions: planned.directions,
+          expandedNodes: planned.expandedNodes,
+        };
+      }
+    }
+
+    const destinationId =
+      typeof destination?.name === "string"
+        ? destination.name
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/^-+|-+$/g, "")
+        : undefined;
+    return {
+      protocolVersion: 1,
+      ready: blockers.length === 0,
+      goal,
+      requiredCapabilities,
+      blockers,
+      advisories: destinationId
+        ? [
+            {
+              code: "LOCAL_CONTAINER_CONFIGURATION",
+              message: `confirm worker.conf maps container ID ${destinationId} to the physical chest side`,
+              containerId: destinationId,
+            },
+          ]
+        : [],
+      worker: worker
+        ? {
+            workerId: worker.workerId,
+            online: worker.online === true,
+            transport: worker.transport ?? null,
+            capabilities: stringList(worker.capabilities),
+            currentTaskId: worker.currentTaskId ?? null,
+            position: start ?? null,
+          }
+        : null,
+      destination: destination
+        ? {
+            name: destination.name ?? goal.destination,
+            position: target ?? null,
+            confidence: destination.confidence ?? null,
+          }
+        : null,
+      path,
+    };
   }
 
   public async listGoals(): Promise<readonly Record<string, unknown>[]> {

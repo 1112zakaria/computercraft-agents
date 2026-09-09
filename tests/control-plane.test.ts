@@ -456,6 +456,69 @@ test("operator goal API creates a validated gather task", async () => {
   }
 });
 
+test("operator goal preflight reports missing worker capability without persisting work", async () => {
+  const store = new FakeGatewayStore();
+  store.getWorker = async (workerId: string) =>
+    workerId === "preflight-worker"
+      ? {
+          workerId,
+          online: true,
+          transport: "direct-http",
+          capabilities: ["inventory.deposit", "navigate.path"],
+          currentTaskId: null,
+          observation: {
+            position: {
+              dimension: 0,
+              x: 0,
+              y: 0,
+              z: 0,
+              confidence: "CONFIRMED_ANCHOR",
+            },
+          },
+        }
+      : undefined;
+  store.resolveNamedLocation = async () => ({
+    name: "Test Chest",
+    dimension: 0,
+    x: 0,
+    y: 0,
+    z: 0,
+    confidence: "CONFIRMED_ANCHOR",
+  });
+  const server = await startServer(store);
+  try {
+    const response = await fetch(`${server.baseUrl}/v1/goals/preflight`, {
+      method: "POST",
+      headers: adminHeaders(),
+      body: JSON.stringify({
+        protocolVersion: 1,
+        goalText: "@preflight-worker get 8 cobblestone and deposit it in Test Chest",
+        createdByPrincipal: "test",
+        priority: 0,
+      }),
+    });
+    assert.equal(response.status, 200);
+    const body = (await response.json()) as {
+      ready: boolean;
+      blockers: Array<{ code: string; details?: { missingCapabilities?: string[] } }>;
+      path: { status: string };
+    };
+    assert.equal(body.ready, false);
+    assert.equal(body.path.status, "KNOWN");
+    assert.deepEqual(body.blockers, [
+      {
+        code: "MISSING_CAPABILITIES",
+        message: "the worker does not advertise all gather workflow capabilities",
+        details: { missingCapabilities: ["mining.gather"] },
+      },
+    ]);
+    assert.equal(store.projects.length, 1);
+    assert.equal(store.commands.length, 0);
+  } finally {
+    await server.close();
+  }
+});
+
 test("operator task API lists and claims tasks", async () => {
   const store = new FakeGatewayStore();
   const server = await startServer(store);
