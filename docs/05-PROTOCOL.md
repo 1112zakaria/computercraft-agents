@@ -127,8 +127,9 @@ dependencies, already-claimed tasks, and workers with another active task.
 dependency filters used by the database claim path.
 The explicit dispatch path accepts `{ "protocolVersion": 1, "workerId": "alice" }`. It
 atomically checks worker availability, task dependencies, required capabilities, and the
-one-active-task constraint, then creates a bounded command containing `taskId`. Completion,
-failure, or cancellation events correlate back to that task and move it to its terminal state.
+one-active-task constraint, then creates a bounded command containing `taskId`. Completion and
+failure events correlate back to the task; a worker command cancellation caused by an urgent stop
+maps the task to `PAUSED` and releases its worker claim so it can be resumed explicitly.
 Only tasks whose `skillName` is already a protocol command skill are dispatchable through this
 path; the multi-step `resource.gather` workflow remains planner-owned until its orchestration is
 implemented.

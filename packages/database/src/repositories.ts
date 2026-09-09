@@ -208,6 +208,21 @@ function commandStatusForEvent(type: Event["type"]): string | undefined {
   }
 }
 
+export function taskStatusForCommandEvent(
+  type: Event["type"],
+): "DONE" | "FAILED" | "PAUSED" | undefined {
+  switch (type) {
+    case "command.completed":
+      return "DONE";
+    case "command.failed":
+      return "FAILED";
+    case "command.cancelled":
+      return "PAUSED";
+    default:
+      return undefined;
+  }
+}
+
 function updateStatusForEvent(type: Event["type"]): UpdateStatus | undefined {
   switch (type) {
     case "worker.update.started":
@@ -1685,14 +1700,7 @@ export class GatewayRuntimeRepository {
         `,
         [event.commandId, commandStatus],
       );
-      const taskStatus =
-        commandStatus === "COMPLETED"
-          ? "DONE"
-          : commandStatus === "FAILED"
-            ? "FAILED"
-            : commandStatus === "CANCELLED"
-              ? "CANCELLED"
-              : undefined;
+      const taskStatus = taskStatusForCommandEvent(event.type);
       if (taskStatus) {
         await client.query(
           `

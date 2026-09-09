@@ -8,6 +8,7 @@ import {
   migrationChecksum,
   readMigrationFiles,
   runMigrations,
+  taskStatusForCommandEvent,
 } from "../packages/database/src/index";
 
 const migrationDirectory = join(__dirname, "../packages/database/migrations");
@@ -80,6 +81,13 @@ test("database migration set is ordered and contains the core relational model",
   const dispatchSql = readFileSync(join(migrationDirectory, "007_task_dispatch.sql"), "utf8");
   assert.match(dispatchSql, /ADD COLUMN task_id BIGINT REFERENCES tasks\(id\)/);
   assert.match(dispatchSql, /gateway_commands_active_task_idx/);
+});
+
+test("urgent command cancellation pauses the logical task", () => {
+  assert.equal(taskStatusForCommandEvent("command.completed"), "DONE");
+  assert.equal(taskStatusForCommandEvent("command.failed"), "FAILED");
+  assert.equal(taskStatusForCommandEvent("command.cancelled"), "PAUSED");
+  assert.equal(taskStatusForCommandEvent("worker.state"), undefined);
 });
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
