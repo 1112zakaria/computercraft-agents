@@ -1155,14 +1155,64 @@ export class GatewayRuntimeRepository {
         SELECT t.id::text AS "taskId", t.parent_task_id::text AS "parentTaskId",
                t.workflow_phase AS "workflowPhase", t.kind, t.status,
                t.skill_name AS "skillName", t.assigned_worker_id::text AS "assignedWorkerId",
-               t.attempt_count AS "attemptCount", t.last_error_json AS "lastError"
+               t.attempt_count AS "attemptCount", t.last_error_json AS "lastError",
+               command.command_id AS "commandId", command.status AS "commandStatus",
+               command.completed_at AS "commandCompletedAt",
+               event.event_id AS "lastEventId", event.event_type AS "lastEventType",
+               event.occurred_at AS "lastEventAt", event.payload_json AS "lastEventPayload"
         FROM tasks t
+        LEFT JOIN LATERAL (
+          SELECT c.command_id, c.status, c.completed_at
+          FROM gateway_commands c
+          WHERE c.task_id = t.id
+          ORDER BY c.created_at DESC, c.id DESC
+          LIMIT 1
+        ) command ON TRUE
+        LEFT JOIN LATERAL (
+          SELECT e.event_id, e.event_type, e.occurred_at, e.payload_json
+          FROM gateway_events e
+          JOIN gateway_commands c ON c.command_id = e.command_id
+          WHERE c.task_id = t.id
+          ORDER BY e.occurred_at DESC, e.event_id DESC
+          LIMIT 1
+        ) event ON TRUE
         WHERE t.job_id = $1
         ORDER BY t.id
       `,
       [header.jobId],
     );
-    return { ...header, tasks: tasks.rows };
+    const reportTasks = tasks.rows.map((row) => {
+      const task = row as Record<string, unknown>;
+      const {
+        commandId,
+        commandStatus,
+        commandCompletedAt,
+        lastEventId,
+        lastEventType,
+        lastEventAt,
+        lastEventPayload,
+        ...taskDetails
+      } = task;
+      return {
+        ...taskDetails,
+        command: commandId
+          ? {
+              commandId,
+              status: commandStatus,
+              completedAt: commandCompletedAt,
+            }
+          : null,
+        lastEvent: lastEventId
+          ? {
+              eventId: lastEventId,
+              type: lastEventType,
+              occurredAt: lastEventAt,
+              payload: lastEventPayload,
+            }
+          : null,
+      };
+    });
+    return { ...header, tasks: reportTasks };
   }
 
   public async listPlannerTriggers(limit = 100): Promise<readonly PlannerTriggerRecord[]> {

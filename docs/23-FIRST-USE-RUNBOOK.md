@@ -116,7 +116,8 @@ The acceptance evidence is:
 2. navigation reaches the known chest approach coordinate;
 3. the deposit result reports the requested transfer and includes post-transfer inventory
    evidence;
-4. `goal-report` shows the root task, job, and project completed;
+4. `goal-report` shows the root task, job, and project completed, together with the latest
+   command status and worker event payload used as completion evidence;
 5. the worker remains online after the workflow.
 
 ## Known blockers

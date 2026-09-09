@@ -143,6 +143,8 @@ test("database migration set is ordered and contains the core relational model",
   assert.match(repositorySql, /recordInventorySnapshot/);
   assert.match(repositorySql, /peripheralSnapshotFromCommandEvent/);
   assert.match(repositorySql, /recordPeripheralSnapshot/);
+  assert.match(repositorySql, /lastEventPayload/);
+  assert.match(repositorySql, /JOIN gateway_commands c ON c.command_id = e.command_id/);
   assert.match(repositorySql, /gatherResultMeetsTarget\(eventPayload\.result, itemKey, quantity\)/);
   assert.match(repositorySql, /SELECT transport_type FROM workers WHERE worker_key = \$1/);
   assert.match(repositorySql, /worker is not registered/);
