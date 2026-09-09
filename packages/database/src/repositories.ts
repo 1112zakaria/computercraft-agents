@@ -2283,6 +2283,42 @@ export class GatewayRuntimeRepository {
     }
   }
 
+  /**
+   * An expired rollout can no longer be delivered safely. Convert it to an
+   * explicit terminal state rather than leaving an undeliverable QUEUED,
+   * RUNNING, or CANARY record visible to the operator forever.
+   */
+  public async expireExpiredUpdates(now = new Date()): Promise<number> {
+    const result = await this.pool.query<{ update_id: string }>(
+      `
+        WITH expired AS (
+          UPDATE update_rollouts
+          SET status = 'FAILED',
+              failure_code = 'UPDATE_EXPIRED',
+              failure_message = 'update rollout expired before successful activation',
+              completed_at = COALESCE(completed_at, $1)
+          WHERE status IN ('QUEUED', 'RUNNING', 'CANARY')
+            AND expires_at <= $1
+          RETURNING update_id, target, release_version, expires_at
+        )
+        INSERT INTO update_events (update_id, status, message, details_json)
+        SELECT update_id,
+               'FAILED',
+               'rollout expired before successful activation',
+               jsonb_build_object(
+                 'failureCode', 'UPDATE_EXPIRED',
+                 'target', target,
+                 'releaseVersion', release_version,
+                 'expiresAt', expires_at
+               )
+        FROM expired
+        RETURNING update_id
+      `,
+      [now],
+    );
+    return result.rowCount ?? 0;
+  }
+
   public async listUpdates(): Promise<readonly UpdateRolloutRecord[]> {
     const result = await this.pool.query<UpdateRow>(
       `

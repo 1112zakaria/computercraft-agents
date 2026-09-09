@@ -606,6 +606,19 @@ test("audit retention cleanup preserves immutable history", () => {
   assert.doesNotMatch(repositories, /retention_class = 'IMMUTABLE'.*DELETE/s);
 });
 
+test("expired OTA rollouts become explicit terminal failures with update history", () => {
+  const repositories = readFileSync(
+    join(__dirname, "../packages/database/src/repositories.ts"),
+    "utf8",
+  );
+  assert.match(repositories, /expireExpiredUpdates/);
+  assert.match(repositories, /UPDATE update_rollouts\s+SET status = 'FAILED'/s);
+  assert.match(repositories, /failure_code = 'UPDATE_EXPIRED'/);
+  assert.match(repositories, /expires_at <= \$1/);
+  assert.match(repositories, /INSERT INTO update_events/);
+  assert.match(repositories, /rollout expired before successful activation/);
+});
+
 test("gateway restart recovery cancels uncertain work behind an explicit resume boundary", () => {
   const repositories = readFileSync(
     join(__dirname, "../packages/database/src/repositories.ts"),

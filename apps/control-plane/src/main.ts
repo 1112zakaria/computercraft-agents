@@ -37,6 +37,13 @@ async function main(): Promise<void> {
     commandCount: restartRecovery.commandCount,
     outcome: "success",
   });
+  const expiredUpdates = await repository.expireExpiredUpdates();
+  if (expiredUpdates > 0) {
+    logger.info("update.rollouts.expired", {
+      expiredUpdates,
+      outcome: "success",
+    });
+  }
   const service = createRepositoryService(
     repository,
     config.gatewayBearerSecret,
@@ -71,12 +78,32 @@ async function main(): Promise<void> {
       }, config.schedulerIntervalSeconds * 1000)
     : undefined;
 
-  const staleWorkerTimer = setInterval(() => {
-    void repository.markStale().catch((error: unknown) => {
-      const message = error instanceof Error ? error.message : "unknown stale-worker failure";
-      logger.error("worker.recovery.check.failed", { error: message, outcome: "error" });
-    });
-  }, config.staleCheckIntervalSeconds * 1000);
+  let livenessMaintenanceInFlight = false;
+  const maintainLivenessAndUpdates = (): void => {
+    if (livenessMaintenanceInFlight) return;
+    livenessMaintenanceInFlight = true;
+    void Promise.all([repository.markStale(), repository.expireExpiredUpdates()])
+      .then(([, expired]) => {
+        if (expired > 0) {
+          logger.info("update.rollouts.expired", {
+            expiredUpdates: expired,
+            outcome: "success",
+          });
+        }
+      })
+      .catch((error: unknown) => {
+        const message =
+          error instanceof Error ? error.message : "unknown liveness maintenance failure";
+        logger.error("worker.recovery.check.failed", { error: message, outcome: "error" });
+      })
+      .finally(() => {
+        livenessMaintenanceInFlight = false;
+      });
+  };
+  const staleWorkerTimer = setInterval(
+    maintainLivenessAndUpdates,
+    config.staleCheckIntervalSeconds * 1000,
+  );
 
   let plannerInFlight = false;
   const plannerTimer = planner
