@@ -1166,6 +1166,10 @@ Runtime-specific resume state and a live reboot canary remain future validation 
 **Priority:** P0  
 **Dependencies:** CC-051
 
+**Status:** PARTIAL — the runtime safety boundary and bounded validation procedure are documented;
+the live test and server-specific chunk-loading choice remain pending. The system does not claim
+that a turtle can execute while its chunk is unloaded.
+
 Test whether turtles can continue intended work with humans offline and across required chunks. Document infrastructure needed if not.
 
 ### CC-164 — Automatic reasoning outage resume
