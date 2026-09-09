@@ -26,7 +26,7 @@ export function usage(): string {
     `${cliName} projects`,
     `${cliName} feature-gates`,
     `${cliName} audit [limit]`,
-    `${cliName} goal <@worker get ... and deposit it in ...>`,
+    `${cliName} goal <@worker get ... and deposit it in ...> [--dry-run]`,
     `${cliName} goal-report <task-id>`,
     `${cliName} planner-triggers [limit]`,
     `${cliName} planner-status`,
