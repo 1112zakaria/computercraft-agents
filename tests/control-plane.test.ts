@@ -64,6 +64,7 @@ class FakeGatewayStore implements GatewayServiceStore {
     { taskId: "task-runnable", status: "READY" },
   ];
   public readonly availableWorkers: Record<string, unknown>[] = [];
+  public readonly availableGateways: Record<string, unknown>[] = [];
   public readonly worldCells: Record<string, unknown>[] = [];
   public readonly tasks: Record<string, unknown>[] = [];
 
@@ -174,7 +175,7 @@ class FakeGatewayStore implements GatewayServiceStore {
   }
 
   public async listGateways(): Promise<readonly Record<string, unknown>[]> {
-    return [];
+    return this.availableGateways;
   }
 
   public async listAuditEvents(limit: number): Promise<readonly Record<string, unknown>[]> {
@@ -1115,6 +1116,52 @@ test("operator API supports inspection and deterministic command/stop enqueueing
       headers: adminHeaders(),
     });
     assert.equal(updateStatus.status, 200);
+  } finally {
+    await server.close();
+  }
+});
+
+test("operator diagnostics summarize registration, liveness, transports, and runtime versions", async () => {
+  const store = new FakeGatewayStore();
+  store.availableGateways.push({
+    gatewayId: "gateway-main",
+    status: "ONLINE",
+    runtimeVersion: "v0.4.1",
+  });
+  store.availableWorkers.push(
+    { workerId: "alice", online: true, transport: "direct-http", runtimeVersion: "v0.4.1" },
+    { workerId: "bob", online: false, transport: "gateway-rednet", runtimeVersion: "v0.4.0" },
+  );
+  const server = await startServer(store);
+  try {
+    const response = await fetch(`${server.baseUrl}/v1/diagnostics`, {
+      headers: adminHeaders(),
+    });
+    assert.equal(response.status, 200);
+    const body = (await response.json()) as {
+      protocolVersion: number;
+      summary: {
+        registeredGateways: number;
+        onlineGateways: number;
+        registeredWorkers: number;
+        onlineWorkers: number;
+      };
+      checks: { gatewayRegistration: { status: string }; onlineWorker: { status: string } };
+      runtimeVersions: { gateway: string[]; worker: string[] };
+    };
+    assert.equal(body.protocolVersion, 1);
+    assert.deepEqual(body.summary, {
+      registeredGateways: 1,
+      onlineGateways: 1,
+      registeredWorkers: 2,
+      onlineWorkers: 1,
+    });
+    assert.equal(body.checks.gatewayRegistration.status, "PASS");
+    assert.equal(body.checks.onlineWorker.status, "PASS");
+    assert.deepEqual(body.runtimeVersions, {
+      gateway: ["v0.4.1"],
+      worker: ["v0.4.1", "v0.4.0"],
+    });
   } finally {
     await server.close();
   }

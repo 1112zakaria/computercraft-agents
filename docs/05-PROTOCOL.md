@@ -214,6 +214,15 @@ context, and returns a schema-validated planner decision. The control-plane sink
 decision and can apply only the separately gated safe task-proposal subset; it never executes model
 output directly.
 
+## 2a. Operator diagnostics
+
+The protected `GET /v1/diagnostics` endpoint and `npm run cli -- diagnose` command provide one
+bounded summary for live validation. The response includes registered and online gateway/worker
+counts, transport-specific endpoint names, current gateway and worker runtime versions, and
+`PASS`/`PENDING` checks for registration and worker liveness. It does not claim to observe the
+Minecraft host's public source address: the source-IP allowlist remains enforced and verified at
+the TLS reverse proxy/firewall boundary.
+
 After a successful `observation.block` command, the turtle emits a `block.observed` event. The
 control plane derives the inspected cell from the worker position/facing and persists it in the
 dimension-namespaced world-cell model. Worker-state events also anchor the turtle's current cell

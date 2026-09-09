@@ -428,10 +428,58 @@ export class GatewayService {
       this.store.listGateways(),
       this.store.listWorkers(),
     ]);
+    const onlineGateways = gateways.filter((gateway) => gateway.status === "ONLINE").length;
+    const onlineWorkers = workers.filter((worker) => worker.online === true).length;
+    const gatewayRuntimeVersions = [
+      ...new Set(
+        gateways.flatMap((gateway) =>
+          typeof gateway.runtimeVersion === "string" ? [gateway.runtimeVersion] : [],
+        ),
+      ),
+    ];
+    const workerRuntimeVersions = [
+      ...new Set(
+        workers.flatMap((worker) =>
+          typeof worker.runtimeVersion === "string" ? [worker.runtimeVersion] : [],
+        ),
+      ),
+    ];
     return {
       protocolVersion: 1,
       service: "ok",
+      checkedAt: new Date().toISOString(),
       gatewayEndpoint: "/v1/gateway",
+      workerEndpoint: "/v1/worker",
+      summary: {
+        registeredGateways: gateways.length,
+        onlineGateways,
+        registeredWorkers: workers.length,
+        onlineWorkers,
+      },
+      checks: {
+        gatewayRegistration: {
+          status: gateways.length > 0 ? "PASS" : "PENDING",
+          detail:
+            gateways.length > 0
+              ? `${gateways.length} gateway(s) registered`
+              : "no gateway has registered",
+        },
+        workerRegistration: {
+          status: workers.length > 0 ? "PASS" : "PENDING",
+          detail:
+            workers.length > 0
+              ? `${workers.length} worker(s) registered`
+              : "no worker has registered",
+        },
+        onlineWorker: {
+          status: onlineWorkers > 0 ? "PASS" : "PENDING",
+          detail: onlineWorkers > 0 ? `${onlineWorkers} worker(s) online` : "no worker is online",
+        },
+      },
+      runtimeVersions: {
+        gateway: gatewayRuntimeVersions,
+        worker: workerRuntimeVersions,
+      },
       gateways,
       workers,
     };

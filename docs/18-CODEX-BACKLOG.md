@@ -461,9 +461,10 @@ Before Codex, prove `worker move/turn` command path end-to-end.
 **Dependencies:** CC-031, CC-051, CC-053
 
 **Status:** PARTIAL — public HTTPS, authenticated connectivity, source allowlist admission, and
-worker/gateway inspection are available; gateway and direct HTTP clients now preserve the native
-ComputerCraft connection error returned by `http.get`/`http.post`. A single combined diagnostic
-and live gateway-path acceptance remain.
+worker/gateway inspection are available; `diagnose` now provides a single bounded summary of
+registration, liveness, transports, and runtime versions, and gateway/direct HTTP clients preserve
+the native ComputerCraft connection error returned by `http.get`/`http.post`. Live gateway-path
+registration and command acceptance remain pending modem hardware.
 
 Implement a diagnostic command/output showing public HTTPS reachability, observed gateway source
 address/allowlist admission, gateway status, worker status, runtime/protocol versions.
