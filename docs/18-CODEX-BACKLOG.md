@@ -893,6 +893,10 @@ verification remain.
 **Priority:** P1  
 **Dependencies:** CC-045, CC-064
 
+**Status:** PARTIAL — the turtle runtime and operator CLI now support bounded withdraw commands
+with an optional allowlisted container ID; higher-level workflow use and postcondition checks
+remain.
+
 ### CC-105 — First useful natural-language acceptance
 
 **Priority:** P0  

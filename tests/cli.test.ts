@@ -183,6 +183,47 @@ test("CLI constructs a named-container deposit command", async () => {
   }
 });
 
+test("CLI constructs a named-container withdraw command", async () => {
+  const previousFetch = globalThis.fetch;
+  const previousUrl = process.env.CONTROL_PLANE_URL;
+  const previousSecret = process.env.CONTROL_PLANE_ADMIN_SECRET;
+  let capturedInit: RequestInit | undefined;
+  process.env.CONTROL_PLANE_URL = "http://control-plane.test";
+  process.env.CONTROL_PLANE_ADMIN_SECRET = "test-admin-secret";
+  globalThis.fetch = async (_input, init) => {
+    capturedInit = init;
+    return new Response(JSON.stringify({ accepted: true }), { status: 200 });
+  };
+  try {
+    await runCli([
+      "withdraw",
+      "alice",
+      "minecraft:cobblestone",
+      "8",
+      "2",
+      "--container-id",
+      "test-chest",
+    ]);
+    const body = JSON.parse(String(capturedInit?.body)) as {
+      skill: string;
+      arguments: { containerId: string; itemKey: string; quantity: number; slot: number };
+    };
+    assert.equal(body.skill, "inventory.withdraw");
+    assert.deepEqual(body.arguments, {
+      containerId: "test-chest",
+      itemKey: "minecraft:cobblestone",
+      quantity: 8,
+      slot: 2,
+    });
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousUrl === undefined) delete process.env.CONTROL_PLANE_URL;
+    else process.env.CONTROL_PLANE_URL = previousUrl;
+    if (previousSecret === undefined) delete process.env.CONTROL_PLANE_ADMIN_SECRET;
+    else process.env.CONTROL_PLANE_ADMIN_SECRET = previousSecret;
+  }
+});
+
 test("CLI constructs a bounded path command", async () => {
   const previousFetch = globalThis.fetch;
   const previousUrl = process.env.CONTROL_PLANE_URL;
