@@ -842,9 +842,10 @@ Start with simple tunnel/box patterns; every operation bounded.
 **Priority:** P0  
 **Dependencies:** CC-101, CC-045, CC-064
 
-**Status:** NOT STARTED — the bounded `mining.gather` primitive now provides a safe execution
-building block, but persistent source selection, destination delivery, inventory-full handling,
-and postcondition verification still need to be orchestrated as a resumable task state machine.
+**Status:** PARTIAL — a pure bounded gather workflow contract now models inventory check, gather,
+destination navigation, deposit, verification, completion, and safe blocking. Persistent task
+linkage, source/destination resolution, inventory-full handling, and scheduler dispatch still
+need to consume it.
 
 ### CC-103 — Implement known-container deposit skill
 

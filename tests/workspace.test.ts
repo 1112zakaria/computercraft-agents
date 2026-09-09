@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { protocolVersion } from "../packages/protocol/src/index";
-import { parseAddressedGatherGoal } from "../packages/domain/src/index";
+import {
+  advanceGatherTask,
+  parseAddressedGatherGoal,
+  type GatherTaskState,
+} from "../packages/domain/src/index";
 import {
   findKnownPath,
   NamedLocationRegistry,
@@ -39,6 +43,93 @@ test("addressed gather goal parser rejects unsupported or unsafe quantities", ()
     parseAddressedGatherGoal("@alice get 65 cobblestone and deposit it in Test Chest").ok,
     false,
   );
+});
+
+test("gather task state machine advances through bounded delivery phases", () => {
+  const state: GatherTaskState = {
+    phase: "CHECK_INVENTORY",
+    goal: {
+      targetWorkerId: "alice",
+      itemKey: "minecraft:cobblestone",
+      quantity: 8,
+      destination: "Test Chest",
+    },
+    maxDepth: 12,
+    collectedQuantity: 0,
+    depositedQuantity: 0,
+  };
+
+  const gather = advanceGatherTask(state, {
+    inventoryQuantity: 0,
+    destinationKnown: true,
+    atDestination: false,
+  });
+  assert.equal(gather.state.phase, "GATHER");
+  assert.deepEqual(gather.action, {
+    kind: "gather",
+    itemKey: "minecraft:cobblestone",
+    quantity: 8,
+    maxDepth: 12,
+  });
+
+  const navigate = advanceGatherTask(gather.state, {
+    inventoryQuantity: 8,
+    destinationKnown: true,
+    atDestination: false,
+    lastAction: { kind: "gather", status: "OK", collectedQuantity: 8 },
+  });
+  assert.equal(navigate.state.phase, "NAVIGATE_DESTINATION");
+  assert.deepEqual(navigate.action, { kind: "navigate", destination: "Test Chest" });
+
+  const deposit = advanceGatherTask(navigate.state, {
+    inventoryQuantity: 8,
+    destinationKnown: true,
+    atDestination: true,
+    lastAction: { kind: "navigate", status: "OK" },
+  });
+  assert.equal(deposit.state.phase, "DEPOSIT");
+  assert.equal(deposit.action?.kind, "deposit");
+
+  const verify = advanceGatherTask(deposit.state, {
+    inventoryQuantity: 0,
+    destinationKnown: true,
+    atDestination: true,
+    lastAction: { kind: "deposit", status: "OK", depositedQuantity: 8 },
+  });
+  assert.equal(verify.state.phase, "VERIFY");
+  assert.equal(verify.action?.kind, "verify");
+
+  const completed = advanceGatherTask(verify.state, {
+    inventoryQuantity: 0,
+    destinationKnown: true,
+    atDestination: true,
+    lastAction: { kind: "verify", status: "OK", depositedQuantity: 8 },
+  });
+  assert.equal(completed.state.phase, "COMPLETED");
+});
+
+test("gather task state machine blocks safely on an exhausted depth bound", () => {
+  const state: GatherTaskState = {
+    phase: "GATHER",
+    goal: {
+      targetWorkerId: "alice",
+      itemKey: "minecraft:cobblestone",
+      quantity: 8,
+      destination: "Test Chest",
+    },
+    maxDepth: 4,
+    collectedQuantity: 2,
+    depositedQuantity: 0,
+  };
+  const result = advanceGatherTask(state, {
+    inventoryQuantity: 2,
+    destinationKnown: true,
+    atDestination: false,
+    lastAction: { kind: "gather", status: "TARGET_NOT_REACHED", collectedQuantity: 2 },
+  });
+  assert.equal(result.state.phase, "BLOCKED");
+  assert.match(result.state.blockedReason ?? "", /depth bound/);
+  assert.equal(result.action, undefined);
 });
 
 test("scheduler baseline selects ready tasks by priority", () => {

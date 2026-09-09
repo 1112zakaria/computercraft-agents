@@ -111,6 +111,12 @@ inspects and digs one block ahead at a time, and stops with `TARGET_NOT_REACHED`
 bound is exhausted. It is intentionally not yet the full location-aware gather state machine
 described above.
 
+The domain package now contains a pure gather workflow contract with the phases
+`CHECK_INVENTORY`, `GATHER`, `NAVIGATE_DESTINATION`, `DEPOSIT`, `VERIFY`, `COMPLETED`, and
+`BLOCKED`. It emits at most one next action per observation and treats an exhausted gathering
+bound or failed delivery as a terminal blocked state. Persistent task linkage and scheduler
+dispatch still need to consume this contract.
+
 ## 7. Excavation
 
 Turtles are especially suitable for bounded grid work.
