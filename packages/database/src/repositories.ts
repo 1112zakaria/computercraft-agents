@@ -53,6 +53,14 @@ export interface UpdateRolloutRecord extends UpdateRequest {
   readonly startedAt?: Date | string | null;
   readonly completedAt?: Date | string | null;
   readonly createdAt?: Date | string;
+  readonly events?: readonly UpdateEventRecord[];
+}
+
+export interface UpdateEventRecord {
+  readonly status: UpdateStatus;
+  readonly message: string | null;
+  readonly details: unknown;
+  readonly createdAt: string;
 }
 
 export interface GatewayIdentity {
@@ -166,6 +174,13 @@ interface UpdateRow extends QueryResultRow {
   completed_at: Date | null;
   created_at: Date;
   delivery_cursor: string;
+}
+
+interface UpdateEventRow extends QueryResultRow {
+  status: UpdateStatus;
+  message: string | null;
+  details_json: unknown;
+  created_at: Date;
 }
 
 interface IdRow extends QueryResultRow {
@@ -2346,7 +2361,25 @@ export class GatewayRuntimeRepository {
       [updateId],
     );
     const row = result.rows[0];
-    return row ? this.toUpdateRecord(row) : undefined;
+    if (!row) return undefined;
+    const events = await this.pool.query<UpdateEventRow>(
+      `
+        SELECT status, message, details_json, created_at
+        FROM update_events
+        WHERE update_id = $1
+        ORDER BY created_at, id
+      `,
+      [updateId],
+    );
+    return {
+      ...this.toUpdateRecord(row),
+      events: events.rows.map((event) => ({
+        status: event.status,
+        message: event.message,
+        details: parseJson(event.details_json),
+        createdAt: new Date(event.created_at).toISOString(),
+      })),
+    };
   }
 
   public async ingestEvents(batch: EventBatch): Promise<string[]> {

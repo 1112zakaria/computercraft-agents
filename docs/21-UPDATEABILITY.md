@@ -55,7 +55,8 @@ the manifest URL to the repository's GitHub release asset; `--manifest-url` or
 The control plane validates the target, immutable version, HTTPS manifest URL, and expiry; it
 persists the rollout and rejects overlapping active updates for the same gateway or direct worker.
 Repeating the same `updateId` with the same rollout data is idempotent. Update status and failure
-information are visible through `GET /v1/updates` and `GET /v1/updates/:updateId`. If a rollout
+information are visible through `GET /v1/updates` and `GET /v1/updates/:updateId`; the individual
+status response includes its chronological update-event history. If a rollout
 expires before successful activation (for example, while its turtle is offline), maintenance marks
 it `FAILED` with `failureCode: UPDATE_EXPIRED` and writes an update-history event. The operator
 must review the failure and enqueue a new immutable update request; expired work is never silently

@@ -633,6 +633,80 @@ test("expired OTA rollouts become explicit terminal failures with update history
   assert.match(queries[0]?.text ?? "", /rollout expired before successful activation/);
 });
 
+test("individual update inspection includes chronological event history", async () => {
+  let queryNumber = 0;
+  const pool = {
+    query: async () => {
+      queryNumber += 1;
+      if (queryNumber === 1) {
+        return {
+          rows: [
+            {
+              update_id: "update-history",
+              target: "worker:alice",
+              target_type: "worker",
+              target_key: "alice",
+              gateway_key: null,
+              transport_type: "direct-http",
+              release_version: "v0.4.2",
+              manifest_url:
+                "https://github.com/1112zakaria/computercraft-agents/releases/download/v0.4.2/release-manifest.json",
+              issued_at: new Date("2026-09-09T18:27:37.214Z"),
+              expires_at: new Date("2026-09-09T18:57:37.214Z"),
+              status: "FAILED",
+              failure_code: "UPDATE_EXPIRED",
+              failure_message: "update rollout expired before successful activation",
+              started_at: null,
+              completed_at: new Date("2026-09-09T18:57:37.214Z"),
+              created_at: new Date("2026-09-09T18:27:37.267Z"),
+              delivery_cursor: "42",
+            },
+          ],
+        };
+      }
+      return {
+        rows: [
+          {
+            status: "QUEUED",
+            message: "rollout queued",
+            details_json: { target: "worker:alice" },
+            created_at: new Date("2026-09-09T18:27:37.267Z"),
+          },
+          {
+            status: "FAILED",
+            message: "rollout expired before successful activation",
+            details_json: { failureCode: "UPDATE_EXPIRED" },
+            created_at: new Date("2026-09-09T18:57:37.214Z"),
+          },
+        ],
+      };
+    },
+  } as unknown as Pool;
+  const repository = new GatewayRuntimeRepository(pool, {
+    gatewayTimeoutSeconds: 30,
+    workerTimeoutSeconds: 30,
+    worldCellMaxAgeSeconds: 300,
+  });
+
+  const update = await repository.getUpdate("update-history");
+  assert.equal(queryNumber, 2);
+  assert.equal(update?.status, "FAILED");
+  assert.deepEqual(update?.events, [
+    {
+      status: "QUEUED",
+      message: "rollout queued",
+      details: { target: "worker:alice" },
+      createdAt: "2026-09-09T18:27:37.267Z",
+    },
+    {
+      status: "FAILED",
+      message: "rollout expired before successful activation",
+      details: { failureCode: "UPDATE_EXPIRED" },
+      createdAt: "2026-09-09T18:57:37.214Z",
+    },
+  ]);
+});
+
 test("gateway restart recovery cancels uncertain work behind an explicit resume boundary", () => {
   const repositories = readFileSync(
     join(__dirname, "../packages/database/src/repositories.ts"),
