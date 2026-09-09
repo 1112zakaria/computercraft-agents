@@ -593,14 +593,20 @@ export class GatewayService {
         blockers.push({
           code: "WORKER_OFFLINE",
           message: "the addressed worker is not online",
-          details: { workerId: goal.targetWorkerId },
+          details: {
+            workerId: goal.targetWorkerId,
+            remediation: "Start or reboot the turtle and wait for its next heartbeat",
+          },
         });
       }
       if (typeof worker.currentTaskId === "string" && worker.currentTaskId.length > 0) {
         blockers.push({
           code: "WORKER_BUSY",
           message: "the addressed worker already has an active task",
-          details: { currentTaskId: worker.currentTaskId },
+          details: {
+            currentTaskId: worker.currentTaskId,
+            remediation: "Wait for the current task to finish or explicitly pause/cancel it",
+          },
         });
       }
       const capabilities = stringList(worker.capabilities);
@@ -627,12 +633,18 @@ export class GatewayService {
         blockers.push({
           code: "POSITION_UNKNOWN",
           message: "the worker has no complete observed position",
+          details: {
+            remediation: `Stand the turtle at a verified coordinate, then run npm run cli -- anchor ${goal.targetWorkerId} <dimension> <x> <y> <z> [N|E|S|W]`,
+          },
         });
       } else if (position?.confidence !== "CONFIRMED_ANCHOR") {
         blockers.push({
           code: "POSITION_NOT_CONFIRMED",
           message: "the worker position must be confirmed with the operator anchor command",
-          details: { confidence: position?.confidence ?? null },
+          details: {
+            confidence: position?.confidence ?? null,
+            remediation: `Run npm run cli -- anchor ${goal.targetWorkerId} ${start.dimension} ${start.x} ${start.y} ${start.z} [N|E|S|W] after verifying the turtle's physical position`,
+          },
         });
       }
     }
@@ -642,7 +654,10 @@ export class GatewayService {
       blockers.push({
         code: "UNKNOWN_LOCATION",
         message: "the destination is not a known named location",
-        details: { destination: goal.destination },
+        details: {
+          destination: goal.destination,
+          remediation: `Run npm run cli -- set-location "${goal.destination}" <dimension> <x> <y> <z> [N|E|S|W] --approach <dimension> <x> <y> <z> [N|E|S|W]`,
+        },
       });
     } else {
       const approach = destination.approach;
@@ -651,12 +666,20 @@ export class GatewayService {
         blockers.push({
           code: "LOCATION_INCOMPLETE",
           message: "the named destination has no complete coordinate",
+          details: {
+            destination: goal.destination,
+            remediation: `Update the destination with npm run cli -- set-location "${goal.destination}" <dimension> <x> <y> <z> [N|E|S|W]`,
+          },
         });
       } else if (start && target.dimension !== start.dimension) {
         blockers.push({
           code: "DIMENSION_MISMATCH",
           message: "the worker and destination are in different dimensions",
-          details: { workerDimension: start.dimension, destinationDimension: target.dimension },
+          details: {
+            workerDimension: start.dimension,
+            destinationDimension: target.dimension,
+            remediation: "Re-anchor the worker or correct the named location's dimension",
+          },
         });
       }
     }
@@ -683,6 +706,9 @@ export class GatewayService {
         blockers.push({
           code: "PATH_NOT_KNOWN",
           message: "no completely known walkable path exists to the destination",
+          details: {
+            remediation: `Use bounded observations such as npm run cli -- observe ${goal.targetWorkerId} front, then rerun goal-preflight`,
+          },
         });
         path = { status: "NOT_KNOWN" };
       } else {

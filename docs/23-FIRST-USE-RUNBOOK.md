@@ -85,6 +85,10 @@ The control plane intentionally does not guess the turtle's position or chest si
 
 Do not create the goal until preflight reports no blockers.
 
+Each physical-world blocker includes a safe remediation hint. The preflight does not guess
+coordinates or mutate the turtle: the operator must verify the turtle's anchor, named destination,
+container side, and known route before starting work.
+
 ## Execute the first useful workflow
 
 Create and start the bounded goal:

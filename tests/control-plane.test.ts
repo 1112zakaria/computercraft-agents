@@ -528,6 +528,49 @@ test("operator goal preflight reports missing worker capability without persisti
   }
 });
 
+test("operator goal preflight gives safe remediation for physical-world blockers", async () => {
+  const store = new FakeGatewayStore();
+  store.getWorker = async (workerId: string) =>
+    workerId === "blocked-worker"
+      ? {
+          workerId,
+          online: true,
+          transport: "direct-http",
+          capabilities: ["mining.gather", "navigate.path", "inventory.deposit"],
+          currentTaskId: null,
+          observation: { position: null },
+        }
+      : undefined;
+  store.resolveNamedLocation = async () => undefined;
+  const server = await startServer(store);
+  try {
+    const response = await fetch(`${server.baseUrl}/v1/goals/preflight`, {
+      method: "POST",
+      headers: adminHeaders(),
+      body: JSON.stringify({
+        protocolVersion: 1,
+        goalText: "@blocked-worker get 8 cobblestone and deposit it in Test Chest",
+        createdByPrincipal: "test",
+        priority: 0,
+      }),
+    });
+    assert.equal(response.status, 200);
+    const body = (await response.json()) as {
+      blockers: Array<{ code: string; details?: { remediation?: string } }>;
+    };
+    assert.deepEqual(
+      body.blockers.map((blocker) => blocker.code),
+      ["POSITION_UNKNOWN", "UNKNOWN_LOCATION"],
+    );
+    assert.match(body.blockers[0]?.details?.remediation ?? "", /anchor blocked-worker/);
+    assert.match(body.blockers[1]?.details?.remediation ?? "", /set-location "Test Chest"/);
+    assert.equal(store.projects.length, 1);
+    assert.equal(store.commands.length, 0);
+  } finally {
+    await server.close();
+  }
+});
+
 test("operator task API lists and claims tasks", async () => {
   const store = new FakeGatewayStore();
   const server = await startServer(store);
