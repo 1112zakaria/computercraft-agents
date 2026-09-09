@@ -93,6 +93,10 @@ stop all
 resume alice
 ```
 
+The worker inventory view is populated by the latest `inventory.changed` event and by the result
+of a bounded `inventory.inspect` command. An operator can refresh the persisted snapshot with
+`npm run cli -- inspect <worker-id>` and then inspect the worker without a direct database query.
+
 ## 5. Metrics
 
 Useful counters/gauges:

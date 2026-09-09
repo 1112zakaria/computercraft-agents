@@ -187,6 +187,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+export function inventorySlotsFromCommandEvent(event: Event): readonly unknown[] | undefined {
+  if (event.type !== "command.completed" || !isRecord(event.payload)) return undefined;
+  const payload = event.payload as { readonly result?: unknown };
+  const result = payload.result;
+  if (!isRecord(result) || !isRecord(result.inventory)) return undefined;
+  return Array.isArray(result.inventory.slots) ? result.inventory.slots : undefined;
+}
+
 function coordinateFromUnknown(value: unknown): Coordinate | undefined {
   if (!isRecord(value)) return undefined;
   const dimension = value.dimension;
@@ -509,6 +517,44 @@ export class GatewayRuntimeRepository {
       `,
       [position.dimension, position.x, position.y, position.z, observedAt, workerId],
     );
+  }
+
+  private async recordInventorySnapshot(
+    client: PoolClient,
+    workerKey: string,
+    slots: readonly unknown[],
+    observedAt: Date,
+  ): Promise<void> {
+    const worker = await client.query<{ id: string }>(
+      `SELECT id::text FROM workers WHERE worker_key = $1`,
+      [workerKey],
+    );
+    const workerId = worker.rows[0]?.id;
+    if (!workerId) return;
+
+    const updated = await client.query(
+      `
+        UPDATE worker_observations
+        SET inventory_json = $2, observed_at = $3
+        WHERE id = (
+          SELECT id FROM worker_observations
+          WHERE worker_id = $1
+          ORDER BY observed_at DESC, id DESC
+          LIMIT 1
+        )
+        RETURNING id
+      `,
+      [workerId, asJson(slots), observedAt],
+    );
+    if (!updated.rowCount) {
+      await client.query(
+        `
+          INSERT INTO worker_observations (worker_id, observed_at, inventory_json, status)
+          VALUES ($1, $2, $3, 'ONLINE')
+        `,
+        [workerId, observedAt, asJson(slots)],
+      );
+    }
   }
 
   private async queueGatherDelivery(
@@ -3668,37 +3714,23 @@ export class GatewayRuntimeRepository {
     }
 
     if (event.type === "inventory.changed" && event.workerId) {
-      const worker = await client.query<{ id: string }>(
-        `SELECT id::text FROM workers WHERE worker_key = $1`,
-        [event.workerId],
+      const payload = event.payload as { readonly slots: unknown[] };
+      await this.recordInventorySnapshot(
+        client,
+        event.workerId,
+        payload.slots,
+        new Date(event.occurredAt),
       );
-      const workerId = worker.rows[0]?.id;
-      if (workerId) {
-        const payload = event.payload as { readonly slots: unknown[] };
-        const updated = await client.query(
-          `
-            UPDATE worker_observations
-            SET inventory_json = $2, observed_at = $3
-            WHERE id = (
-              SELECT id FROM worker_observations
-              WHERE worker_id = $1
-              ORDER BY observed_at DESC, id DESC
-              LIMIT 1
-            )
-            RETURNING id
-          `,
-          [workerId, asJson(payload.slots), new Date(event.occurredAt)],
-        );
-        if (!updated.rowCount) {
-          await client.query(
-            `
-              INSERT INTO worker_observations (worker_id, observed_at, inventory_json, status)
-              VALUES ($1, $2, $3, 'ONLINE')
-            `,
-            [workerId, new Date(event.occurredAt), asJson(payload.slots)],
-          );
-        }
-      }
+    }
+
+    const inspectedInventory = inventorySlotsFromCommandEvent(event);
+    if (event.workerId && inspectedInventory) {
+      await this.recordInventorySnapshot(
+        client,
+        event.workerId,
+        inspectedInventory,
+        new Date(event.occurredAt),
+      );
     }
 
     if (event.type === "block.observed" && event.workerId) {

@@ -7,6 +7,7 @@ import {
   createDatabasePool,
   blockedMovementForReplan,
   effectivePositionConfidence,
+  inventorySlotsFromCommandEvent,
   inventoryFullRecoveryPlan,
   isInventoryFullFailure,
   migrationChecksum,
@@ -130,6 +131,8 @@ test("database migration set is ordered and contains the core relational model",
   assert.match(repositorySql, /_plannerTriggerId/);
   assert.match(repositorySql, /PLANNER_SCOPE_VIOLATION/);
   assert.match(repositorySql, /event_type = 'inventory\.changed'/);
+  assert.match(repositorySql, /inventorySlotsFromCommandEvent/);
+  assert.match(repositorySql, /recordInventorySnapshot/);
 });
 
 test("migration checksum variants accept newline-only deployment differences", () => {
@@ -301,6 +304,48 @@ test("inventory-full failures are identified as resumable workflow pauses", () =
   );
   assert.match(repositories, /queueGatherDelivery/);
   assert.match(repositories, /resumeGatherAfterDeposit/);
+});
+
+test("inventory inspection results provide a persisted inventory snapshot", () => {
+  assert.deepEqual(
+    inventorySlotsFromCommandEvent({
+      protocolVersion: 1,
+      eventId: "inspect-event",
+      workerId: "alice",
+      commandId: "inspect-command",
+      sequence: 1,
+      occurredAt: new Date().toISOString(),
+      type: "command.completed",
+      payload: {
+        result: {
+          status: "OK",
+          inventory: {
+            slots: [{ slot: 1, itemKey: "minecraft:cobblestone", count: 3 }],
+            freeSlots: 15,
+            selectedSlot: 1,
+          },
+        },
+      },
+    } as Event),
+    [{ slot: 1, itemKey: "minecraft:cobblestone", count: 3 }],
+  );
+  assert.equal(
+    inventorySlotsFromCommandEvent({
+      protocolVersion: 1,
+      eventId: "movement-event",
+      workerId: "alice",
+      sequence: 1,
+      occurredAt: new Date().toISOString(),
+      type: "worker.state",
+      payload: {
+        state: "IDLE",
+        position: null,
+        fuel: null,
+        currentCommandId: null,
+      },
+    } as Event),
+    undefined,
+  );
 });
 
 test("inventory-full gather failures produce a bounded return-and-resume plan", () => {
