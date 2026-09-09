@@ -114,6 +114,8 @@ test("database migration set is ordered and contains the core relational model",
   assert.match(repositorySql, /status = 'PROCESSING'/);
   assert.match(repositorySql, /requeueStalePlannerTriggers/);
   assert.match(repositorySql, /releasePlannerTrigger/);
+  assert.match(repositorySql, /active_task\.task_id AS "currentTaskId"/);
+  assert.match(repositorySql, /t\.status IN \('RUNNING', 'PAUSED'\)/);
   assert.match(repositorySql, /getPlannerRuntimeState/);
   assert.match(repositorySql, /savePlannerRuntimeState/);
   assert.match(repositorySql, /applyPlannerTaskProposals/);

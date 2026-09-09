@@ -181,6 +181,10 @@ turtle registers, heartbeats, and polls `/v1/worker/commands`. Confirm it with:
 npm run cli -- workers alice
 ```
 
+Worker inspection includes the current runtime state and, when a task is active, its
+`currentTaskId`. The scheduler uses that same value to avoid selecting a worker that is already
+executing another task; the database remains the final atomic one-task-per-worker guard.
+
 ### Re-anchor a worker after manual relocation
 
 If a turtle is moved manually or its dead-reckoned position is no longer trusted, stand it at a

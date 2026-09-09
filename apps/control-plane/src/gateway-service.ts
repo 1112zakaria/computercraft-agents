@@ -605,7 +605,7 @@ export class GatewayService {
           workerId,
           online: row.online === true,
           capabilities: stringList(row.capabilities),
-          currentTaskId: null,
+          currentTaskId: typeof row.currentTaskId === "string" ? row.currentTaskId : null,
         },
       ];
     });

@@ -683,6 +683,34 @@ test("operator scheduler tick dispatches only protocol-level runnable work", asy
   }
 });
 
+test("operator scheduler does not select a worker with an active task", async () => {
+  const store = new FakeGatewayStore();
+  store.runnableTasks.splice(0, 1, {
+    taskId: "task-waiting",
+    skillName: "movement.step",
+    priority: 5,
+    requiredCapabilities: ["movement.step"],
+  });
+  store.availableWorkers.push({
+    workerId: "alice",
+    online: true,
+    capabilities: ["movement.step"],
+    currentTaskId: "task-active",
+  });
+  const server = await startServer(store);
+  try {
+    const response = await fetch(`${server.baseUrl}/v1/scheduler/tick`, {
+      method: "POST",
+      headers: adminHeaders(),
+      body: "{}",
+    });
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { dispatched: [] });
+  } finally {
+    await server.close();
+  }
+});
+
 test("operator task API exposes dependency-filtered runnable tasks", async () => {
   const store = new FakeGatewayStore();
   const server = await startServer(store);

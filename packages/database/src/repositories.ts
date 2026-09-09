@@ -2440,9 +2440,18 @@ export class GatewayRuntimeRepository {
                transport_type AS "transport", minecraft_server_id AS "minecraftServerId",
                g.gateway_key AS "gatewayId",
                boot_id AS "bootId", runtime_version AS "runtimeVersion",
-               last_seen_at AS "lastSeenAt", capabilities_json AS capabilities
+               last_seen_at AS "lastSeenAt", capabilities_json AS capabilities,
+               active_task.task_id AS "currentTaskId"
         FROM workers w
         LEFT JOIN gateways g ON g.id = w.gateway_id
+        LEFT JOIN LATERAL (
+          SELECT t.id::text AS task_id
+          FROM tasks t
+          WHERE t.assigned_worker_id = w.id
+            AND t.status IN ('RUNNING', 'PAUSED')
+          ORDER BY t.started_at DESC NULLS LAST, t.id DESC
+          LIMIT 1
+        ) active_task ON TRUE
         ORDER BY worker_key
       `,
     );
@@ -2457,6 +2466,7 @@ export class GatewayRuntimeRepository {
                g.gateway_key AS "gatewayId",
                w.boot_id AS "bootId", w.runtime_version AS "runtimeVersion",
                w.last_seen_at AS "lastSeenAt", w.capabilities_json AS capabilities,
+               active_task.task_id AS "currentTaskId",
                observation.observed_at AS "observedAt",
                observation.dimension, observation.x, observation.y, observation.z,
                observation.facing, observation.position_confidence AS "positionConfidence",
@@ -2465,6 +2475,14 @@ export class GatewayRuntimeRepository {
                observation.status AS "observedStatus"
         FROM workers w
         LEFT JOIN gateways g ON g.id = w.gateway_id
+        LEFT JOIN LATERAL (
+          SELECT t.id::text AS task_id
+          FROM tasks t
+          WHERE t.assigned_worker_id = w.id
+            AND t.status IN ('RUNNING', 'PAUSED')
+          ORDER BY t.started_at DESC NULLS LAST, t.id DESC
+          LIMIT 1
+        ) active_task ON TRUE
         LEFT JOIN LATERAL (
           SELECT observed_at, dimension, x, y, z, facing, position_confidence,
                  fuel_level, current_command_id, status
@@ -2487,6 +2505,7 @@ export class GatewayRuntimeRepository {
           positionConfidence?: string | null;
           fuelLevel?: number | null;
           observedAt?: Date | null;
+          currentTaskId?: string | null;
           currentCommandId?: string | null;
           observedStatus?: string | null;
         })
@@ -2505,12 +2524,14 @@ export class GatewayRuntimeRepository {
       positionConfidence,
       fuelLevel,
       observedAt,
+      currentTaskId,
       currentCommandId,
       observedStatus,
       ...worker
     } = row;
     return {
       ...worker,
+      currentTaskId: currentTaskId ?? null,
       observation: observedAt
         ? {
             observedAt,

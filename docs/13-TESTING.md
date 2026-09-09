@@ -36,6 +36,7 @@ Test:
 - gateway restart recovery cancels uncertain delivery, pauses assigned work, and queues stops;
 - turtle boot changes cancel uncertain delivery for both direct and gateway transports;
 - control-plane startup invalidates online work before reconnect and explicit resume;
+- scheduler selection skips workers whose worker inspection reports an active task;
 - operator pause/cancel stops active delivery atomically and resume returns work to `READY`;
 - agent and project inspection API/CLI responses;
 - environment-backed feature-gate inspection and disabled-skill rejection;
