@@ -126,6 +126,7 @@ test("gather capability migration preserves configuration with a backup", () => 
   assert.match(source, /mining\.gather/);
   assert.match(source, /navigate\.path/);
   assert.match(source, /inventory\.deposit/);
+  assert.match(source, /peripheral\.inspect/);
   assert.match(source, /serialized = textutils\.serialize\(config\)/);
   assert.match(source, /original was restored/);
 });

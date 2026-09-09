@@ -315,7 +315,8 @@ npm run cli -- goal-preflight "@alice get 64 cobblestone and deposit it in Test 
 ```
 
 Resolve every reported blocker. In particular, the worker must advertise `mining.gather`,
-`navigate.path`, and `inventory.deposit`, and its position must be re-anchored after manual
+`navigate.path`, `inventory.deposit`, and `peripheral.inspect`, and its position must be
+re-anchored after manual
 relocation. If the capability blocker is reported for an existing install, run
 `lua enable-gather.lua` on the turtle and then `startup`; this updates `worker.conf` with a
 backup and re-registers the capability list. The preflight cannot inspect the turtle's local

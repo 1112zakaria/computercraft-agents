@@ -1,10 +1,10 @@
--- Add the capabilities required by the first bounded gather workflow.
+-- Add the capabilities used by the first bounded gather and inspection workflow.
 -- This preserves the existing worker configuration and creates a backup before writing.
 local config_path = "worker.conf"
 local temporary_path = "worker.conf.gather.tmp"
 local startup_temporary_path = "startup.gather.tmp"
 local startup_hook = 'shell.run("startup.lua")\n'
-local required = { "mining.gather", "navigate.path", "inventory.deposit" }
+local required = { "mining.gather", "navigate.path", "inventory.deposit", "peripheral.inspect" }
 
 local function fail(message)
   error(message, 0)
@@ -86,7 +86,7 @@ end
 ensure_startup_hook()
 
 if config.capabilities == nil then
-  print("worker.conf has no explicit capabilities; runtime defaults already include gather capabilities")
+  print("worker.conf has no explicit capabilities; runtime defaults already include first-use capabilities")
   return
 end
 if type(config.capabilities) ~= "table" then
@@ -106,7 +106,7 @@ for _, capability in ipairs(required) do
 end
 
 if #added == 0 then
-  print("worker.conf already advertises gather capabilities")
+  print("worker.conf already advertises first-use capabilities")
   return
 end
 if not textutils or type(textutils.serialize) ~= "function" then

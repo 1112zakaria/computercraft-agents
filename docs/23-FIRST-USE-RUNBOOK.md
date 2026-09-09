@@ -45,6 +45,7 @@ The worker should be `online: true` and advertise at least:
 mining.gather
 navigate.path
 inventory.deposit
+peripheral.inspect
 ```
 
 ## Establish the bounded world preconditions

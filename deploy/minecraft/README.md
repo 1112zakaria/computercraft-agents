@@ -87,9 +87,10 @@ After the command completes, `npm run cli -- workers alice` includes the latest 
 snapshot under `observation.peripherals`.
 
 If an existing `worker.conf` explicitly lists capabilities but omits the first-use gather skills,
-run `lua enable-gather.lua`. The helper creates a `worker.conf.before-gather*` backup, adds only
-`mining.gather`, `navigate.path`, and `inventory.deposit`, and preserves the bearer secret and
-other settings. It also repairs a missing or malformed extensionless CraftOS `startup` hook,
+run `lua enable-gather.lua`. The helper creates a `worker.conf.before-gather*` backup, adds the
+first-use capabilities `mining.gather`, `navigate.path`, `inventory.deposit`, and
+`peripheral.inspect`, and preserves the bearer secret and other settings. It also repairs a
+missing or malformed extensionless CraftOS `startup` hook,
 retaining the previous copy as `startup.previous*`. Run `startup` afterward so the worker
 re-registers with the updated list.
 
