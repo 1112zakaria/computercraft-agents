@@ -17,23 +17,23 @@
 
 - [ ] Stable worker IDs.
 - [ ] Boot/session IDs.
-- [ ] Position/orientation persistence.
-- [ ] Position confidence states.
+- [x] Position/orientation persistence.
+- [x] Position confidence states.
 - [ ] Inspect/move/dig/place normalized results.
 - [ ] Inventory snapshot.
 - [ ] Fuel handling.
-- [ ] Cancellation checks.
-- [ ] Primitive/block budgets.
-- [ ] Command idempotency.
-- [ ] Bounded event/outbox storage.
+- [x] Cancellation checks.
+- [x] Primitive/block budgets.
+- [x] Command idempotency.
+- [x] Bounded event/outbox storage.
 
 ## C. Navigation
 
 - [ ] Sparse world model.
-- [ ] A* known-map pathfinding.
-- [ ] Path executor.
+- [x] A* known-map pathfinding.
+- [x] Path executor.
 - [ ] Blocked-path replan.
-- [ ] Position anchoring/recalibration.
+- [x] Position anchoring/recalibration.
 - [ ] Named location/dock model.
 - [ ] Exploration strategy.
 - [ ] Worker-area reservations.
@@ -45,7 +45,7 @@
 - [ ] Projects/jobs/tasks/dependencies.
 - [ ] Central scheduler.
 - [ ] One execution stream invariant.
-- [ ] Stop/pause/resume/cancel.
+- [x] Stop/pause/resume/cancel.
 - [ ] Delegation requests.
 - [ ] Resource reservations.
 - [ ] Standing policies.
@@ -55,13 +55,12 @@
 
 ## E. Reasoning
 
-- [ ] `ReasoningProvider` interface.
-- [ ] Fake provider for CI.
-- [ ] Codex CLI provider.
-- [ ] Structured decisions.
-- [ ] Fast/standard/strong tier config.
-- [ ] Concurrent request limiter.
-- [ ] Event-driven triggers.
+- [x] `ReasoningProvider` interface.
+- [x] Fake provider for CI.
+- [x] Codex CLI provider.
+- [x] Structured decisions.
+- [x] Concurrent request limiter.
+- [x] Event-driven triggers.
 - [ ] Individual planners.
 - [ ] Shared project planner heuristic.
 - [ ] Refusal/override.
@@ -148,15 +147,15 @@
 
 ## K. Operations
 
-- [ ] Feature gates.
-- [ ] Global stop.
-- [ ] Per-worker stop.
-- [ ] Plan-only mode.
+- [x] Feature gates.
+- [x] Global stop.
+- [x] Per-worker stop.
+- [x] Plan-only mode.
 - [ ] Live-world action budgets.
-- [ ] Structured logs.
-- [ ] Retention cleanup.
+- [x] Structured logs.
+- [x] Retention cleanup.
 - [ ] Control-plane systemd service.
-- [ ] ComputerCraft release bundle.
-- [ ] Friend-side installation guide.
-- [ ] Automatic reconnect/reconcile after server restart.
+- [x] ComputerCraft release bundle.
+- [x] Friend-side installation guide.
+- [x] Automatic reconnect/reconcile after server restart.
 - [ ] No-human-online/chunk behavior validated.
