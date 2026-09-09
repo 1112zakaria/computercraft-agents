@@ -936,8 +936,9 @@ deposit the collected quantity, and queue a fresh gather step; if the route or e
 insufficient, the workflow pauses with an explicit resume instruction. Target-stack-aware local
 capacity checks now avoid false inventory-full failures when an existing item stack still has room;
 workflow deposits carry and enforce the canonical target item key; full capacity planning,
-destination-content postcondition verification, and full live acceptance
-remain.
+destination-content postcondition verification, and full live acceptance remain. Gather completion
+now also requires the worker result to prove the canonical requested item and collected quantity
+before navigation or deposit work is queued.
 
 ### CC-103 — Implement known-container deposit skill
 
