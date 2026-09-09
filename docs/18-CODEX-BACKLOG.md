@@ -944,7 +944,8 @@ capacity checks now avoid false inventory-full failures when an existing item st
 workflow deposits carry and enforce the canonical target item key; full capacity planning,
 destination-content postcondition verification, and full live acceptance remain. Gather completion
 now also requires the worker result to prove the canonical requested item and collected quantity
-before navigation or deposit work is queued.
+before navigation or deposit work is queued. Late inventory-full failures from a stopped workflow
+child are ignored behind the same explicit stop boundary as other late command events.
 
 ### CC-103 — Implement known-container deposit skill
 

@@ -3141,7 +3141,10 @@ export class GatewayRuntimeRepository {
       [event.commandId],
     );
     const task = taskResult.rows[0];
-    const inventoryFull = isInventoryFullFailure(event) && task?.workflow_phase === "GATHER";
+    const inventoryFull =
+      isInventoryFullFailure(event) &&
+      task?.workflow_phase === "GATHER" &&
+      task.status === "RUNNING";
     if (
       !task?.parent_task_id ||
       (!workflowStepEventCanAdvance(task.status, event.type) && !inventoryFull)
