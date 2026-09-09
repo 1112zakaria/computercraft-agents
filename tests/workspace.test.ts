@@ -14,6 +14,7 @@ import {
   type Coordinate,
 } from "../packages/navigation/src/index";
 import { selectDispatchableTasks, selectReadyTasks } from "../packages/scheduler/src/index";
+import { FakeReasoningProvider, PlannerDecisionSchema } from "../packages/reasoning/src/index";
 
 test("workspace exposes protocol version one", () => {
   assert.equal(protocolVersion, 1);
@@ -235,5 +236,32 @@ test("named locations resolve case-insensitively and retain the latest anchor", 
   assert.deepEqual(
     locations.list().map((location) => location.name),
     ["test chest"],
+  );
+});
+
+test("planner decisions are structured and fake reasoning is deterministic", async () => {
+  const decision = PlannerDecisionSchema.parse({
+    kind: "create-task",
+    task: {
+      skillName: "mining.gather",
+      arguments: { itemKey: "minecraft:cobblestone", quantity: 8 },
+      requiredCapabilities: ["mining.gather"],
+      priority: 2,
+    },
+  });
+  const provider = new FakeReasoningProvider([decision]);
+  const result = await provider.decide({
+    requestId: "reasoning-test-1",
+    prompt: "create a bounded gather task",
+    tier: "fast",
+    timeoutMs: 1000,
+  });
+  assert.equal(result.provider, "fake");
+  assert.equal(result.decision.kind, "create-task");
+  assert.equal(provider.requests[0]?.requestId, "reasoning-test-1");
+  assert.equal(
+    PlannerDecisionSchema.safeParse({ kind: "delegate", taskId: "task-1", reason: "no target" })
+      .success,
+    false,
   );
 });

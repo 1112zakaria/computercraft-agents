@@ -678,12 +678,19 @@ Condition → desired state → finite work generation.
 **Priority:** P0  
 **Dependencies:** CC-001
 
+**Status:** PARTIAL — the provider contract now carries request identity, reasoning tier,
+timeout, cancellation, validated decision output, and timing metadata; a production provider is
+not connected.
+
 Support request context, structured schema, timeout, cancellation, reasoning tier, and result metadata.
 
 ### CC-081 — Implement fake reasoning provider
 
 **Priority:** P0  
 **Dependencies:** CC-080
+
+**Status:** DONE — deterministic queued responses are validated through the planner decision
+schema and covered by workspace tests.
 
 Use in tests/CI without live Codex.
 
@@ -722,6 +729,9 @@ Implement `fast`, `standard`, `strong` logical tiers mapped by configuration.
 
 **Priority:** P0  
 **Dependencies:** CC-080, CC-023
+
+**Status:** PARTIAL — plan/create-task/continue/delegate/replan/refuse/report decisions are
+validated in the reasoning package; control-plane persistence and planner invocation remain.
 
 Define decisions for plan/create-task/delegate/report/refuse/replan.
 

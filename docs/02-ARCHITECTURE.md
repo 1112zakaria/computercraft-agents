@@ -186,6 +186,11 @@ Structured decision
 
 The planner SHALL operate on semantic skills, not raw turtle APIs.
 
+The reasoning package validates structured decisions before they can be consumed by a planner.
+The supported v1 decision kinds are `plan`, `create-task`, `continue`, `delegate`, `replan`,
+`refuse`, and `report`. The fake provider is deterministic and test-only; it does not authorize
+world mutations or bypass the control plane.
+
 Bad planner interface:
 
 ```text
