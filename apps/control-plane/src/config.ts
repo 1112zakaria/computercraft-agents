@@ -23,6 +23,8 @@ export interface ControlPlaneConfig {
   readonly plannerTimeoutMs: number;
   readonly plannerMaxConcurrent: number;
   readonly plannerClaimLeaseSeconds: number;
+  readonly plannerFailureThreshold: number;
+  readonly plannerRetryAfterSeconds: number;
   readonly plannerReasoningTier: "fast" | "standard" | "strong";
   readonly codexCommand: string;
 }
@@ -99,6 +101,8 @@ export function loadConfig(): ControlPlaneConfig {
     plannerTimeoutMs: positiveInteger("PLANNER_TIMEOUT_MS", 30_000),
     plannerMaxConcurrent: positiveInteger("PLANNER_MAX_CONCURRENT", 1),
     plannerClaimLeaseSeconds: positiveInteger("PLANNER_CLAIM_LEASE_SECONDS", 300),
+    plannerFailureThreshold: positiveInteger("PLANNER_FAILURE_THRESHOLD", 1),
+    plannerRetryAfterSeconds: positiveInteger("PLANNER_RETRY_AFTER_SECONDS", 30),
     plannerReasoningTier: reasoningTier(),
     codexCommand: process.env.CODEX_COMMAND?.trim() || "codex",
   };

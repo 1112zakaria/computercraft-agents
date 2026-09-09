@@ -22,6 +22,8 @@ interface PlannerRuntimeConfig {
   readonly plannerTimeoutMs: number;
   readonly plannerMaxConcurrent: number;
   readonly plannerClaimLeaseSeconds: number;
+  readonly plannerFailureThreshold: number;
+  readonly plannerRetryAfterSeconds: number;
   readonly plannerReasoningTier: "fast" | "standard" | "strong";
   readonly codexCommand: string;
 }
@@ -55,6 +57,8 @@ export async function createPlannerRunner(
   const persisted = await repository.getPlannerRuntimeState();
   const outage = new ReasoningOutageStateMachine({
     initial: plannerOutageSnapshot(persisted),
+    failureThreshold: config.plannerFailureThreshold,
+    retryAfterMs: config.plannerRetryAfterSeconds * 1000,
     onChange: (snapshot) => {
       void repository.savePlannerRuntimeState(snapshot).catch((error: unknown) => {
         const message = error instanceof Error ? error.message : "unknown outage persistence error";
