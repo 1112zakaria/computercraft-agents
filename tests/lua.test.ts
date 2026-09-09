@@ -42,6 +42,7 @@ const luaFiles = [
   "turtle/update_bootstrap.lua",
   "turtle/update_manager.lua",
   "turtle/state.lua",
+  "../deploy/minecraft/enable-gather.lua",
 ];
 
 test("ComputerCraft runtime modules parse as Lua 5.1", () => {
@@ -94,6 +95,18 @@ test("stable update bootstraps repair a missing CraftOS startup hook", () => {
   assert.match(installer, /valid_startup_hook/);
   assert.match(installer, /startup\.previous/);
   assert.match(installer, /worker\.conf\.example/);
+  assert.match(installer, /enable-gather\.lua/);
+  assert.match(installer, /deployment_root/);
+});
+
+test("gather capability migration preserves configuration with a backup", () => {
+  const source = readFileSync(join(runtimeRoot, "../deploy/minecraft/enable-gather.lua"), "utf8");
+  assert.match(source, /worker\.conf\.before-gather/);
+  assert.match(source, /textutils\.serialize/);
+  assert.match(source, /mining\.gather/);
+  assert.match(source, /navigate\.path/);
+  assert.match(source, /inventory\.deposit/);
+  assert.match(source, /serialized = textutils\.serialize\(config\)/);
 });
 
 test("stable update bootstraps remove newly introduced files during rollback", () => {

@@ -70,6 +70,11 @@ over ComputerCraft's outbound HTTPS API, so no gateway computer or modem is requ
 Do not set `modem_side`, `gateway_rednet_id`, or `rednet_protocol` for this transport. Verify the
 worker with `npm run cli -- workers alice` after its registration and heartbeat arrive.
 
+If an existing `worker.conf` explicitly lists capabilities but omits the first-use gather skills,
+run `lua enable-gather.lua`. The helper creates a `worker.conf.before-gather*` backup, adds only
+`mining.gather`, `navigate.path`, and `inventory.deposit`, and preserves the bearer secret and
+other settings. Run `startup` afterward so the worker re-registers with the updated list.
+
 The stable bootstrap checks the extensionless CraftOS `startup` hook during recovery and repairs
 it if it is missing, a directory, or malformed. The pinned `install-direct.lua` installer does the
 same on initial installation. A valid existing hook is preserved; a malformed existing hook is
