@@ -2,6 +2,13 @@
 
 ## A. Milestone-zero feasibility
 
+Direct HTTP canary status (the modem-less primary path):
+
+- [x] Direct turtle registration and heartbeat visible from the CLI.
+- [x] Direct bounded movement command and event submission validated on `alice`.
+- [x] Direct runtime OTA activation/reboot validated on `alice`.
+- [ ] Post-reboot automatic CraftOS startup-hook behavior validated live (tracked in issue #7).
+
 - [ ] Exact Java/Forge builds recorded.
 - [x] Public DNS hostname and trusted TLS certificate verified for the gateway endpoint.
 - [x] VPS firewall and reverse-proxy allowlist admit only `51.161.113.44/32`.
