@@ -47,6 +47,19 @@ capabilities:
 
 Maturity is operational state, not planner persuasion.
 
+The control plane's v1 gate is the `ENABLED_SKILLS` environment variable. It is a comma-separated
+allowlist of protocol skills checked before operator or scheduled dispatch. Omit it to preserve the
+backward-compatible default of enabling all currently defined skills; set it explicitly during a
+canary to restrict execution, then inspect the effective result with:
+
+```bash
+npm run cli -- feature-gates
+```
+
+Disabled skills are rejected with `CAPABILITY_NOT_ENABLED`; the gate does not bypass worker
+capability checks, command budgets, stop controls, or audit/event handling. Persistent per-worker
+gates and canary quotas remain future hardening.
+
 ## 5. Budgets
 
 Every physical command SHOULD support limits such as:
