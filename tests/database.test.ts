@@ -133,6 +133,9 @@ test("database migration set is ordered and contains the core relational model",
   assert.match(repositorySql, /observation\.peripherals_json AS "peripherals"/);
   assert.match(repositorySql, /inventory_json, peripherals_json, current_command_id/);
   assert.match(repositorySql, /t\.status IN \('RUNNING', 'PAUSED'\)/);
+  assert.match(repositorySql, /j\.status IN \('PENDING', 'READY', 'RUNNING'\)/);
+  assert.match(repositorySql, /p\.status IN \('PLANNING', 'ACTIVE'\)/);
+  assert.match(repositorySql, /FROM jobs j\s+JOIN projects p ON p\.id = j\.project_id/s);
   assert.match(repositorySql, /getPlannerRuntimeState/);
   assert.match(repositorySql, /savePlannerRuntimeState/);
   assert.match(repositorySql, /applyPlannerTaskProposals/);

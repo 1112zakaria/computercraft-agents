@@ -4226,9 +4226,14 @@ export class TaskRepository {
           UPDATE tasks t
           SET status = 'RUNNING', assigned_worker_id = $2, claimed_at = NOW(), started_at = NOW(),
               attempt_count = t.attempt_count + 1
+          FROM jobs j
+          JOIN projects p ON p.id = j.project_id
           WHERE t.id = $1
+            AND t.job_id = j.id
             AND t.status = 'READY'
             AND t.assigned_worker_id IS NULL
+            AND j.status IN ('PENDING', 'READY', 'RUNNING')
+            AND p.status IN ('PLANNING', 'ACTIVE')
             AND (
               t.arguments_json->>'targetWorkerId' IS NULL
               OR t.arguments_json->>'targetWorkerId' = $3
@@ -4324,9 +4329,12 @@ export class TaskRepository {
                  j.required_capabilities_json
           FROM tasks t
           JOIN jobs j ON j.id = t.job_id
+          JOIN projects p ON p.id = j.project_id
           WHERE t.id = $1
             AND t.status = 'READY'
             AND t.assigned_worker_id IS NULL
+            AND j.status IN ('PENDING', 'READY', 'RUNNING')
+            AND p.status IN ('PLANNING', 'ACTIVE')
             AND NOT EXISTS (
               SELECT 1
               FROM task_dependencies dependency_link
@@ -4600,6 +4608,8 @@ export class TaskRepository {
         JOIN projects p ON p.id = j.project_id
         WHERE t.status = 'READY'
           AND t.assigned_worker_id IS NULL
+          AND j.status IN ('PENDING', 'READY', 'RUNNING')
+          AND p.status IN ('PLANNING', 'ACTIVE')
           AND NOT EXISTS (
             SELECT 1
             FROM task_dependencies d
