@@ -252,6 +252,10 @@ reconcile active tasks
 resume/replan
 ```
 
+Control-plane process and HTTP logs are newline-delimited JSON. Use the response `X-Request-Id`
+when correlating an operator or turtle request with service logs; request bodies and bearer secrets
+are intentionally excluded.
+
 ### Explicit task dispatch
 
 The control plane can atomically dispatch a ready task that already represents one protocol

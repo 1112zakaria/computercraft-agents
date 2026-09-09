@@ -111,3 +111,14 @@ Useful counters/gauges:
 - event backlog size.
 
 Prometheus is optional; structured logs + database status are sufficient initially.
+
+## 6. Control-plane structured logs
+
+The control plane writes one JSON record per lifecycle/request event. HTTP records include:
+`requestId`, method, path, status code, and duration. Command/task/update/worker lineage fields
+are available to callers that emit those events, and scheduler/recovery failures include an
+explicit `outcome` and error message. The `X-Request-Id` response header exposes the correlation
+ID for support diagnostics; a safe caller-supplied ID is preserved, otherwise one is generated.
+
+Request bodies, bearer credentials, authorization headers, and secret-like fields are never logged.
+Secret-like keys are redacted defensively if they are passed to the logger in future code.

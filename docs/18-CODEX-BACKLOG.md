@@ -1202,6 +1202,9 @@ Goal/task planning previews and feature-gate integration remain.
 **Priority:** P0  
 **Dependencies:** CC-024
 
+**Status:** DONE — control-plane lifecycle, scheduler/recovery failures, and HTTP requests emit
+JSON logs with request correlation IDs and safe lineage fields; secret-like values are redacted.
+
 ### CC-174 — Implement retention cleanup jobs
 
 **Priority:** P1  

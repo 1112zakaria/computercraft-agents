@@ -3,10 +3,13 @@ import { URL } from "node:url";
 
 import { errorResponse, HttpError, repositoryErrorToHttp } from "./gateway-service";
 import type { GatewayService } from "./gateway-service";
+import { createLogger, requestIdFromHeader } from "./logger";
+import type { Logger } from "./logger";
 
 export interface HttpServerOptions {
   readonly service: GatewayService;
   readonly maxBodyBytes: number;
+  readonly logger?: Logger;
 }
 
 function sendJson(response: ServerResponse, statusCode: number, body: object): void {
@@ -41,7 +44,13 @@ async function readBody(request: IncomingMessage, maxBodyBytes: number): Promise
 }
 
 export function createControlPlaneServer(options: HttpServerOptions): Server {
+  const logger =
+    options.logger ?? createLogger("computercraft-agents-control-plane", () => undefined);
   return createServer(async (request, response) => {
+    const requestId = requestIdFromHeader(request.headers["x-request-id"]);
+    const requestPath = (request.url ?? "/").split("?", 1)[0] ?? "/";
+    const startedAt = Date.now();
+    response.setHeader("X-Request-Id", requestId);
     try {
       const url = new URL(request.url ?? "/", "http://control-plane.local");
       const method = requestMethod(request);
@@ -420,9 +429,21 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
     } catch (error) {
       const httpError = repositoryErrorToHttp(error);
       if (httpError.statusCode >= 500) {
-        console.error(`Control-plane request failed: ${httpError.message}`);
+        logger.error("http.request.failed", {
+          requestId,
+          outcome: "error",
+          error: httpError.message,
+        });
       }
       sendJson(response, httpError.statusCode, errorResponse(httpError));
+    } finally {
+      logger.info("http.request.completed", {
+        requestId,
+        method: request.method?.toUpperCase() ?? "GET",
+        path: requestPath,
+        statusCode: response.statusCode,
+        durationMs: Date.now() - startedAt,
+      });
     }
   });
 }

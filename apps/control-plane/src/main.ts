@@ -7,9 +7,17 @@ import {
 import { loadConfig } from "./config";
 import { createRepositoryService } from "./gateway-service";
 import { createControlPlaneServer } from "./http";
+import { createLogger } from "./logger";
 
 async function main(): Promise<void> {
   const config = loadConfig();
+  const logger = createLogger();
+  logger.info("control_plane.starting", {
+    nodeEnv: config.nodeEnv,
+    host: config.host,
+    port: config.port,
+    schedulerEnabled: config.schedulerEnabled,
+  });
   const pool = createDatabasePool(config.databaseUrl);
   await runMigrations(pool);
 
@@ -23,7 +31,11 @@ async function main(): Promise<void> {
     config.adminSecret,
     config.enabledSkills,
   );
-  const server = createControlPlaneServer({ service, maxBodyBytes: config.maxHttpBodyBytes });
+  const server = createControlPlaneServer({
+    service,
+    maxBodyBytes: config.maxHttpBodyBytes,
+    logger,
+  });
 
   let schedulerInFlight = false;
   const schedulerTimer = config.schedulerEnabled
@@ -34,7 +46,7 @@ async function main(): Promise<void> {
           .dispatchRunnableTasks()
           .catch((error: unknown) => {
             const message = error instanceof Error ? error.message : "unknown scheduler failure";
-            console.error(`Scheduler tick failed: ${message}`);
+            logger.error("scheduler.tick.failed", { error: message, outcome: "error" });
           })
           .finally(() => {
             schedulerInFlight = false;
@@ -45,7 +57,7 @@ async function main(): Promise<void> {
   const staleWorkerTimer = setInterval(() => {
     void repository.markStale().catch((error: unknown) => {
       const message = error instanceof Error ? error.message : "unknown stale-worker failure";
-      console.error(`Stale-worker check failed: ${message}`);
+      logger.error("worker.recovery.check.failed", { error: message, outcome: "error" });
     });
   }, config.staleCheckIntervalSeconds * 1000);
 
@@ -56,7 +68,7 @@ async function main(): Promise<void> {
       server.close((error) => (error ? reject(error) : resolve()));
     });
     await pool.end();
-    console.log(`Control plane stopped after ${signal}`);
+    logger.info("control_plane.stopped", { signal, outcome: "shutdown" });
   };
 
   process.once("SIGINT", () => void shutdown("SIGINT"));
@@ -64,7 +76,7 @@ async function main(): Promise<void> {
 
   await new Promise<void>((resolve) => {
     server.listen(config.port, config.host, () => {
-      console.log(`Control plane listening on http://${config.host}:${config.port}`);
+      logger.info("control_plane.ready", { host: config.host, port: config.port });
       resolve();
     });
   });
@@ -72,6 +84,6 @@ async function main(): Promise<void> {
 
 void main().catch((error: unknown) => {
   const message = error instanceof Error ? error.message : "Unknown control-plane failure";
-  console.error(`Control-plane startup failed: ${message}`);
+  createLogger().error("control_plane.startup.failed", { error: message, outcome: "error" });
   process.exitCode = 1;
 });
