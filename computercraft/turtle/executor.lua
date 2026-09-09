@@ -156,6 +156,9 @@ function M.new(config, client, state, cancellation, movement, observation, inven
     elseif result.status == "UNKNOWN_CONTAINER" then
       event_type = "command.failed"
       payload = error_payload("INVALID_ARGUMENTS", result.error or "container is not configured", false, result)
+    elseif result.status == "INVENTORY_FULL" then
+      event_type = "command.failed"
+      payload = error_payload("INVALID_ARGUMENTS", "worker inventory is full; deposit items before gathering", true, result)
     elseif result.status ~= "OK" then
       event_type = "command.failed"
       payload = error_payload("INTERNAL_ERROR", result.error or result.status, true, result)

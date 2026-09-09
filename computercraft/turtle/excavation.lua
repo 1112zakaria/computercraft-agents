@@ -85,6 +85,16 @@ function M.new(movement, observation, inventory)
       inspected_depth = step
 
       if inspected.block then
+        if self.inventory:free_slots() == 0 then
+          return {
+            status = "INVENTORY_FULL",
+            itemKey = item_key,
+            quantity = quantity,
+            collected = self.inventory:count(item_key),
+            depth = inspected_depth,
+            error = "inventory has no usable free slots",
+          }
+        end
         local dug = self.observation:dig("front")
         if dug.status ~= "OK" and dug.status ~= "NOTHING_TO_DIG" then
           dug.itemKey = item_key

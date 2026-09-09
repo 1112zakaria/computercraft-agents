@@ -66,6 +66,16 @@ function M.new(api, config, cancellation)
     return total
   end
 
+  function inventory:free_slots()
+    local free = 0
+    for slot = 1, 16 do
+      if not is_reserved(self.reserved_slots, slot) and (self.api.getItemCount(slot) or 0) == 0 then
+        free = free + 1
+      end
+    end
+    return free
+  end
+
   function inventory:find(item_key, minimum)
     local needed = minimum or 1
     for slot = 1, 16 do

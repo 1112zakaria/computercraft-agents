@@ -891,7 +891,9 @@ Start with simple tunnel/box patterns; every operation bounded.
 now model targeted gather, known-cell destination navigation, allowlisted deposit, completion, and
 safe blocking. The scheduler can dispatch the first protocol step and command events advance the
 workflow idempotently; runtime inventory-full handling and resumable step state remain. Deposit
-completion now requires the reported moved quantity to meet the requested quantity.
+completion now requires the reported moved quantity to meet the requested quantity. The runtime
+now stops safely before digging when no usable inventory slot remains; resumable inventory-full
+recovery and automatic delivery remain.
 
 ### CC-103 — Implement known-container deposit skill
 

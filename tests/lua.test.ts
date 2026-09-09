@@ -104,3 +104,13 @@ test("turtle transfer commands emit post-transfer inventory changes", () => {
   assert.match(executor, /"inventory\.changed"/);
   assert.match(executor, /slots = result\.inventory\.slots/);
 });
+
+test("turtle gathering stops safely before digging with no usable inventory slot", () => {
+  const inventory = readFileSync(join(runtimeRoot, "turtle/inventory.lua"), "utf8");
+  const excavation = readFileSync(join(runtimeRoot, "turtle/excavation.lua"), "utf8");
+  const executor = readFileSync(join(runtimeRoot, "turtle/executor.lua"), "utf8");
+  assert.match(inventory, /function inventory:free_slots\(\)/);
+  assert.match(excavation, /self\.inventory:free_slots\(\) == 0/);
+  assert.match(excavation, /status = "INVENTORY_FULL"/);
+  assert.match(executor, /worker inventory is full; deposit items before gathering/);
+});
