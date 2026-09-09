@@ -18,6 +18,8 @@ import {
   assemblePlanningContext,
   CodexCliProvider,
   FakeReasoningProvider,
+  PlannerTriggerService,
+  plannerTriggerFromEvent,
   PlannerDecisionSchema,
   ReasoningConcurrencyLimiter,
 } from "../packages/reasoning/src/index";
@@ -327,6 +329,49 @@ test("planner decisions are structured and fake reasoning is deterministic", asy
       .success,
     false,
   );
+});
+
+test("planner trigger service classifies and deduplicates event-driven requests", async () => {
+  const trigger = plannerTriggerFromEvent({
+    triggerId: "event-goal-1",
+    cause: "goal.created",
+    subjectId: "task-1",
+    occurredAt: "2026-09-09T00:00:00.000Z",
+    priority: 3,
+  });
+  assert.equal(trigger?.cause, "goal.created");
+  assert.equal(
+    plannerTriggerFromEvent({
+      triggerId: "event-invalid",
+      cause: "unknown",
+      subjectId: "task-1",
+      occurredAt: "2026-09-09T00:00:00.000Z",
+    }),
+    undefined,
+  );
+
+  const provider = new FakeReasoningProvider([
+    { kind: "report", status: "PROGRESS", summary: "queued for deterministic execution" },
+  ]);
+  const service = new PlannerTriggerService({
+    provider,
+    tier: "fast",
+    timeoutMs: 1000,
+    assembleContext: async (received) => ({
+      goalText: received.subjectId,
+      task: { trigger: received.cause },
+      skills: [],
+      worldKnowledge: [],
+      memories: [],
+      recentConversation: [],
+    }),
+  });
+  const first = await service.handle(trigger);
+  const duplicate = await service.handle(trigger);
+  assert.equal(first?.decision.kind, "report");
+  assert.equal(duplicate, undefined);
+  assert.equal(provider.requests.length, 1);
+  assert.match(provider.requests[0]?.prompt ?? "", /goal\.created/);
 });
 
 test("Codex CLI provider validates structured output without executing it", async () => {

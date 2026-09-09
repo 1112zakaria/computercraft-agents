@@ -183,6 +183,88 @@ export interface ReasoningProvider {
   decide(request: ReasoningRequest): Promise<ReasoningResult>;
 }
 
+export const PlannerTriggerCauseSchema = z.enum([
+  "goal.created",
+  "command.completed",
+  "command.failed",
+  "worker.blocked",
+  "delegation.required",
+  "replan.required",
+]);
+
+export type PlannerTriggerCause = z.infer<typeof PlannerTriggerCauseSchema>;
+
+export const PlannerTriggerSchema = z
+  .object({
+    triggerId: IdentifierSchema,
+    cause: PlannerTriggerCauseSchema,
+    subjectId: IdentifierSchema,
+    occurredAt: z.string().datetime({ offset: true }),
+    priority: z.number().int().min(-1000).max(1000).default(0),
+  })
+  .strict();
+
+export type PlannerTrigger = z.infer<typeof PlannerTriggerSchema>;
+
+/** Normalize an external event into the small set of planner causes supported by v1. */
+export function plannerTriggerFromEvent(input: {
+  readonly triggerId: string;
+  readonly cause: string;
+  readonly subjectId: string;
+  readonly occurredAt: string;
+  readonly priority?: number;
+}): PlannerTrigger | undefined {
+  const parsed = PlannerTriggerSchema.safeParse(input);
+  return parsed.success ? parsed.data : undefined;
+}
+
+export interface PlannerTriggerServiceOptions {
+  readonly provider: ReasoningProvider;
+  readonly tier: ReasoningTier;
+  readonly timeoutMs: number;
+  readonly maxRememberedTriggers?: number;
+  readonly assembleContext: (trigger: PlannerTrigger) => Promise<PlanningContextInput>;
+}
+
+/**
+ * Runs at most one bounded reasoning request for each trigger ID. The service only produces a
+ * validated planner decision; callers remain responsible for persisting/applying it.
+ */
+export class PlannerTriggerService {
+  private readonly seen = new Set<string>();
+  private readonly maxRememberedTriggers: number;
+
+  public constructor(private readonly options: PlannerTriggerServiceOptions) {
+    if (!Number.isSafeInteger(options.timeoutMs) || options.timeoutMs < 1) {
+      throw new Error("planner timeoutMs must be a positive integer");
+    }
+    this.maxRememberedTriggers = options.maxRememberedTriggers ?? 1024;
+    if (!Number.isSafeInteger(this.maxRememberedTriggers) || this.maxRememberedTriggers < 1) {
+      throw new Error("maxRememberedTriggers must be a positive integer");
+    }
+  }
+
+  public async handle(triggerInput: unknown): Promise<ReasoningResult | undefined> {
+    const trigger = PlannerTriggerSchema.parse(triggerInput);
+    if (this.seen.has(trigger.triggerId)) return undefined;
+    this.seen.add(trigger.triggerId);
+    while (this.seen.size > this.maxRememberedTriggers) {
+      const oldest = this.seen.values().next().value as string | undefined;
+      if (oldest === undefined) break;
+      this.seen.delete(oldest);
+    }
+
+    const context = await this.options.assembleContext(trigger);
+    const assembled = assemblePlanningContext(context);
+    return this.options.provider.decide({
+      requestId: `planner-${trigger.triggerId}`,
+      prompt: `${assembled.prompt}\nTrigger: ${JSON.stringify(trigger)}`,
+      tier: this.options.tier,
+      timeoutMs: this.options.timeoutMs,
+    });
+  }
+}
+
 /** Deterministic provider for tests and offline planner development. */
 export class FakeReasoningProvider implements ReasoningProvider {
   public readonly requests: ReasoningRequest[] = [];

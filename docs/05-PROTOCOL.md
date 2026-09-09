@@ -148,6 +148,12 @@ The planning-context endpoint assembles a bounded, read-only context from the pe
 target worker observation, advertised capabilities, and known world cells. It explicitly labels
 the resulting prompt as untrusted data and does not invoke a reasoning provider.
 
+The reasoning package now exposes a provider-neutral planner-trigger service. It accepts only the
+bounded causes `goal.created`, `command.completed`, `command.failed`, `worker.blocked`,
+`delegation.required`, and `replan.required`, deduplicates trigger IDs, assembles the same bounded
+context, and returns a schema-validated planner decision. It does not mutate tasks or execute model
+output; control-plane persistence and event wiring remain a subsequent step.
+
 After a successful `observation.block` command, the turtle emits a `block.observed` event. The
 control plane derives the inspected cell from the worker position/facing and persists it in the
 dimension-namespaced world-cell model. Worker-state events also anchor the turtle's current cell

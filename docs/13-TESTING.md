@@ -18,6 +18,7 @@ Test:
 - resource reservations;
 - context assembly;
 - planner decision validation and fake reasoning responses;
+- planner trigger classification, bounded provider invocation, and duplicate-trigger suppression;
 - bounded gather workflow transitions and terminal blocking;
 - reasoning output validation;
 - project-planner escalation;
