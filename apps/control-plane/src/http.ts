@@ -51,6 +51,7 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
       const goalsPath = url.pathname === "/v1/goals";
       const taskPathMatch = url.pathname.match(/^\/v1\/tasks(?:\/([^/]+))?$/);
       const locationsPath = url.pathname === "/v1/locations";
+      const worldCellsPath = url.pathname === "/v1/world/cells";
 
       if (method === "GET" && url.pathname === "/healthz") {
         sendJson(response, 200, options.service.health());
@@ -64,6 +65,7 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
         goalsPath ||
         taskPathMatch ||
         locationsPath ||
+        worldCellsPath ||
         url.pathname === "/v1/diagnostics" ||
         url.pathname === "/v1/commands" ||
         url.pathname === "/v1/stop-controls"
@@ -154,6 +156,13 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
             sendJson(response, 200, await options.service.createNamedLocation(locationBody));
             return;
           }
+        }
+        if (worldCellsPath) {
+          if (method !== "GET") {
+            throw new HttpError(405, "INVALID_PAYLOAD", "method is not supported");
+          }
+          sendJson(response, 200, { cells: await options.service.listWorldCells() });
+          return;
         }
         if (method !== "POST") {
           throw new HttpError(405, "INVALID_PAYLOAD", "method is not supported");

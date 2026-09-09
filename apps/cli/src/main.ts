@@ -20,6 +20,7 @@ export function usage(): string {
     `${cliName} tasks`,
     `${cliName} claim-task <task-id> <worker-id>`,
     `${cliName} locations`,
+    `${cliName} world-cells`,
     `${cliName} move <worker-id> <N|E|S|W|UP|DOWN>`,
     `${cliName} excavate <worker-id> <width> <height> <depth>`,
     `${cliName} deposit <worker-id> [quantity] [slot]`,
@@ -164,6 +165,11 @@ export async function runCli(args: readonly string[]): Promise<void> {
   if (command === "locations") {
     if (first) throw new Error(`usage: ${cliName} locations`);
     console.log(JSON.stringify(await request("/v1/locations"), null, 2));
+    return;
+  }
+  if (command === "world-cells") {
+    if (first) throw new Error(`usage: ${cliName} world-cells`);
+    console.log(JSON.stringify(await request("/v1/world/cells"), null, 2));
     return;
   }
   if (command === "move") {

@@ -102,6 +102,7 @@ export interface GatewayServiceStore {
     readonly metadata: unknown;
   }): Promise<Record<string, unknown>>;
   listNamedLocations(): Promise<readonly Record<string, unknown>[]>;
+  listWorldCells(): Promise<readonly Record<string, unknown>[]>;
 }
 
 export interface GatewayRequestContext {
@@ -402,6 +403,10 @@ export class GatewayService {
 
   public async listNamedLocations(): Promise<readonly Record<string, unknown>[]> {
     return this.store.listNamedLocations();
+  }
+
+  public async listWorldCells(): Promise<readonly Record<string, unknown>[]> {
+    return this.store.listWorldCells();
   }
 
   public async enqueueStopControl(input: unknown): Promise<object> {

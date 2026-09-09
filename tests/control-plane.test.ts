@@ -222,6 +222,10 @@ class FakeGatewayStore implements GatewayServiceStore {
   public async listNamedLocations(): Promise<readonly Record<string, unknown>[]> {
     return [];
   }
+
+  public async listWorldCells(): Promise<readonly Record<string, unknown>[]> {
+    return [];
+  }
 }
 
 async function startServer(
@@ -358,6 +362,20 @@ test("operator location API upserts a named anchor", async () => {
     const body = (await response.json()) as { name: string; confidence: string };
     assert.equal(body.name, "Test Chest");
     assert.equal(body.confidence, "CONFIRMED_ANCHOR");
+  } finally {
+    await server.close();
+  }
+});
+
+test("operator world-cell API is bounded and read-only", async () => {
+  const store = new FakeGatewayStore();
+  const server = await startServer(store);
+  try {
+    const response = await fetch(`${server.baseUrl}/v1/world/cells`, {
+      headers: adminHeaders(),
+    });
+    assert.equal(response.status, 200);
+    assert.deepEqual((await response.json()) as { cells: unknown[] }, { cells: [] });
   } finally {
     await server.close();
   }
