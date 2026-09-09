@@ -1899,6 +1899,29 @@ export class GatewayRuntimeRepository {
           payload.state === "IDLE" ? "ONLINE" : "ONLINE",
         ],
       );
+      if (payload.position) {
+        await client.query(
+          `
+            INSERT INTO world_cells (
+              dimension, x, y, z, block_name, block_metadata, walkable, observed_at, source_worker_id
+            )
+            VALUES ($1, $2, $3, $4, NULL, NULL, TRUE, $5, $6)
+            ON CONFLICT (dimension, x, y, z) DO UPDATE SET
+              walkable = TRUE,
+              observed_at = EXCLUDED.observed_at,
+              source_worker_id = EXCLUDED.source_worker_id
+            WHERE world_cells.observed_at <= EXCLUDED.observed_at
+          `,
+          [
+            payload.position.dimension,
+            payload.position.x,
+            payload.position.y,
+            payload.position.z,
+            new Date(event.occurredAt),
+            workerRow.id,
+          ],
+        );
+      }
     }
 
     if (event.type === "inventory.changed" && event.workerId) {

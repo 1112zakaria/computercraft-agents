@@ -145,8 +145,9 @@ does not itself dispatch a command or mark a physical action successful.
 
 After a successful `observation.block` command, the turtle emits a `block.observed` event. The
 control plane derives the inspected cell from the worker position/facing and persists it in the
-dimension-namespaced world-cell model. This is observation storage only; path planning still uses
-known walkable cells and must be integrated with persistence separately.
+dimension-namespaced world-cell model. Worker-state events also anchor the turtle's current cell
+as known walkable. This is bounded observation storage; path planning still refuses unknown cells
+and requires freshness/reconciliation work before it can be treated as a complete world map.
 
 ## 3. Gateway registration
 
