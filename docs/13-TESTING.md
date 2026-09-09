@@ -17,6 +17,8 @@ Test:
 - stop/cancel transitions;
 - resource reservations;
 - context assembly;
+- planner decision validation and fake reasoning responses;
+- bounded gather workflow transitions and terminal blocking;
 - reasoning output validation;
 - project-planner escalation;
 - protocol schema validation;
