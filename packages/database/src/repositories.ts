@@ -4168,7 +4168,7 @@ export class GatewayRuntimeRepository {
         readonly updateId: string;
         readonly message?: string;
       };
-      await client.query(
+      const transitioned = await client.query<IdRow>(
         `
           UPDATE update_rollouts
           SET status = $2,
@@ -4177,6 +4177,8 @@ export class GatewayRuntimeRepository {
               started_at = CASE WHEN $2 IN ('RUNNING', 'CANARY') THEN COALESCE(started_at, NOW()) ELSE started_at END,
               completed_at = CASE WHEN $2 IN ('SUCCEEDED', 'FAILED', 'ROLLED_BACK', 'CANCELLED') THEN NOW() ELSE completed_at END
           WHERE update_id = $1
+            AND NOT (status = 'FAILED' AND failure_code = 'UPDATE_EXPIRED')
+          RETURNING update_id AS id
         `,
         [
           payload.updateId,
@@ -4189,15 +4191,17 @@ export class GatewayRuntimeRepository {
           payload.message ?? null,
         ],
       );
-      await client.query(
-        `INSERT INTO update_events (update_id, status, message, details_json) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING`,
-        [
-          payload.updateId,
-          updateStatus,
-          payload.message ?? null,
-          asJson({ eventId: event.eventId }),
-        ],
-      );
+      if ((transitioned.rowCount ?? 0) > 0) {
+        await client.query(
+          `INSERT INTO update_events (update_id, status, message, details_json) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING`,
+          [
+            payload.updateId,
+            updateStatus,
+            payload.message ?? null,
+            asJson({ eventId: event.eventId }),
+          ],
+        );
+      }
     }
 
     await this.recordPlannerTrigger(client, event);

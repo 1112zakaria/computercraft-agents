@@ -707,6 +707,16 @@ test("individual update inspection includes chronological event history", async 
   ]);
 });
 
+test("late lifecycle events cannot overwrite an expired rollout", () => {
+  const repositories = readFileSync(
+    join(__dirname, "../packages/database/src/repositories.ts"),
+    "utf8",
+  );
+  assert.match(repositories, /AND NOT \(status = 'FAILED' AND failure_code = 'UPDATE_EXPIRED'\)/);
+  assert.match(repositories, /RETURNING update_id AS id/);
+  assert.match(repositories, /if \(\(transitioned\.rowCount \?\? 0\) > 0\)/);
+});
+
 test("gateway restart recovery cancels uncertain work behind an explicit resume boundary", () => {
   const repositories = readFileSync(
     join(__dirname, "../packages/database/src/repositories.ts"),

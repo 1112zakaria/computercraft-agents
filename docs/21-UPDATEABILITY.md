@@ -60,7 +60,8 @@ status response includes its chronological update-event history. If a rollout
 expires before successful activation (for example, while its turtle is offline), maintenance marks
 it `FAILED` with `failureCode: UPDATE_EXPIRED` and writes an update-history event. The operator
 must review the failure and enqueue a new immutable update request; expired work is never silently
-delivered later.
+delivered later. Delayed lifecycle events remain in the raw worker/gateway event audit but cannot
+replace the terminal `UPDATE_EXPIRED` rollout state.
 
 ## Worker rollout
 
