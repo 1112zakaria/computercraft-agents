@@ -229,6 +229,21 @@ export type AddressedCommandParseResult =
   | { readonly ok: true; readonly command: AddressedCommand }
   | { readonly ok: false; readonly error: string };
 
+export interface AddressResolutionRegistry {
+  readonly workers: readonly string[];
+  readonly groups: Readonly<Record<string, readonly string[]>>;
+}
+
+export interface ResolvedAddressedCommand {
+  readonly workerIds: readonly string[];
+  readonly groups: readonly string[];
+  readonly allWorkers: boolean;
+}
+
+export type AddressResolutionResult =
+  | { readonly ok: true; readonly resolution: ResolvedAddressedCommand }
+  | { readonly ok: false; readonly error: string };
+
 /** Parse explicit worker/group/all addressing before any natural-language interpretation. */
 export function parseAddressedCommand(input: string): AddressedCommandParseResult {
   const match =
@@ -260,8 +275,67 @@ export function parseAddressedCommand(input: string): AddressedCommandParseResul
       targets:
         normalizedNames[0] === "all"
           ? [{ kind: "all" }]
-          : names.map((name) => ({ kind: "named", name })),
+          : normalizedNames.map((name) => ({ kind: "named", name })),
       commandText: match[2]!,
+    },
+  };
+}
+
+/** Resolve parsed addresses against a current worker/group registry. */
+export function resolveAddressedTargets(
+  command: AddressedCommand,
+  registry: AddressResolutionRegistry,
+): AddressResolutionResult {
+  const workersByName = new Map(
+    registry.workers.map((workerId) => [workerId.toLowerCase(), workerId] as const),
+  );
+  const groupsByName = new Map(
+    Object.entries(registry.groups).map(
+      ([name, members]) => [name.toLowerCase(), members] as const,
+    ),
+  );
+  const workerIds: string[] = [];
+  const groups: string[] = [];
+  const seenWorkers = new Set<string>();
+  const addWorker = (workerId: string): void => {
+    const canonicalWorkerId = workersByName.get(workerId.toLowerCase());
+    if (!canonicalWorkerId) return;
+    const key = canonicalWorkerId.toLowerCase();
+    if (seenWorkers.has(key)) return;
+    seenWorkers.add(key);
+    workerIds.push(canonicalWorkerId);
+  };
+
+  for (const target of command.targets) {
+    if (target.kind === "all") {
+      for (const workerId of registry.workers) addWorker(workerId);
+      continue;
+    }
+
+    const worker = workersByName.get(target.name.toLowerCase());
+    if (worker) {
+      addWorker(worker);
+      continue;
+    }
+
+    const members = groupsByName.get(target.name.toLowerCase());
+    if (!members) {
+      return { ok: false, error: `unknown address target: @${target.name}` };
+    }
+    const canonicalGroupName =
+      Object.keys(registry.groups).find(
+        (name) => name.toLowerCase() === target.name.toLowerCase(),
+      ) ?? target.name;
+    groups.push(canonicalGroupName);
+    for (const member of members) addWorker(member);
+  }
+
+  return {
+    ok: true,
+    resolution: {
+      workerIds,
+      groups,
+      allWorkers: command.targets.some((target) => target.kind === "all"),
     },
   };
 }

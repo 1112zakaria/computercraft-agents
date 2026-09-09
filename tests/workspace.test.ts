@@ -7,6 +7,7 @@ import {
   normalizeItemKey,
   parseAddressedGatherGoal,
   parseAddressedCommand,
+  resolveAddressedTargets,
   type GatherTaskState,
 } from "../packages/domain/src/index";
 import {
@@ -117,6 +118,58 @@ test("address parser handles workers, groups, lists, and all without interpretat
   });
   assert.equal(parseAddressedCommand("@all,@alice stop").ok, false);
   assert.equal(parseAddressedCommand("@alice,@alice stop").ok, false);
+});
+
+test("address parser canonicalizes worker names before registry lookup", () => {
+  assert.deepEqual(parseAddressedCommand("@ALICE inspect"), {
+    ok: true,
+    command: {
+      targets: [{ kind: "named", name: "alice" }],
+      commandText: "inspect",
+    },
+  });
+});
+
+test("address resolution expands workers, groups, and all deterministically", () => {
+  const registry = {
+    workers: ["alice", "bob", "charlie"],
+    groups: { Miners: ["alice", "bob"], builders: ["bob", "missing"] },
+  } as const;
+
+  const group = parseAddressedCommand("@MINERS,@charlie inspect");
+  assert.equal(group.ok, true);
+  if (group.ok) {
+    assert.deepEqual(resolveAddressedTargets(group.command, registry), {
+      ok: true,
+      resolution: {
+        workerIds: ["alice", "bob", "charlie"],
+        groups: ["Miners"],
+        allWorkers: false,
+      },
+    });
+  }
+
+  const all = parseAddressedCommand("@all stop");
+  assert.equal(all.ok, true);
+  if (all.ok) {
+    assert.deepEqual(resolveAddressedTargets(all.command, registry), {
+      ok: true,
+      resolution: {
+        workerIds: ["alice", "bob", "charlie"],
+        groups: [],
+        allWorkers: true,
+      },
+    });
+  }
+
+  const unknown = parseAddressedCommand("@unknown inspect");
+  assert.equal(unknown.ok, true);
+  if (unknown.ok) {
+    assert.deepEqual(resolveAddressedTargets(unknown.command, registry), {
+      ok: false,
+      error: "unknown address target: @unknown",
+    });
+  }
 });
 
 test("addressed gather goal parser rejects unsupported or unsafe quantities", () => {
