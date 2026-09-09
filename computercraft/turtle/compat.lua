@@ -7,33 +7,77 @@ local clock_path = "worker-clock.txt"
 
 -- ComputerCraft 1.75 can expose tables from a different program environment to the
 -- JSON serializer. Some releases also use a self-referential EMPTY_ARRAY sentinel.
--- Normalize ordinary JSON values into fresh tables, while preserving that sentinel
--- for the native serializer's special empty-array handling.
-local function json_copy(value, seen)
+-- Encode the small protocol JSON subset locally so runtime persistence never relies
+-- on the legacy native serializer's recursive-table detection.
+local function quote_json_string(value)
+  local escaped = value:gsub('[%z\1-\31\\"]', function(character)
+    local replacements = {
+      ['"'] = '\\"',
+      ['\\'] = '\\\\',
+      ['\b'] = '\\b',
+      ['\f'] = '\\f',
+      ['\n'] = '\\n',
+      ['\r'] = '\\r',
+      ['\t'] = '\\t',
+    }
+    return replacements[character] or string.format('\\u%04x', string.byte(character))
+  end)
+  return '"' .. escaped .. '"'
+end
+
+local function json_encode(value, seen)
   local value_type = type(value)
-  if value_type == "nil" or value_type == "string" or value_type == "number" or value_type == "boolean" then
-    return value
+  if value_type == "nil" then return "null" end
+  if value_type == "string" then return quote_json_string(value) end
+  if value_type == "boolean" then return value and "true" or "false" end
+  if value_type == "number" then
+    if value ~= value or value == math.huge or value == -math.huge then
+      error("cannot encode non-finite number as JSON")
+    end
+    return tostring(value)
   end
   if value_type ~= "table" then error("cannot encode " .. value_type .. " as JSON") end
-  if textutils.EMPTY_ARRAY and value == textutils.EMPTY_ARRAY then return value end
-
-  seen = seen or {}
+  if textutils.EMPTY_ARRAY and value == textutils.EMPTY_ARRAY then return "[]" end
   if seen[value] then error("cannot encode recursive table as JSON") end
   seen[value] = true
-  local copy = {}
-  for key, item in pairs(value) do
-    local key_type = type(key)
-    if key_type ~= "string" and key_type ~= "number" then
-      error("cannot encode " .. key_type .. " JSON key")
+
+  local max_index = 0
+  local is_array = true
+  for key, _ in pairs(value) do
+    if type(key) ~= "number" or key < 1 or key ~= math.floor(key) then
+      is_array = false
+      break
     end
-    copy[key] = json_copy(item, seen)
+    if key > max_index then max_index = key end
+  end
+  if is_array then
+    for index = 1, max_index do
+      if value[index] == nil then
+        is_array = false
+        break
+      end
+    end
+  end
+
+  local parts = {}
+  if is_array then
+    for index = 1, max_index do
+      table.insert(parts, json_encode(value[index], seen))
+    end
+    seen[value] = nil
+    return "[" .. table.concat(parts, ",") .. "]"
+  end
+
+  for key, item in pairs(value) do
+    if type(key) ~= "string" then error("cannot encode non-string JSON key") end
+    table.insert(parts, quote_json_string(key) .. ":" .. json_encode(item, seen))
   end
   seen[value] = nil
-  return copy
+  return "{" .. table.concat(parts, ",") .. "}"
 end
 
 function M.encode_json(value)
-  local ok, encoded_or_error = pcall(textutils.serializeJSON, json_copy(value))
+  local ok, encoded_or_error = pcall(json_encode, value, {})
   if ok then return encoded_or_error end
   return nil, tostring(encoded_or_error)
 end
