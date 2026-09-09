@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import type {
   Command,
   DirectUpdateControl,
@@ -2541,31 +2543,97 @@ export class TaskRepository {
   }
 
   public async transitionTask(taskId: string, nextState: string, reason?: string): Promise<void> {
-    const result = await this.pool.query<{ status: string }>(
-      `SELECT status FROM tasks WHERE id = $1`,
-      [taskId],
-    );
-    const current = result.rows[0]?.status;
-    if (!current) {
-      throw new RepositoryError("UNKNOWN_TASK", "task was not found", 404);
-    }
-    if (!taskTransitions[current]?.includes(nextState)) {
-      throw new RepositoryError(
-        "INVALID_TASK_TRANSITION",
-        `${current} cannot transition to ${nextState}`,
-        409,
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const result = await client.query<{
+        status: string;
+        job_id: string;
+        worker_key: string | null;
+        transport_type: WorkerTransport | null;
+      }>(
+        `
+          SELECT t.status, t.job_id::text AS job_id,
+                 w.worker_key, w.transport_type
+          FROM tasks t
+          LEFT JOIN workers w ON w.id = t.assigned_worker_id
+          WHERE t.id = $1
+          FOR UPDATE OF t
+        `,
+        [taskId],
       );
+      const current = result.rows[0];
+      if (!current) {
+        throw new RepositoryError("UNKNOWN_TASK", "task was not found", 404);
+      }
+      if (!taskTransitions[current.status]?.includes(nextState)) {
+        throw new RepositoryError(
+          "INVALID_TASK_TRANSITION",
+          `${current.status} cannot transition to ${nextState}`,
+          409,
+        );
+      }
+
+      const requiresStop =
+        current.status === "RUNNING" &&
+        (nextState === "PAUSED" || nextState === "CANCELLED") &&
+        current.worker_key !== null;
+      if (requiresStop) {
+        await client.query(
+          `
+            UPDATE gateway_commands
+            SET status = 'CANCELLED', completed_at = NOW()
+            WHERE task_id = $1
+              AND status IN ('QUEUED', 'DELIVERED', 'RUNNING')
+          `,
+          [taskId],
+        );
+      }
+
+      await client.query(
+        `
+          UPDATE tasks
+          SET status = $2,
+              assigned_worker_id = CASE
+                WHEN $2 IN ('DONE', 'FAILED', 'CANCELLED', 'PAUSED') THEN NULL
+                ELSE assigned_worker_id
+              END,
+              last_error_json = CASE
+                WHEN $2 IN ('READY', 'RUNNING') THEN NULL
+                WHEN $3::text IS NULL THEN last_error_json
+                ELSE $3::jsonb
+              END
+          WHERE id = $1
+        `,
+        [taskId, nextState, reason ? asJson({ reason }) : null],
+      );
+
+      if (requiresStop) {
+        const controlId = `task-stop-${taskId}-${randomUUID()}`.slice(0, 128);
+        const control = {
+          protocolVersion: 1,
+          controlId,
+          issuedAt: new Date().toISOString(),
+          type: "worker.stop",
+          workerId: current.worker_key!,
+          reason: reason ?? `task ${nextState.toLowerCase()} by operator`,
+        } satisfies StopControl;
+        await client.query(
+          `
+            INSERT INTO gateway_stop_controls (control_id, worker_key, payload_json, transport_type)
+            VALUES ($1, $2, $3, $4)
+          `,
+          [controlId, current.worker_key, asJson(control), current.transport_type],
+        );
+      }
+
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
     }
-    await this.pool.query(
-      `
-        UPDATE tasks
-        SET status = $2,
-            assigned_worker_id = CASE WHEN $2 IN ('DONE', 'FAILED', 'CANCELLED') THEN NULL ELSE assigned_worker_id END,
-            last_error_json = CASE WHEN $3::text IS NULL THEN last_error_json ELSE $3::jsonb END
-        WHERE id = $1
-      `,
-      [taskId, nextState, reason ? asJson({ reason }) : null],
-    );
   }
 
   public async listRunnableTasks(): Promise<readonly Record<string, unknown>[]> {

@@ -121,6 +121,18 @@ test("stale recovery keeps command delivery behind an explicit resume boundary",
   assert.match(repositories, /worker became stale; stop before explicit resume/);
 });
 
+test("operator pause and cancel preserve a transport-aware stop boundary", () => {
+  const repositories = readFileSync(
+    join(__dirname, "../packages/database/src/repositories.ts"),
+    "utf8",
+  );
+  assert.match(repositories, /current\.status === "RUNNING"/);
+  assert.match(repositories, /status IN \('QUEUED', 'DELIVERED', 'RUNNING'\)/);
+  assert.match(repositories, /WHEN \$2 IN \('DONE', 'FAILED', 'CANCELLED', 'PAUSED'\)/);
+  assert.match(repositories, /INSERT INTO gateway_stop_controls/);
+  assert.match(repositories, /current\.transport_type/);
+});
+
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 if (testDatabaseUrl) {
   test("database migrations apply and are idempotent in the configured test database", async () => {

@@ -378,6 +378,57 @@ test("CLI submits an explicit task transition", async () => {
   }
 });
 
+test("CLI exposes explicit pause, resume, and cancel task controls", async () => {
+  const previousFetch = globalThis.fetch;
+  const previousUrl = process.env.CONTROL_PLANE_URL;
+  const previousSecret = process.env.CONTROL_PLANE_ADMIN_SECRET;
+  const requests: Array<{ url: string; body: Record<string, unknown> }> = [];
+  process.env.CONTROL_PLANE_URL = "http://control-plane.test";
+  process.env.CONTROL_PLANE_ADMIN_SECRET = "test-admin-secret";
+  globalThis.fetch = async (input, init) => {
+    requests.push({
+      url: String(input),
+      body: JSON.parse(String(init?.body)) as Record<string, unknown>,
+    });
+    return new Response(JSON.stringify({ accepted: true }), { status: 200 });
+  };
+  try {
+    await runCli(["pause-task", "task-1", "operator", "pause"]);
+    await runCli(["resume-task", "task-1"]);
+    await runCli(["cancel-task", "task-1", "operator", "cancel"]);
+    assert.deepEqual(
+      requests.map((request) => ({
+        url: request.url,
+        status: request.body.status,
+        reason: request.body.reason,
+      })),
+      [
+        {
+          url: "http://control-plane.test/v1/tasks/task-1/transition",
+          status: "PAUSED",
+          reason: "operator pause",
+        },
+        {
+          url: "http://control-plane.test/v1/tasks/task-1/transition",
+          status: "READY",
+          reason: undefined,
+        },
+        {
+          url: "http://control-plane.test/v1/tasks/task-1/transition",
+          status: "CANCELLED",
+          reason: "operator cancel",
+        },
+      ],
+    );
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousUrl === undefined) delete process.env.CONTROL_PLANE_URL;
+    else process.env.CONTROL_PLANE_URL = previousUrl;
+    if (previousSecret === undefined) delete process.env.CONTROL_PLANE_ADMIN_SECRET;
+    else process.env.CONTROL_PLANE_ADMIN_SECRET = previousSecret;
+  }
+});
+
 test("CLI lists runnable tasks", async () => {
   const previousFetch = globalThis.fetch;
   const previousUrl = process.env.CONTROL_PLANE_URL;

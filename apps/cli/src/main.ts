@@ -27,6 +27,9 @@ export function usage(): string {
     `${cliName} claim-task <task-id> <worker-id>`,
     `${cliName} dispatch-task <task-id> <worker-id>`,
     `${cliName} task-status <task-id> <PENDING|READY|RUNNING|PAUSED|BLOCKED|DONE|FAILED|CANCELLED>`,
+    `${cliName} pause-task <task-id> [reason]`,
+    `${cliName} resume-task <task-id>`,
+    `${cliName} cancel-task <task-id> [reason]`,
     `${cliName} locations`,
     `${cliName} location <name>`,
     `${cliName} world-cells`,
@@ -258,6 +261,33 @@ export async function runCli(args: readonly string[]): Promise<void> {
         await request(`/v1/tasks/${encodeURIComponent(first)}/transition`, {
           method: "POST",
           body: JSON.stringify({ protocolVersion: 1, status: second }),
+        }),
+        null,
+        2,
+      ),
+    );
+    return;
+  }
+  if (command === "pause-task" || command === "resume-task" || command === "cancel-task") {
+    if (!first || (second && command === "resume-task")) {
+      throw new Error(
+        command === "resume-task"
+          ? `usage: ${cliName} resume-task <task-id>`
+          : `usage: ${cliName} ${command} <task-id> [reason]`,
+      );
+    }
+    const status =
+      command === "pause-task" ? "PAUSED" : command === "resume-task" ? "READY" : "CANCELLED";
+    const reason = positionalArgs.slice(2).join(" ").trim();
+    console.log(
+      JSON.stringify(
+        await request(`/v1/tasks/${encodeURIComponent(first)}/transition`, {
+          method: "POST",
+          body: JSON.stringify({
+            protocolVersion: 1,
+            status,
+            ...(reason ? { reason } : {}),
+          }),
         }),
         null,
         2,

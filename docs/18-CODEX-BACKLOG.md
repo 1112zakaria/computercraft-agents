@@ -652,9 +652,10 @@ loop exercise this path, while multi-step workflow ownership remains.
 **Priority:** P0  
 **Dependencies:** CC-015, CC-023, CC-071
 
-**Status:** PARTIAL — the control plane now exposes validated explicit task transitions and maps
-worker command cancellation from the urgent stop path to `PAUSED` while releasing the worker claim;
-resumable execution state, resource release, and explicit cancel semantics remain.
+**Status:** PARTIAL — the control plane now exposes validated explicit task transitions plus
+`pause-task`, `resume-task`, and `cancel-task` CLI controls. Pausing/cancelling a running task now
+atomically cancels active command delivery, releases the worker claim, and queues a transport-aware
+stop control; resuming returns the task to `READY` and resource reservations remain.
 
 **Acceptance criteria**
 

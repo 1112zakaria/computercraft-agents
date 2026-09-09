@@ -26,6 +26,7 @@ Test:
 - protocol schema validation;
 - event deduplication;
 - stale-worker recovery pauses and cancels work before explicit resume;
+- operator pause/cancel stops active delivery atomically and resume returns work to `READY`;
 - outage transitions.
 
 ### Unit tests — Lua
