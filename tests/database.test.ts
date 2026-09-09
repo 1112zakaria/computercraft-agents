@@ -123,6 +123,10 @@ test("position persistence seeds only the observed world cell as walkable", () =
   );
   assert.match(repositorySql, /if \(worker\.position\) \{\s*await this\.recordWalkablePosition/s);
   assert.match(repositorySql, /if \(payload\.position\) \{\s*await this\.recordWalkablePosition/s);
+  assert.match(
+    repositorySql,
+    /public async upsertNamedLocation[\s\S]+source_worker_id\s*\)\s*VALUES \(\$1, \$2, \$3, \$4, NULL, NULL, TRUE, NOW\(\), NULL/s,
+  );
 });
 
 test("urgent command cancellation pauses the logical task", () => {

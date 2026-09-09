@@ -821,7 +821,25 @@ export class GatewayRuntimeRepository {
         asJson(input.metadata),
       ],
     );
-    return result.rows[0]!;
+    const location = result.rows[0];
+    if (!location) {
+      throw new RepositoryError("INTERNAL_ERROR", "named location upsert returned no row", 500);
+    }
+    await this.pool.query(
+      `
+        INSERT INTO world_cells (
+          dimension, x, y, z, block_name, block_metadata, walkable, observed_at, source_worker_id
+        )
+        VALUES ($1, $2, $3, $4, NULL, NULL, TRUE, NOW(), NULL)
+        ON CONFLICT (dimension, x, y, z) DO UPDATE SET
+          walkable = TRUE,
+          observed_at = NOW(),
+          source_worker_id = NULL
+        WHERE world_cells.observed_at <= NOW()
+      `,
+      [input.dimension, input.x, input.y, input.z],
+    );
+    return location;
   }
 
   public async listNamedLocations(): Promise<readonly Record<string, unknown>[]> {

@@ -32,10 +32,10 @@ SPECIAL
 
 Metadata MAY contain block IDs, observation time, hardness/tool hints, or transport semantics.
 
-Online heartbeat positions and operator-confirmed anchors also seed their exact coordinate as a
-walkable `world_cells` record. This gives the planner a trustworthy start/end anchor for a bounded
-route without claiming that any unobserved neighboring cell is safe. Block observations and later
-movement observations extend the known map incrementally.
+Online heartbeat positions, operator-confirmed anchors, and named-location endpoint writes also seed
+their exact coordinate as a walkable `world_cells` record. This gives the planner a trustworthy
+start/end anchor for a bounded route without claiming that any unobserved neighboring cell is safe.
+Block observations and later movement observations extend the known map incrementally.
 
 ## 3. Planner boundary
 

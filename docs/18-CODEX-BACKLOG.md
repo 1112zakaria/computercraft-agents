@@ -549,8 +549,8 @@ gateway-backed workers and fleet rollouts remain unchanged.
 **Dependencies:** CC-020, CC-044
 
 **Status:** PARTIAL — bounded in-memory sparse walkability model, persistent `world_cells` storage,
-worker-position anchoring, heartbeat/anchor walkable-cell seeding, and block-observation event
-ingestion now exist; planner loading and freshness/reconciliation remain.
+worker-position anchoring, heartbeat/anchor/named-location walkable-cell seeding, and block-observation
+event ingestion now exist; planner loading and freshness/reconciliation remain.
 
 Represent observed cells and freshness/worker source.
 
