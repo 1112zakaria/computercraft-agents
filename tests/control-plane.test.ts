@@ -188,6 +188,16 @@ class FakeGatewayStore implements GatewayServiceStore {
     ];
   }
 
+  public async getPlannerRuntimeState() {
+    return {
+      state: "AVAILABLE" as const,
+      consecutiveFailures: 0,
+      lastFailureAt: null,
+      retryAfter: null,
+      updatedAt: "2026-09-09T00:00:00.000Z",
+    };
+  }
+
   public async provisionDirectWorker(
     payload: DirectWorkerProvision,
   ): Promise<Record<string, unknown>> {
@@ -522,6 +532,26 @@ test("operator planner trigger API returns bounded trigger history", async () =>
       triggers: [
         { triggerId: "goal-task-report", cause: "goal.created", subjectId: "task-report" },
       ],
+    });
+  } finally {
+    await server.close();
+  }
+});
+
+test("operator planner status API exposes the persisted outage gate", async () => {
+  const store = new FakeGatewayStore();
+  const server = await startServer(store);
+  try {
+    const response = await fetch(`${server.baseUrl}/v1/planner/status`, {
+      headers: adminHeaders(),
+    });
+    assert.equal(response.status, 200);
+    assert.deepEqual(await responseJson(response), {
+      state: "AVAILABLE",
+      consecutiveFailures: 0,
+      lastFailureAt: null,
+      retryAfter: null,
+      updatedAt: "2026-09-09T00:00:00.000Z",
     });
   } finally {
     await server.close();

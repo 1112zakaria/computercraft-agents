@@ -805,8 +805,8 @@ Implement complexity heuristic and structured project plan output.
 
 **Status:** PARTIAL — the reasoning package now provides an explicit available/degraded/paused
 state machine with bounded retry timing and recovery reset. The control plane persists the outage
-snapshot, restores it during startup, and automatically retries durable pending triggers after the
-pause window. Operator visibility and richer outage policy remain.
+snapshot, restores it during startup, automatically retries durable pending triggers after the
+pause window, and exposes protected `planner-status` inspection. Richer outage policy remains.
 
 **Acceptance criteria**
 

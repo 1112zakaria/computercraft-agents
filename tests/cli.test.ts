@@ -22,6 +22,7 @@ test("CLI exposes agent and project inspection endpoints", async () => {
     await runCli(["audit", "25"]);
     await runCli(["goal-report", "task-report"]);
     await runCli(["planner-triggers", "25"]);
+    await runCli(["planner-status"]);
     assert.deepEqual(capturedUrls, [
       "http://control-plane.test/v1/agents",
       "http://control-plane.test/v1/agents/alice",
@@ -30,6 +31,7 @@ test("CLI exposes agent and project inspection endpoints", async () => {
       "http://control-plane.test/v1/audit?limit=25",
       "http://control-plane.test/v1/goals/task-report/report",
       "http://control-plane.test/v1/planner/triggers?limit=25",
+      "http://control-plane.test/v1/planner/status",
     ]);
   } finally {
     globalThis.fetch = previousFetch;

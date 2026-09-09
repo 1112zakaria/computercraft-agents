@@ -28,6 +28,7 @@ export function usage(): string {
     `${cliName} goal <@worker get ... and deposit it in ...>`,
     `${cliName} goal-report <task-id>`,
     `${cliName} planner-triggers [limit]`,
+    `${cliName} planner-status`,
     `${cliName} tasks`,
     `${cliName} task <task-id>`,
     `${cliName} planning-context <task-id>`,
@@ -234,6 +235,11 @@ export async function runCli(args: readonly string[]): Promise<void> {
       ? `/v1/planner/triggers?limit=${encodeURIComponent(first)}`
       : "/v1/planner/triggers";
     console.log(JSON.stringify(await request(path), null, 2));
+    return;
+  }
+  if (command === "planner-status") {
+    if (first) throw new Error(`usage: ${cliName} planner-status`);
+    console.log(JSON.stringify(await request("/v1/planner/status"), null, 2));
     return;
   }
   if (command === "task") {

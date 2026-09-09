@@ -87,6 +87,7 @@ POST /v1/goals
 GET  /v1/goals
 GET  /v1/goals/:taskId/report
 GET  /v1/planner/triggers?limit=<1..200>
+GET  /v1/planner/status
 ```
 
 The request contains `protocolVersion`, `goalText`, `createdByPrincipal`, and an optional bounded

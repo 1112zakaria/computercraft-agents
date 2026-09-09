@@ -66,6 +66,7 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
       const goalsPath = url.pathname === "/v1/goals";
       const goalReportPathMatch = url.pathname.match(/^\/v1\/goals\/([^/]+)\/report$/);
       const plannerTriggersPath = url.pathname === "/v1/planner/triggers";
+      const plannerStatusPath = url.pathname === "/v1/planner/status";
       const taskPathMatch = url.pathname.match(/^\/v1\/tasks(?:\/([^/]+))?$/);
       const taskPlanningContextPathMatch = url.pathname.match(
         /^\/v1\/tasks\/([^/]+)\/planning-context$/,
@@ -96,6 +97,7 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
         goalsPath ||
         goalReportPathMatch ||
         plannerTriggersPath ||
+        plannerStatusPath ||
         taskPathMatch ||
         taskPlanningContextPathMatch ||
         taskTransitionPathMatch ||
@@ -247,6 +249,13 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
           sendJson(response, 200, {
             triggers: await options.service.listPlannerTriggers(limit),
           });
+          return;
+        }
+        if (plannerStatusPath) {
+          if (method !== "GET") {
+            throw new HttpError(405, "INVALID_PAYLOAD", "method is not supported");
+          }
+          sendJson(response, 200, await options.service.plannerStatus());
           return;
         }
         if (schedulerTickPath) {

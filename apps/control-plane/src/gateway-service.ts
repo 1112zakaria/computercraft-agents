@@ -51,6 +51,7 @@ import type {
   GatewayPollResult,
   GatewayRuntimeRepository,
   GoalTaskRecord,
+  PlannerRuntimeStateRecord,
   PlannerTriggerRecord,
   UpdateRolloutRecord,
 } from "@computercraft-agents/database";
@@ -109,6 +110,7 @@ export interface GatewayServiceStore {
   getTask(taskId: string): Promise<Record<string, unknown> | undefined>;
   getGoalReport(taskId: string): Promise<Record<string, unknown> | undefined>;
   listPlannerTriggers(limit: number): Promise<readonly PlannerTriggerRecord[]>;
+  getPlannerRuntimeState(): Promise<PlannerRuntimeStateRecord>;
   listRunnableTasks(): Promise<readonly Record<string, unknown>[]>;
   claimTask(taskId: string, workerKey: string): Promise<Record<string, unknown>>;
   dispatchTask(taskId: string, workerKey: string, commandId: string): Promise<Command>;
@@ -531,6 +533,10 @@ export class GatewayService {
       );
     }
     return this.store.listPlannerTriggers(limit);
+  }
+
+  public async plannerStatus(): Promise<PlannerRuntimeStateRecord> {
+    return this.store.getPlannerRuntimeState();
   }
 
   public async planningContext(taskId: string): Promise<Record<string, unknown>> {
