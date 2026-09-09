@@ -208,6 +208,26 @@ test("scheduler assigns compatible ready tasks without double-booking a worker",
   ]);
 });
 
+test("scheduler honors an explicitly targeted worker", () => {
+  const assignments = selectDispatchableTasks(
+    [
+      {
+        taskId: "targeted",
+        state: "READY",
+        priority: 1,
+        requiredCapabilities: ["move"],
+        targetWorkerId: "bob",
+      },
+    ],
+    [
+      { workerId: "alice", online: true, capabilities: ["move"] },
+      { workerId: "bob", online: true, capabilities: ["move"] },
+    ],
+  );
+
+  assert.deepEqual(assignments, [{ taskId: "targeted", workerId: "bob" }]);
+});
+
 function cell(coordinate: Coordinate, walkable = true) {
   return {
     ...coordinate,

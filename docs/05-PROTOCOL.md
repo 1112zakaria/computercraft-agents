@@ -94,6 +94,8 @@ sentence and persists a project, ready job, and ready task with the normalized r
 The job advertises the required `mining.gather`, `navigate.path`, and `inventory.deposit`
 capabilities so scheduler assignment can reject incompatible workers. Goal tasks still require the
 multi-step gather workflow; they are not auto-dispatched by the bounded command-task endpoint.
+The normalized `targetWorkerId` is retained in task arguments and scheduler/database dispatch
+checks enforce it, so an addressed goal cannot be silently assigned to another worker.
 
 Named locations are managed through the protected operator API:
 

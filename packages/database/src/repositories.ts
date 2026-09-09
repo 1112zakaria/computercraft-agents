@@ -1918,6 +1918,10 @@ export class TaskRepository {
           WHERE t.id = $1
             AND t.status = 'READY'
             AND t.assigned_worker_id IS NULL
+            AND (
+              t.arguments_json->>'targetWorkerId' IS NULL
+              OR t.arguments_json->>'targetWorkerId' = $3
+            )
             AND NOT EXISTS (
               SELECT 1
               FROM task_dependencies dependency_link
@@ -1929,7 +1933,7 @@ export class TaskRepository {
                     t.skill_name AS "skillName", t.arguments_json AS arguments,
                     t.assigned_worker_id::text AS "assignedWorkerId"
         `,
-        [taskId, workerRow.id],
+        [taskId, workerRow.id, workerKey],
       );
       const taskRow = task.rows[0] as Record<string, unknown> | undefined;
       if (!taskRow) {
@@ -2045,6 +2049,16 @@ export class TaskRepository {
       }
 
       const argumentsJson = parseJson<Record<string, unknown>>(taskRow.arguments_json);
+      if (
+        typeof argumentsJson.targetWorkerId === "string" &&
+        argumentsJson.targetWorkerId !== workerKey
+      ) {
+        throw new RepositoryError(
+          "TASK_TARGET_MISMATCH",
+          "task is targeted at another worker",
+          409,
+        );
+      }
       const issuedAt = new Date();
       const expiresAt = new Date(issuedAt.getTime() + 10 * 60_000);
       const command = CommandSchema.parse({

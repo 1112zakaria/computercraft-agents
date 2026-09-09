@@ -167,6 +167,14 @@ function stringList(value: unknown): string[] {
   });
 }
 
+function targetWorkerId(value: unknown): string | null {
+  if (typeof value !== "object" || value === null || !("targetWorkerId" in value)) {
+    return null;
+  }
+  const target = (value as { targetWorkerId?: unknown }).targetWorkerId;
+  return typeof target === "string" && target.length > 0 ? target : null;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -449,6 +457,7 @@ export class GatewayService {
           state: "READY" as const,
           priority: typeof row.priority === "number" ? row.priority : 0,
           requiredCapabilities: stringList(row.requiredCapabilities),
+          targetWorkerId: targetWorkerId(row.arguments),
           assignedWorkerId: null,
         },
       ];

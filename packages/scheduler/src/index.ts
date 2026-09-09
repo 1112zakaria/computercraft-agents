@@ -7,6 +7,7 @@ export interface SchedulableTask {
   readonly state: TaskState;
   readonly priority: number;
   readonly requiredCapabilities?: readonly string[];
+  readonly targetWorkerId?: string | null;
   readonly assignedWorkerId?: string | null;
 }
 
@@ -50,6 +51,7 @@ export function selectDispatchableTasks(
     const worker = availableWorkers.find(
       (candidate) =>
         !reservedWorkers.has(candidate.workerId) &&
+        (!task.targetWorkerId || task.targetWorkerId === candidate.workerId) &&
         [...required].every((capability) => candidate.capabilities.includes(capability)),
     );
     if (!worker) continue;
