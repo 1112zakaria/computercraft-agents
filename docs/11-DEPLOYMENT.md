@@ -248,6 +248,7 @@ npm run cli -- runnable-tasks
 npm run cli -- scheduler-tick
 npm run cli -- dispatch-task <task-id> <worker-id>
 npm run cli -- task <task-id>
+npm run cli -- move <worker-id> <N|E|S|W|UP|DOWN> --dry-run
 ```
 
 The scheduler tick selects compatible online workers for protocol-level command tasks and then
@@ -268,6 +269,10 @@ stale, the control plane pauses its assigned task, cancels queued or in-flight c
 and queues an independent worker stop control. The task is not automatically retried; after
 confirming the turtle is safe, inspect it with `task <task-id>` and explicitly resume it with
 `task-status <task-id> READY`.
+
+Physical command, stop-control, and update CLI requests also accept `--dry-run`. Dry-run builds
+the same validated payload and prints the intended POST path without requiring the admin secret or
+contacting the control plane.
 
 ## 10. Releases
 

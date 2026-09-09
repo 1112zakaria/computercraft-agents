@@ -80,6 +80,7 @@ npm run cli -- runnable-tasks
 npm run cli -- dispatch-task <task-id> <worker-id>
 npm run cli -- scheduler-tick
 npm run cli -- task-status <task-id> BLOCKED
+npm run cli -- move alice N --dry-run
 ```
 
 See [architecture](docs/02-ARCHITECTURE.md), [protocol](docs/05-PROTOCOL.md), and

@@ -1172,6 +1172,10 @@ Test whether turtles can continue intended work with humans offline and across r
 **Priority:** P0  
 **Dependencies:** CC-085, CC-170
 
+**Status:** PARTIAL — physical command, stop-control, and update CLI requests support
+`--dry-run`, which constructs the validated payload locally without contacting the control plane.
+Goal/task planning previews and feature-gate integration remain.
+
 ### CC-172 — Implement agent/project inspection CLI
 
 **Priority:** P0  

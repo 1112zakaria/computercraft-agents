@@ -178,6 +178,37 @@ test("CLI requests one task by ID", async () => {
   }
 });
 
+test("CLI dry-run previews a physical command without calling the control plane", async () => {
+  const previousFetch = globalThis.fetch;
+  const previousLog = console.log;
+  let fetchCalled = false;
+  let output = "";
+  globalThis.fetch = async () => {
+    fetchCalled = true;
+    return new Response("{}", { status: 200 });
+  };
+  console.log = (...values: unknown[]) => {
+    output = values.map(String).join(" ");
+  };
+  try {
+    await runCli(["move", "alice", "N", "--dry-run"]);
+    const preview = JSON.parse(output) as {
+      dryRun: boolean;
+      path: string;
+      body: { workerId: string; skill: string; arguments: { direction: string } };
+    };
+    assert.equal(fetchCalled, false);
+    assert.equal(preview.dryRun, true);
+    assert.equal(preview.path, "/v1/commands");
+    assert.equal(preview.body.workerId, "alice");
+    assert.equal(preview.body.skill, "movement.step");
+    assert.deepEqual(preview.body.arguments, { direction: "N" });
+  } finally {
+    globalThis.fetch = previousFetch;
+    console.log = previousLog;
+  }
+});
+
 test("CLI constructs a named-container deposit command", async () => {
   const previousFetch = globalThis.fetch;
   const previousUrl = process.env.CONTROL_PLANE_URL;

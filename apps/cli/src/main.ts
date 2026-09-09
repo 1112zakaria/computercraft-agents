@@ -30,15 +30,15 @@ export function usage(): string {
     `${cliName} locations`,
     `${cliName} location <name>`,
     `${cliName} world-cells`,
-    `${cliName} move <worker-id> <N|E|S|W|UP|DOWN>`,
-    `${cliName} path <worker-id> <N|E|S|W|UP|DOWN>...`,
+    `${cliName} move <worker-id> <N|E|S|W|UP|DOWN> [--dry-run]`,
+    `${cliName} path <worker-id> <N|E|S|W|UP|DOWN>... [--dry-run]`,
     `${cliName} path-to <worker-id> <location-name>`,
-    `${cliName} excavate <worker-id> <width> <height> <depth>`,
-    `${cliName} gather <worker-id> <item-key> <quantity> <max-depth>`,
-    `${cliName} deposit <worker-id> [quantity] [slot] [--container-id <id>]`,
-    `${cliName} withdraw <worker-id> <item-key> <quantity> [slot] [--container-id <id>]`,
-    `${cliName} stop <worker-id|all>`,
-    `${cliName} update --target <gateway:id|worker:id|fleet:gateway-id> --version <vX.Y.Z>`,
+    `${cliName} excavate <worker-id> <width> <height> <depth> [--dry-run]`,
+    `${cliName} gather <worker-id> <item-key> <quantity> <max-depth> [--dry-run]`,
+    `${cliName} deposit <worker-id> [quantity] [slot] [--container-id <id>] [--dry-run]`,
+    `${cliName} withdraw <worker-id> <item-key> <quantity> [slot] [--container-id <id>] [--dry-run]`,
+    `${cliName} stop <worker-id|all> [--dry-run]`,
+    `${cliName} update --target <gateway:id|worker:id|fleet:gateway-id> --version <vX.Y.Z> [--dry-run]`,
     `${cliName} update-status <update-id>`,
   ].join("\n");
 }
@@ -92,8 +92,26 @@ function manifestUrl(version: string): string {
   return template.replaceAll("{version}", encodeURIComponent(version));
 }
 
+async function postOrPreview(path: string, body: unknown, dryRun: boolean): Promise<unknown> {
+  if (dryRun) return { dryRun: true, method: "POST", path, body };
+  return request(path, { method: "POST", body: JSON.stringify(body) });
+}
+
 export async function runCli(args: readonly string[]): Promise<void> {
-  const [command, first, second] = args.map((argument) => argument.trim());
+  const dryRun = args.includes("--dry-run");
+  const positionalArgs = args.filter((argument) => argument !== "--dry-run");
+  const [command, first, second] = positionalArgs.map((argument) => argument.trim());
+  if (
+    dryRun &&
+    (command === undefined ||
+      !new Set(["move", "path", "excavate", "gather", "deposit", "withdraw", "stop", "update"]).has(
+        command,
+      ))
+  ) {
+    throw new Error(
+      "--dry-run is supported for move, path, excavate, gather, deposit, withdraw, stop, and update",
+    );
+  }
   if (command === "provision-worker") {
     const workerId = flag(args, "--id");
     const minecraftServerId = flag(args, "--server");
@@ -133,7 +151,7 @@ export async function runCli(args: readonly string[]): Promise<void> {
     return;
   }
   if (command === "goal") {
-    const goalText = args.slice(1).join(" ").trim();
+    const goalText = positionalArgs.slice(1).join(" ").trim();
     if (!goalText) {
       throw new Error(`usage: ${cliName} goal <@worker get ... and deposit it in ...>`);
     }
@@ -278,13 +296,11 @@ export async function runCli(args: readonly string[]): Promise<void> {
       skill: "movement.step",
       arguments: { direction: second },
     };
-    console.log(
-      JSON.stringify(await request("/v1/commands", { method: "POST", body: JSON.stringify(body) })),
-    );
+    console.log(JSON.stringify(await postOrPreview("/v1/commands", body, dryRun), null, 2));
     return;
   }
   if (command === "path") {
-    const steps = args.slice(2);
+    const steps = positionalArgs.slice(2);
     if (
       !first ||
       steps.length < 1 ||
@@ -303,13 +319,11 @@ export async function runCli(args: readonly string[]): Promise<void> {
       skill: "navigate.path" as const,
       arguments: { steps },
     };
-    console.log(
-      JSON.stringify(await request("/v1/commands", { method: "POST", body: JSON.stringify(body) })),
-    );
+    console.log(JSON.stringify(await postOrPreview("/v1/commands", body, dryRun), null, 2));
     return;
   }
   if (command === "path-to") {
-    const locationName = args.slice(2).join(" ").trim();
+    const locationName = positionalArgs.slice(2).join(" ").trim();
     if (!first || !locationName) {
       throw new Error(`usage: ${cliName} path-to <worker-id> <location-name>`);
     }
@@ -347,9 +361,7 @@ export async function runCli(args: readonly string[]): Promise<void> {
       skill: "mining.excavate" as const,
       arguments: { width, height, depth },
     };
-    console.log(
-      JSON.stringify(await request("/v1/commands", { method: "POST", body: JSON.stringify(body) })),
-    );
+    console.log(JSON.stringify(await postOrPreview("/v1/commands", body, dryRun), null, 2));
     return;
   }
   if (command === "deposit") {
@@ -388,9 +400,7 @@ export async function runCli(args: readonly string[]): Promise<void> {
         ...(slot === undefined ? {} : { slot }),
       },
     };
-    console.log(
-      JSON.stringify(await request("/v1/commands", { method: "POST", body: JSON.stringify(body) })),
-    );
+    console.log(JSON.stringify(await postOrPreview("/v1/commands", body, dryRun), null, 2));
     return;
   }
   if (command === "withdraw") {
@@ -434,9 +444,7 @@ export async function runCli(args: readonly string[]): Promise<void> {
         ...(slot === undefined ? {} : { slot }),
       },
     };
-    console.log(
-      JSON.stringify(await request("/v1/commands", { method: "POST", body: JSON.stringify(body) })),
-    );
+    console.log(JSON.stringify(await postOrPreview("/v1/commands", body, dryRun), null, 2));
     return;
   }
   if (command === "gather") {
@@ -459,9 +467,7 @@ export async function runCli(args: readonly string[]): Promise<void> {
       skill: "mining.gather" as const,
       arguments: { itemKey: normalizeItemKey(second), quantity, maxDepth },
     };
-    console.log(
-      JSON.stringify(await request("/v1/commands", { method: "POST", body: JSON.stringify(body) })),
-    );
+    console.log(JSON.stringify(await postOrPreview("/v1/commands", body, dryRun), null, 2));
     return;
   }
   if (command === "stop") {
@@ -477,11 +483,7 @@ export async function runCli(args: readonly string[]): Promise<void> {
         : { type: "worker.stop" as const, workerId: first }),
       reason: "operator stop",
     };
-    console.log(
-      JSON.stringify(
-        await request("/v1/stop-controls", { method: "POST", body: JSON.stringify(body) }),
-      ),
-    );
+    console.log(JSON.stringify(await postOrPreview("/v1/stop-controls", body, dryRun), null, 2));
     return;
   }
   if (command === "update") {
@@ -504,7 +506,7 @@ export async function runCli(args: readonly string[]): Promise<void> {
       issuedAt: new Date().toISOString(),
       expiresAt: timestampAfterMinutes(30),
     });
-    console.log(JSON.stringify(await requestApi("/v1/updates", request), null, 2));
+    console.log(JSON.stringify(await postOrPreview("/v1/updates", request, dryRun), null, 2));
     return;
   }
   if (command === "update-status") {
@@ -515,10 +517,6 @@ export async function runCli(args: readonly string[]): Promise<void> {
     return;
   }
   throw new Error(`unknown command\n${usage()}`);
-}
-
-async function requestApi(path: string, body: unknown): Promise<unknown> {
-  return request(path, { method: "POST", body: JSON.stringify(body) });
 }
 
 if (require.main === module) {
