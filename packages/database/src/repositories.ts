@@ -384,6 +384,33 @@ export class GatewayRuntimeRepository {
     private readonly config: GatewayRuntimeConfig,
   ) {}
 
+  private async recordWalkablePosition(
+    client: PoolClient,
+    workerId: string,
+    position: {
+      readonly dimension: number;
+      readonly x: number;
+      readonly y: number;
+      readonly z: number;
+    },
+    observedAt: Date,
+  ): Promise<void> {
+    await client.query(
+      `
+        INSERT INTO world_cells (
+          dimension, x, y, z, block_name, block_metadata, walkable, observed_at, source_worker_id
+        )
+        VALUES ($1, $2, $3, $4, NULL, NULL, TRUE, $5, $6)
+        ON CONFLICT (dimension, x, y, z) DO UPDATE SET
+          walkable = TRUE,
+          observed_at = EXCLUDED.observed_at,
+          source_worker_id = EXCLUDED.source_worker_id
+        WHERE world_cells.observed_at <= EXCLUDED.observed_at
+      `,
+      [position.dimension, position.x, position.y, position.z, observedAt, workerId],
+    );
+  }
+
   public async createGoal(input: CreateGoalInput): Promise<GoalTaskRecord> {
     const client = await this.pool.connect();
     try {
@@ -938,6 +965,14 @@ export class GatewayRuntimeRepository {
             worker.status,
           ],
         );
+        if (worker.position) {
+          await this.recordWalkablePosition(
+            client,
+            workerRow.id,
+            worker.position,
+            new Date(worker.lastSeenAt),
+          );
+        }
       }
 
       await client.query("COMMIT");
@@ -1244,6 +1279,14 @@ export class GatewayRuntimeRepository {
           payload.status,
         ],
       );
+      if (payload.position) {
+        await this.recordWalkablePosition(
+          client,
+          row.id,
+          payload.position,
+          new Date(payload.lastSeenAt),
+        );
+      }
       await client.query("COMMIT");
       return { workerId: payload.workerId, workerBootId: payload.workerBootId };
     } catch (error) {
@@ -2027,6 +2070,17 @@ export class GatewayRuntimeRepository {
           input.facing ?? null,
           row.online ? "ONLINE" : "OFFLINE",
         ],
+      );
+      await this.recordWalkablePosition(
+        client,
+        row.id,
+        {
+          dimension: input.dimension,
+          x: input.x,
+          y: input.y,
+          z: input.z,
+        },
+        observedAt,
       );
       await client.query("COMMIT");
       return {

@@ -111,6 +111,20 @@ test("database migration set is ordered and contains the core relational model",
   assert.match(repositorySql, /savePlannerRuntimeState/);
 });
 
+test("position persistence seeds only the observed world cell as walkable", () => {
+  const repositorySql = readFileSync(
+    join(__dirname, "../packages/database/src/repositories.ts"),
+    "utf8",
+  );
+  assert.match(repositorySql, /private async recordWalkablePosition/);
+  assert.match(
+    repositorySql,
+    /source_worker_id\s*\)\s*VALUES \(\$1, \$2, \$3, \$4, NULL, NULL, TRUE/,
+  );
+  assert.match(repositorySql, /if \(worker\.position\) \{\s*await this\.recordWalkablePosition/s);
+  assert.match(repositorySql, /if \(payload\.position\) \{\s*await this\.recordWalkablePosition/s);
+});
+
 test("urgent command cancellation pauses the logical task", () => {
   assert.equal(taskStatusForCommandEvent("command.completed"), "DONE");
   assert.equal(taskStatusForCommandEvent("command.failed"), "FAILED");
