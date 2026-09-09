@@ -426,6 +426,19 @@ export function inventoryFullRecoveryPlan(
   };
 }
 
+/**
+ * Return the still-undelivered quantity for a manual inventory-full recovery.
+ * A zero result means the worker reported the full requested quantity, but the
+ * control plane still lacks delivery evidence and therefore does not auto-complete.
+ */
+export function inventoryFullRecoveryRemainingQuantity(
+  event: Event,
+  parentArguments: Record<string, unknown>,
+): number | undefined {
+  const recovery = inventoryFullRecoveryPlan(event, parentArguments);
+  return recovery ? Math.max(0, recovery.quantity - recovery.depositQuantity) : undefined;
+}
+
 export function blockedMovementForReplan(
   event: Event,
 ): { readonly position: Coordinate; readonly direction: string } | undefined {
@@ -3204,14 +3217,41 @@ export class GatewayRuntimeRepository {
         }
         const reason =
           "worker inventory is full; automatic return-to-container was unavailable; deposit items, then explicitly resume the gather task";
+        const remainingQuantity = inventoryFullRecoveryRemainingQuantity(event, parentArguments);
         await client.query(
           `
             UPDATE tasks
-            SET status = 'PAUSED', assigned_worker_id = NULL, last_error_json = $2
+            SET status = 'PAUSED', assigned_worker_id = NULL, last_error_json = $2,
+                arguments_json = CASE
+                  WHEN $3::int IS NULL OR $3::int < 1 THEN arguments_json
+                  ELSE jsonb_set(
+                    jsonb_set(arguments_json, '{remainingQuantity}', to_jsonb($3::int), true),
+                    '{manualInventoryRecovery}', 'true'::jsonb, true
+                  )
+                END
             WHERE id = $1 AND status IN ('READY', 'RUNNING', 'PAUSED')
           `,
-          [task.parent_task_id, asJson({ reason, resumable: true })],
+          [
+            task.parent_task_id,
+            asJson({ reason, resumable: true, remainingQuantity }),
+            remainingQuantity,
+          ],
         );
+        if (remainingQuantity !== undefined && remainingQuantity > 0) {
+          await client.query(
+            `
+              UPDATE tasks
+              SET arguments_json = jsonb_set(arguments_json, '{quantity}', to_jsonb($2::int), true),
+                  last_error_json = $3
+              WHERE id = $1 AND workflow_phase = 'GATHER' AND status = 'PAUSED'
+            `,
+            [
+              task.task_id,
+              remainingQuantity,
+              asJson({ reason, resumable: true, remainingQuantity }),
+            ],
+          );
+        }
         await client.query(
           `UPDATE jobs SET status = 'PAUSED' WHERE id = $1 AND status IN ('READY', 'RUNNING', 'PAUSED')`,
           [task.job_id],
@@ -3241,7 +3281,12 @@ export class GatewayRuntimeRepository {
       const targetWorkerId = parentArguments.targetWorkerId;
       const destination = parentArguments.destination;
       const itemKey = parentArguments.itemKey;
-      const quantity = parentArguments.quantity;
+      const configuredQuantity = parentArguments.quantity;
+      const remainingQuantity = integerArgument(parentArguments, "remainingQuantity", 0);
+      const quantity =
+        parentArguments.manualInventoryRecovery === true && remainingQuantity > 0
+          ? remainingQuantity
+          : configuredQuantity;
       const eventPayload = isRecord(event.payload)
         ? (event.payload as Record<string, unknown>)
         : {};

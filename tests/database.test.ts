@@ -11,6 +11,7 @@ import {
   inventorySlotsFromCommandEvent,
   peripheralSnapshotFromCommandEvent,
   inventoryFullRecoveryPlan,
+  inventoryFullRecoveryRemainingQuantity,
   isInventoryFullFailure,
   migrationChecksum,
   migrationChecksumVariants,
@@ -494,6 +495,36 @@ test("inventory-full gather failures produce a bounded return-and-resume plan", 
       depositQuantity: 23,
     },
   );
+  assert.equal(
+    inventoryFullRecoveryRemainingQuantity(event, {
+      targetWorkerId: "alice",
+      itemKey: "minecraft:cobblestone",
+      quantity: 64,
+      destination: "Test Chest",
+    }),
+    41,
+  );
+  assert.equal(
+    inventoryFullRecoveryRemainingQuantity(event, {
+      targetWorkerId: "alice",
+      itemKey: "minecraft:cobblestone",
+      quantity: 41,
+      remainingQuantity: 41,
+      destination: "Test Chest",
+    }),
+    18,
+  );
+});
+
+test("manual inventory recovery preserves the remaining gather quantity", () => {
+  const repositories = readFileSync(
+    join(__dirname, "../packages/database/src/repositories.ts"),
+    "utf8",
+  );
+  assert.match(repositories, /manualInventoryRecovery/);
+  assert.match(repositories, /remainingQuantity/);
+  assert.match(repositories, /jsonb_set\(arguments_json, '\{quantity\}'/);
+  assert.match(repositories, /parentArguments\.manualInventoryRecovery === true/);
 });
 
 test("stale recovery keeps command delivery behind an explicit resume boundary", () => {
