@@ -13,6 +13,9 @@ export interface ControlPlaneConfig {
   readonly staleCheckIntervalSeconds: number;
   readonly schedulerEnabled: boolean;
   readonly schedulerIntervalSeconds: number;
+  readonly auditStandardRetentionDays: number;
+  readonly auditHighRetentionDays: number;
+  readonly retentionCleanupIntervalSeconds: number;
   readonly enabledSkills: readonly SkillName[];
 }
 
@@ -70,6 +73,9 @@ export function loadConfig(): ControlPlaneConfig {
     staleCheckIntervalSeconds: positiveInteger("STALE_CHECK_INTERVAL_SECONDS", 10),
     schedulerEnabled: booleanValue("SCHEDULER_ENABLED", false),
     schedulerIntervalSeconds: positiveInteger("SCHEDULER_INTERVAL_SECONDS", 10),
+    auditStandardRetentionDays: positiveInteger("AUDIT_STANDARD_RETENTION_DAYS", 30),
+    auditHighRetentionDays: positiveInteger("AUDIT_HIGH_RETENTION_DAYS", 365),
+    retentionCleanupIntervalSeconds: positiveInteger("RETENTION_CLEANUP_INTERVAL_SECONDS", 86_400),
     enabledSkills: enabledSkills(),
   };
 }

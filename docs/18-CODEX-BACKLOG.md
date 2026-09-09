@@ -1210,6 +1210,9 @@ JSON logs with request correlation IDs and safe lineage fields; secret-like valu
 **Priority:** P1  
 **Dependencies:** CC-024
 
+**Status:** DONE — the control plane runs a bounded cleanup job for expired STANDARD and HIGH audit
+events using configurable windows while preserving IMMUTABLE history.
+
 ### CC-175 — Package ComputerCraft Lua release bundle
 
 **Priority:** P0  

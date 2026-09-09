@@ -135,6 +135,18 @@ test("operator pause and cancel preserve a transport-aware stop boundary", () =>
   assert.match(repositories, /current\.transport_type/);
 });
 
+test("audit retention cleanup preserves immutable history", () => {
+  const repositories = readFileSync(
+    join(__dirname, "../packages/database/src/repositories.ts"),
+    "utf8",
+  );
+  assert.match(repositories, /cleanupExpired/);
+  assert.match(repositories, /DELETE FROM audit_events/);
+  assert.match(repositories, /retention_class = 'STANDARD'/);
+  assert.match(repositories, /retention_class = 'HIGH'/);
+  assert.doesNotMatch(repositories, /retention_class = 'IMMUTABLE'.*DELETE/s);
+});
+
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 if (testDatabaseUrl) {
   test("database migrations apply and are idempotent in the configured test database", async () => {

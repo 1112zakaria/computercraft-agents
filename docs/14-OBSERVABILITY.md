@@ -122,3 +122,13 @@ ID for support diagnostics; a safe caller-supplied ID is preserved, otherwise on
 
 Request bodies, bearer credentials, authorization headers, and secret-like fields are never logged.
 Secret-like keys are redacted defensively if they are passed to the logger in future code.
+
+Audit cleanup runs on the control plane using these defaults:
+
+- STANDARD: 30 days;
+- HIGH: 365 days;
+- IMMUTABLE: never deleted.
+
+The windows and cleanup interval can be changed with `AUDIT_STANDARD_RETENTION_DAYS`,
+`AUDIT_HIGH_RETENTION_DAYS`, and `RETENTION_CLEANUP_INTERVAL_SECONDS`. Cleanup reports only
+counts and never logs audit payloads.

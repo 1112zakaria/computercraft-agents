@@ -2817,4 +2817,42 @@ export class AuditEventRepository {
     );
     return result.rows[0]!.id;
   }
+
+  public async cleanupExpired(input: {
+    readonly standardRetentionDays: number;
+    readonly highRetentionDays: number;
+    readonly now?: Date;
+  }): Promise<{ readonly standard: number; readonly high: number }> {
+    if (
+      !Number.isSafeInteger(input.standardRetentionDays) ||
+      input.standardRetentionDays <= 0 ||
+      !Number.isSafeInteger(input.highRetentionDays) ||
+      input.highRetentionDays <= 0
+    ) {
+      throw new Error("audit retention windows must be positive integers");
+    }
+    const now = input.now ?? new Date();
+    const standardCutoff = new Date(
+      now.getTime() - input.standardRetentionDays * 24 * 60 * 60 * 1000,
+    );
+    const highCutoff = new Date(now.getTime() - input.highRetentionDays * 24 * 60 * 60 * 1000);
+    const result = await this.pool.query<{ retention_class: string; count: number }>(
+      `
+        WITH deleted AS (
+          DELETE FROM audit_events
+          WHERE (retention_class = 'STANDARD' AND occurred_at < $1)
+             OR (retention_class = 'HIGH' AND occurred_at < $2)
+          RETURNING retention_class
+        )
+        SELECT retention_class, COUNT(*)::int AS count
+        FROM deleted
+        GROUP BY retention_class
+      `,
+      [standardCutoff, highCutoff],
+    );
+    return {
+      standard: result.rows.find((row) => row.retention_class === "STANDARD")?.count ?? 0,
+      high: result.rows.find((row) => row.retention_class === "HIGH")?.count ?? 0,
+    };
+  }
 }

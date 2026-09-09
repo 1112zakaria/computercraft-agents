@@ -256,6 +256,10 @@ Control-plane process and HTTP logs are newline-delimited JSON. Use the response
 when correlating an operator or turtle request with service logs; request bodies and bearer secrets
 are intentionally excluded.
 
+The service also performs bounded audit retention cleanup at startup and on a configurable interval.
+It removes expired STANDARD/HIGH events and never removes IMMUTABLE events. Review the retention
+defaults before production deployment if the server has a different compliance or storage policy.
+
 ### Explicit task dispatch
 
 The control plane can atomically dispatch a ready task that already represents one protocol

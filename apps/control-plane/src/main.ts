@@ -1,4 +1,5 @@
 import {
+  AuditEventRepository,
   createDatabasePool,
   GatewayRuntimeRepository,
   runMigrations,
@@ -20,6 +21,7 @@ async function main(): Promise<void> {
   });
   const pool = createDatabasePool(config.databaseUrl);
   await runMigrations(pool);
+  const auditEvents = new AuditEventRepository(pool);
 
   const repository = new GatewayRuntimeRepository(pool, {
     gatewayTimeoutSeconds: config.gatewayTimeoutSeconds,
@@ -61,8 +63,42 @@ async function main(): Promise<void> {
     });
   }, config.staleCheckIntervalSeconds * 1000);
 
+  let cleanupInFlight = false;
+  const cleanupAuditEvents = (): void => {
+    if (cleanupInFlight) return;
+    cleanupInFlight = true;
+    void auditEvents
+      .cleanupExpired({
+        standardRetentionDays: config.auditStandardRetentionDays,
+        highRetentionDays: config.auditHighRetentionDays,
+      })
+      .then((deleted) => {
+        if (deleted.standard > 0 || deleted.high > 0) {
+          logger.info("audit.retention.cleaned", {
+            standardDeleted: deleted.standard,
+            highDeleted: deleted.high,
+            outcome: "success",
+          });
+        }
+      })
+      .catch((error: unknown) => {
+        const message =
+          error instanceof Error ? error.message : "unknown retention cleanup failure";
+        logger.error("audit.retention.cleanup.failed", { error: message, outcome: "error" });
+      })
+      .finally(() => {
+        cleanupInFlight = false;
+      });
+  };
+  cleanupAuditEvents();
+  const retentionCleanupTimer = setInterval(
+    cleanupAuditEvents,
+    config.retentionCleanupIntervalSeconds * 1000,
+  );
+
   const shutdown = async (signal: string): Promise<void> => {
     clearInterval(staleWorkerTimer);
+    clearInterval(retentionCleanupTimer);
     if (schedulerTimer) clearInterval(schedulerTimer);
     await new Promise<void>((resolve, reject) => {
       server.close((error) => (error ? reject(error) : resolve()));
