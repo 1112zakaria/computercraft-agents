@@ -195,6 +195,14 @@ export function inventorySlotsFromCommandEvent(event: Event): readonly unknown[]
   return Array.isArray(result.inventory.slots) ? result.inventory.slots : undefined;
 }
 
+export function peripheralSnapshotFromCommandEvent(event: Event): readonly unknown[] | undefined {
+  if (event.type !== "command.completed" || !isRecord(event.payload)) return undefined;
+  const payload = event.payload as { readonly result?: unknown };
+  const result = payload.result;
+  if (!isRecord(result) || !Array.isArray(result.peripherals)) return undefined;
+  return result.peripherals;
+}
+
 function coordinateFromUnknown(value: unknown): Coordinate | undefined {
   if (!isRecord(value)) return undefined;
   const dimension = value.dimension;
@@ -568,6 +576,44 @@ export class GatewayRuntimeRepository {
           VALUES ($1, $2, $3, 'ONLINE')
         `,
         [workerId, observedAt, asJson(slots)],
+      );
+    }
+  }
+
+  private async recordPeripheralSnapshot(
+    client: PoolClient,
+    workerKey: string,
+    peripherals: readonly unknown[],
+    observedAt: Date,
+  ): Promise<void> {
+    const worker = await client.query<{ id: string }>(
+      `SELECT id::text FROM workers WHERE worker_key = $1`,
+      [workerKey],
+    );
+    const workerId = worker.rows[0]?.id;
+    if (!workerId) return;
+
+    const updated = await client.query(
+      `
+        UPDATE worker_observations
+        SET peripherals_json = $2, observed_at = $3
+        WHERE id = (
+          SELECT id FROM worker_observations
+          WHERE worker_id = $1
+          ORDER BY observed_at DESC, id DESC
+          LIMIT 1
+        )
+        RETURNING id
+      `,
+      [workerId, asJson(peripherals), observedAt],
+    );
+    if (!updated.rowCount) {
+      await client.query(
+        `
+          INSERT INTO worker_observations (worker_id, observed_at, peripherals_json, status)
+          VALUES ($1, $2, $3, 'ONLINE')
+        `,
+        [workerId, observedAt, asJson(peripherals)],
       );
     }
   }
@@ -2544,6 +2590,7 @@ export class GatewayRuntimeRepository {
                observation.facing, observation.position_confidence AS "positionConfidence",
                observation.fuel_level AS "fuelLevel",
                observation.inventory_json AS "inventory",
+               observation.peripherals_json AS "peripherals",
                observation.current_command_id AS "currentCommandId",
                observation.status AS "observedStatus",
                anchor."anchorDimension", anchor."anchorX", anchor."anchorY", anchor."anchorZ",
@@ -2560,7 +2607,7 @@ export class GatewayRuntimeRepository {
         ) active_task ON TRUE
         LEFT JOIN LATERAL (
           SELECT observed_at, dimension, x, y, z, facing, position_confidence,
-                 fuel_level, inventory_json, current_command_id, status
+                 fuel_level, inventory_json, peripherals_json, current_command_id, status
           FROM worker_observations
           WHERE worker_id = w.id
           ORDER BY observed_at DESC, id DESC
@@ -2589,6 +2636,7 @@ export class GatewayRuntimeRepository {
           positionConfidence?: string | null;
           fuelLevel?: number | null;
           inventory?: unknown;
+          peripherals?: unknown;
           observedAt?: Date | null;
           anchorDimension?: number | null;
           anchorX?: number | null;
@@ -2614,6 +2662,7 @@ export class GatewayRuntimeRepository {
       positionConfidence,
       fuelLevel,
       inventory,
+      peripherals,
       observedAt,
       currentTaskId,
       currentCommandId,
@@ -2648,6 +2697,7 @@ export class GatewayRuntimeRepository {
               : null,
             fuel: fuelLevel === null || fuelLevel === undefined ? null : { level: fuelLevel },
             inventory: inventory ?? null,
+            peripherals: peripherals ?? null,
           }
         : null,
     };
@@ -3751,6 +3801,16 @@ export class GatewayRuntimeRepository {
         client,
         event.workerId,
         inspectedInventory,
+        new Date(event.occurredAt),
+      );
+    }
+
+    const inspectedPeripherals = peripheralSnapshotFromCommandEvent(event);
+    if (event.workerId && inspectedPeripherals) {
+      await this.recordPeripheralSnapshot(
+        client,
+        event.workerId,
+        inspectedPeripherals,
         new Date(event.occurredAt),
       );
     }

@@ -83,6 +83,8 @@ worker with `npm run cli -- workers alice` after its registration and heartbeat 
 Use `npm run cli -- peripherals alice` to list attached peripheral types and method names, or add a
 side such as `npm run cli -- peripherals alice front` to inspect one side. This command is read-only
 and does not invoke any discovered peripheral method.
+After the command completes, `npm run cli -- workers alice` includes the latest bounded peripheral
+snapshot under `observation.peripherals`.
 
 If an existing `worker.conf` explicitly lists capabilities but omits the first-use gather skills,
 run `lua enable-gather.lua`. The helper creates a `worker.conf.before-gather*` backup, adds only

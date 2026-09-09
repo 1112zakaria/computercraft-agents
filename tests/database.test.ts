@@ -9,6 +9,7 @@ import {
   effectivePositionConfidence,
   gatherResultMeetsTarget,
   inventorySlotsFromCommandEvent,
+  peripheralSnapshotFromCommandEvent,
   inventoryFullRecoveryPlan,
   isInventoryFullFailure,
   migrationChecksum,
@@ -27,7 +28,7 @@ test("database migration set is ordered and contains the core relational model",
   const migrations = readMigrationFiles(migrationDirectory);
   assert.deepEqual(
     migrations.map((migration) => migration.version),
-    ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011"],
+    ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011", "012"],
   );
   const migrationsReadAgain = readMigrationFiles(migrationDirectory);
   assert.equal(migrationChecksum(migrations[0]!), migrationChecksum(migrationsReadAgain[0]!));
@@ -111,6 +112,11 @@ test("database migration set is ordered and contains the core relational model",
     "utf8",
   );
   assert.match(locationApproachSql, /approach_json JSONB/);
+  const peripheralObservationSql = readFileSync(
+    join(migrationDirectory, "012_peripheral_observations.sql"),
+    "utf8",
+  );
+  assert.match(peripheralObservationSql, /peripherals_json JSONB/);
   const repositorySql = readFileSync(
     join(__dirname, "../packages/database/src/repositories.ts"),
     "utf8",
@@ -123,7 +129,8 @@ test("database migration set is ordered and contains the core relational model",
   assert.match(repositorySql, /w\.minecraft_server_id AS "minecraftServerId"/);
   assert.match(repositorySql, /w\.runtime_version AS "runtimeVersion"/);
   assert.match(repositorySql, /observation\.inventory_json AS "inventory"/);
-  assert.match(repositorySql, /inventory_json, current_command_id/);
+  assert.match(repositorySql, /observation\.peripherals_json AS "peripherals"/);
+  assert.match(repositorySql, /inventory_json, peripherals_json, current_command_id/);
   assert.match(repositorySql, /t\.status IN \('RUNNING', 'PAUSED'\)/);
   assert.match(repositorySql, /getPlannerRuntimeState/);
   assert.match(repositorySql, /savePlannerRuntimeState/);
@@ -134,6 +141,8 @@ test("database migration set is ordered and contains the core relational model",
   assert.match(repositorySql, /event_type = 'inventory\.changed'/);
   assert.match(repositorySql, /inventorySlotsFromCommandEvent/);
   assert.match(repositorySql, /recordInventorySnapshot/);
+  assert.match(repositorySql, /peripheralSnapshotFromCommandEvent/);
+  assert.match(repositorySql, /recordPeripheralSnapshot/);
   assert.match(repositorySql, /gatherResultMeetsTarget\(eventPayload\.result, itemKey, quantity\)/);
   assert.match(repositorySql, /SELECT transport_type FROM workers WHERE worker_key = \$1/);
   assert.match(repositorySql, /worker is not registered/);
@@ -386,6 +395,40 @@ test("inventory inspection results provide a persisted inventory snapshot", () =
       },
     } as Event),
     undefined,
+  );
+});
+
+test("peripheral inspection results provide a persisted peripheral snapshot", () => {
+  assert.deepEqual(
+    peripheralSnapshotFromCommandEvent({
+      protocolVersion: 1,
+      eventId: "peripheral-event",
+      workerId: "alice",
+      commandId: "peripheral-command",
+      sequence: 1,
+      occurredAt: new Date().toISOString(),
+      type: "command.completed",
+      payload: {
+        result: {
+          status: "OK",
+          peripherals: [{ side: "top", type: "minecraft:chest", methods: ["list", "size"] }],
+        },
+      },
+    } as Event),
+    [{ side: "top", type: "minecraft:chest", methods: ["list", "size"] }],
+  );
+  assert.deepEqual(
+    peripheralSnapshotFromCommandEvent({
+      protocolVersion: 1,
+      eventId: "empty-peripheral-event",
+      workerId: "alice",
+      commandId: "empty-peripheral-command",
+      sequence: 1,
+      occurredAt: new Date().toISOString(),
+      type: "command.completed",
+      payload: { result: { status: "OK", peripherals: [] } },
+    } as Event),
+    [],
   );
 });
 

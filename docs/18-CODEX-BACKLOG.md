@@ -1090,7 +1090,8 @@ Observed physical state supersedes stale memory.
 **Status:** IMPLEMENTED — the read-only `peripheral.inspect` worker command and
 `npm run cli -- peripherals <worker-id> [side]` inspection path enumerate attached peripheral
 types and bounded method names, emit `peripheral.observed` events, and never invoke discovered
-methods. Live inventory/machine API documentation remains CC-131.
+methods. The latest command snapshot is also projected to `workers <worker-id>` as
+`observation.peripherals`. Live inventory/machine API documentation remains CC-131.
 
 Lua tool lists attached peripheral types/methods and sends result to VPS/prints it.
 
