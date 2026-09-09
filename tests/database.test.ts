@@ -5,6 +5,7 @@ import test from "node:test";
 
 import {
   createDatabasePool,
+  blockedMovementForReplan,
   isInventoryFullFailure,
   migrationChecksum,
   readMigrationFiles,
@@ -139,6 +140,38 @@ test("position persistence seeds only the observed world cell as walkable", () =
     repositorySql,
     /walkable, observed_at, source_worker_id\s*\)\s*VALUES \(\$1, \$2, \$3, \$4, NULL, NULL, FALSE/s,
   );
+  assert.match(repositorySql, /replanGatherNavigation/);
+  assert.match(repositorySql, /navigationReplanCount/);
+});
+
+test("blocked movement failures expose a bounded replan input", () => {
+  const result = blockedMovementForReplan({
+    protocolVersion: 1,
+    eventId: "event-blocked",
+    workerId: "alice",
+    commandId: "command-blocked",
+    sequence: 1,
+    type: "command.failed",
+    occurredAt: "2026-09-09T00:00:00.000Z",
+    payload: {
+      error: {
+        code: "INTERNAL_ERROR",
+        message: "movement blocked",
+        retryable: true,
+        details: {
+          result: {
+            status: "BLOCKED",
+            direction: "E",
+            position: { dimension: 0, x: 1, y: 64, z: 2 },
+          },
+        },
+      },
+    },
+  });
+  assert.deepEqual(result, {
+    direction: "E",
+    position: { dimension: 0, x: 1, y: 64, z: 2 },
+  });
 });
 
 test("urgent command cancellation pauses the logical task", () => {

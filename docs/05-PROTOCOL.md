@@ -133,7 +133,9 @@ unknown cells or silently truncates a path.
 
 When a turtle reports `movement.blocked`, the control plane records the one attempted destination
 cell as non-walkable using the event timestamp. This is a bounded contradiction update: it does not
-infer neighboring cells or retry movement, and later fresher observations may replace it.
+infer neighboring cells, and later fresher observations may replace it. A gather workflow navigation
+step may use the refreshed map to queue at most three deterministic replans; if no known route is
+available, the workflow is blocked for operator review rather than retrying indefinitely.
 
 ```text
 GET  /v1/tasks
@@ -301,7 +303,7 @@ behaviors remain scheduler/task-state work.
   "type": "command.completed",
   "occurredAt": "...",
   "payload": {
-    "position": {"x": 105, "y": 64, "z": -22, "facing": "E"}
+    "position": { "x": 105, "y": 64, "z": -22, "facing": "E" }
   }
 }
 ```

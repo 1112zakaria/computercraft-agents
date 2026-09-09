@@ -325,6 +325,21 @@ export function isInventoryFullFailure(event: Event): boolean {
   return isRecord(result) && result.status === "INVENTORY_FULL";
 }
 
+export function blockedMovementForReplan(
+  event: Event,
+): { readonly position: Coordinate; readonly direction: string } | undefined {
+  if (event.type !== "command.failed") return undefined;
+  const payload = isRecord(event.payload) ? (event.payload as Record<string, unknown>) : undefined;
+  const error = payload && isRecord(payload.error) ? payload.error : undefined;
+  const details = error && isRecord(error.details) ? error.details : undefined;
+  const result = details && isRecord(details.result) ? details.result : undefined;
+  if (!result || result.status !== "BLOCKED") return undefined;
+  const position = coordinateFromUnknown(result.position);
+  const direction = result.direction;
+  if (!position || typeof direction !== "string") return undefined;
+  return { position, direction };
+}
+
 export function workflowStepEventCanAdvance(taskStatus: string, eventType: Event["type"]): boolean {
   return (
     (eventType === "command.completed" && taskStatus === "DONE") ||
@@ -2522,6 +2537,22 @@ export class GatewayRuntimeRepository {
         );
         return;
       }
+      if (task.workflow_phase === "NAVIGATE") {
+        const blocked = blockedMovementForReplan(event);
+        if (
+          blocked &&
+          (await this.replanGatherNavigation(
+            client,
+            { parent_task_id: task.parent_task_id!, job_id: task.job_id },
+            parentArguments,
+            blocked,
+          ))
+        ) {
+          return;
+        }
+        await block("navigation was blocked and no bounded replan was available");
+        return;
+      }
       await block(`workflow step failed: ${task.workflow_phase ?? "unknown"}`);
       return;
     }
@@ -2707,6 +2738,132 @@ export class GatewayRuntimeRepository {
         [task.job_id],
       );
     }
+  }
+
+  private async replanGatherNavigation(
+    client: PoolClient,
+    task: {
+      readonly parent_task_id: string;
+      readonly job_id: string;
+    },
+    parentArguments: Record<string, unknown>,
+    blocked: { readonly position: Coordinate; readonly direction: string },
+  ): Promise<boolean> {
+    const targetWorkerId = parentArguments.targetWorkerId;
+    const destination = parentArguments.destination;
+    const currentReplans = Math.max(
+      0,
+      integerArgument(parentArguments, "navigationReplanCount", 0),
+    );
+    if (
+      typeof targetWorkerId !== "string" ||
+      typeof destination !== "string" ||
+      currentReplans >= 3
+    ) {
+      return false;
+    }
+
+    const active = await client.query(
+      `
+        SELECT 1
+        FROM tasks
+        WHERE parent_task_id = $1
+          AND workflow_phase = 'NAVIGATE'
+          AND status IN ('READY', 'RUNNING')
+        LIMIT 1
+      `,
+      [task.parent_task_id],
+    );
+    if (active.rowCount) return true;
+
+    const locationResult = await client.query<{
+      dimension: number;
+      x: number;
+      y: number;
+      z: number;
+      approach: unknown;
+    }>(
+      `
+        SELECT dimension, x, y, z, approach_json AS approach
+        FROM named_locations
+        WHERE LOWER(name) = LOWER($1)
+        LIMIT 1
+      `,
+      [destination.trim()],
+    );
+    const location = locationResult.rows[0];
+    const target = coordinateFromUnknown(location?.approach) ?? coordinateFromUnknown(location);
+    if (!target || target.dimension !== blocked.position.dimension) return false;
+
+    const world = new SparseWorldModel();
+    const worldResult = await client.query<{
+      dimension: number;
+      x: number;
+      y: number;
+      z: number;
+      walkable: boolean;
+      observed_at: Date;
+      source_worker_id: string | null;
+    }>(
+      `
+        SELECT dimension, x, y, z, walkable, observed_at, source_worker_id::text
+        FROM world_cells
+        WHERE observed_at >= NOW() - ($1::text || ' seconds')::interval
+        LIMIT 10000
+      `,
+      [this.config.worldCellMaxAgeSeconds],
+    );
+    for (const cell of worldResult.rows) {
+      world.setCell({
+        dimension: cell.dimension,
+        x: cell.x,
+        y: cell.y,
+        z: cell.z,
+        walkable: cell.walkable,
+        observedAt: cell.observed_at.toISOString(),
+        source: cell.source_worker_id ?? "unknown",
+      });
+    }
+    const blockedCell = movedCoordinate(blocked.position, blocked.direction);
+    if (blockedCell) {
+      world.setCell({
+        ...blockedCell,
+        walkable: false,
+        observedAt: new Date().toISOString(),
+        source: targetWorkerId,
+      });
+    }
+    const path = findKnownPath(world, blocked.position, target, { maxNodes: 10_000 });
+    if (!path || path.directions.length < 1 || path.directions.length > 1024) return false;
+
+    const nextReplanCount = currentReplans + 1;
+    await client.query(
+      `
+        UPDATE tasks
+        SET status = 'RUNNING',
+            arguments_json = jsonb_set(arguments_json, '{navigationReplanCount}', to_jsonb($2::int), true),
+            last_error_json = $3
+        WHERE id = $1
+      `,
+      [
+        task.parent_task_id,
+        nextReplanCount,
+        asJson({
+          reason: "navigation blocked; bounded replan queued",
+          replanCount: nextReplanCount,
+        }),
+      ],
+    );
+    await client.query(
+      `
+        INSERT INTO tasks (
+          job_id, kind, status, skill_name, arguments_json, parent_task_id, workflow_phase
+        )
+        VALUES ($1, 'workflow-step', 'READY', 'navigate.path', $2, $3, 'NAVIGATE')
+      `,
+      [task.job_id, asJson({ targetWorkerId, steps: path.directions }), task.parent_task_id],
+    );
+    return true;
   }
 
   private async applyEvent(

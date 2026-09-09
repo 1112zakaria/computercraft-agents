@@ -22,6 +22,7 @@ Test:
 - opt-in plan-only runner claim/release behavior and high-retention decision recording;
 - reasoning outage pause, bounded retry, and recovery reset;
 - bounded gather workflow transitions and terminal blocking;
+- blocked navigation contradiction handling and the maximum-three-attempt gather replan boundary;
 - reasoning output validation;
 - project-planner escalation;
 - protocol schema validation;
@@ -148,6 +149,8 @@ Acceptance:
 - inventory fullness is handled;
 - an inventory-full command pauses the workflow and explicit resume reactivates its current step;
 - Alice reaches deposit location;
+- a blocked route records the contradicted cell and deterministically replans when a known alternate
+  route exists, without retrying indefinitely;
 - 64 cobblestone are verified delivered;
 - project is marked complete;
 - user receives completion report;

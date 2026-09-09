@@ -550,8 +550,9 @@ gateway-backed workers and fleet rollouts remain unchanged.
 
 **Status:** PARTIAL — bounded in-memory sparse walkability model, persistent `world_cells` storage,
 worker-position anchoring, heartbeat/anchor/named-location walkable-cell seeding, and block-observation
-event ingestion plus bounded blocked-destination contradiction updates now exist; planner loading
-uses a configurable freshness window with a one-day default, while broader reconciliation remains.
+event ingestion plus bounded blocked-destination contradiction updates and gather-route replanning
+now exist; planner loading uses a configurable freshness window with a one-day default, while
+broader reconciliation remains.
 
 Represent observed cells and freshness/worker source.
 
@@ -577,8 +578,8 @@ named-location route-plan API and CLI; runtime path execution/replanning remains
 
 **Status:** PARTIAL — the turtle executor already performs bounded `navigate.path` execution with
 per-step cancellation and blocked-step reporting, and the operator CLI now exposes bounded `path`,
-read-only `path-to`, and queued `go-to` commands; loading persistent paths and replanning around
-newly observed cells remain.
+read-only `path-to`, and queued `go-to` commands. Gather navigation can replan up to three times
+after a blocked step; loading persistent paths and general-purpose replanning remain.
 
 **Acceptance criteria**
 
@@ -591,6 +592,9 @@ newly observed cells remain.
 
 **Priority:** P1  
 **Dependencies:** CC-060, CC-062
+
+**Status:** PARTIAL — bounded gather-route replanning after a newly observed blocked cell exists;
+frontier exploration through unknown cells and general-purpose replan policy remain.
 
 **Acceptance criteria**
 

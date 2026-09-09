@@ -97,6 +97,10 @@ The navigation layer SHALL invalidate assumptions when:
 - position confidence is suspect;
 - a server restart or manual relocation occurred.
 
+The current gather workflow implements a bounded form of this reconciliation: a blocked navigation
+step records the contradicted cell and may replan from the turtle's reported position up to three
+times. Frontier exploration and general-purpose replanning remain separate future work.
+
 ## 7. Named locations
 
 Named locations anchor high-level plans:
