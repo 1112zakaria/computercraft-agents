@@ -768,6 +768,9 @@ Parse agents/groups/`@all` before reasoning.
 **Priority:** P0  
 **Dependencies:** CC-085, CC-096
 
+**Status:** PARTIAL — the first narrow gather sentence is parsed and persisted through the
+protected `/v1/goals` API and CLI; full planner/scheduler dispatch remains.
+
 Example:
 
 ```text

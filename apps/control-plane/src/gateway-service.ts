@@ -12,6 +12,7 @@ import {
   DirectWorkerRegistrationSchema,
   ErrorResponseSchema,
   EventAckSchema,
+  GoalCreateRequestSchema,
   EventBatchSchema,
   GatewayHeartbeatSchema,
   GatewayRegistrationSchema,
@@ -19,6 +20,7 @@ import {
   StopControlSchema,
   UpdateRequestSchema,
 } from "@computercraft-agents/protocol";
+import { parseAddressedGatherGoal } from "@computercraft-agents/domain";
 import type {
   CommandPollResponse,
   Command,
@@ -38,6 +40,7 @@ import type {
   DirectWorkerPollResult,
   GatewayPollResult,
   GatewayRuntimeRepository,
+  GoalTaskRecord,
   UpdateRolloutRecord,
 } from "@computercraft-agents/database";
 import type { z } from "zod";
@@ -75,6 +78,15 @@ export interface GatewayServiceStore {
   }>;
   pollDirectWorker(workerId: string, after: string | null): Promise<DirectWorkerPollResult>;
   ingestDirectWorkerEvents(payload: DirectWorkerEventBatch): Promise<string[]>;
+  createGoal(input: {
+    readonly projectName: string;
+    readonly createdByPrincipal: string;
+    readonly goalText: string;
+    readonly priority: number;
+    readonly skillName: string;
+    readonly arguments: unknown;
+  }): Promise<GoalTaskRecord>;
+  listGoals(): Promise<readonly Record<string, unknown>[]>;
 }
 
 export interface GatewayRequestContext {
@@ -328,6 +340,26 @@ export class GatewayService {
     const command = this.parsePayload(CommandSchema, input);
     await this.store.enqueueCommand(command);
     return { accepted: true, commandId: command.commandId };
+  }
+
+  public async createGoal(input: unknown): Promise<GoalTaskRecord> {
+    const request = this.parsePayload(GoalCreateRequestSchema, input);
+    const parsed = parseAddressedGatherGoal(request.goalText);
+    if (!parsed.ok) {
+      throw new HttpError(400, "INVALID_PAYLOAD", parsed.error);
+    }
+    return this.store.createGoal({
+      projectName: `goal-${Date.now()}`,
+      createdByPrincipal: request.createdByPrincipal,
+      goalText: request.goalText,
+      priority: request.priority ?? 0,
+      skillName: "resource.gather",
+      arguments: parsed.goal,
+    });
+  }
+
+  public async listGoals(): Promise<readonly Record<string, unknown>[]> {
+    return this.store.listGoals();
   }
 
   public async enqueueStopControl(input: unknown): Promise<object> {

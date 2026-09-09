@@ -54,6 +54,25 @@ export interface GatewayIdentity {
   readonly bootId: string;
 }
 
+export interface GoalTaskRecord {
+  readonly projectId: string;
+  readonly jobId: string;
+  readonly taskId: string;
+  readonly goalText: string;
+  readonly status: string;
+  readonly skillName: string;
+  readonly arguments: unknown;
+}
+
+export interface CreateGoalInput {
+  readonly projectName: string;
+  readonly createdByPrincipal: string;
+  readonly goalText: string;
+  readonly priority: number;
+  readonly skillName: string;
+  readonly arguments: unknown;
+}
+
 interface GatewayRow extends QueryResultRow {
   id: string;
   gateway_key: string;
@@ -159,6 +178,75 @@ export class GatewayRuntimeRepository {
     private readonly pool: Pool,
     private readonly config: GatewayRuntimeConfig,
   ) {}
+
+  public async createGoal(input: CreateGoalInput): Promise<GoalTaskRecord> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const project = await client.query<IdRow>(
+        `
+          INSERT INTO projects (name, created_by_principal, goal_text)
+          VALUES ($1, $2, $3)
+          RETURNING id::text
+        `,
+        [input.projectName, input.createdByPrincipal, input.goalText],
+      );
+      const projectId = project.rows[0]?.id;
+      if (!projectId) throw new Error("project insert did not return an id");
+
+      const job = await client.query<IdRow>(
+        `
+          INSERT INTO jobs (project_id, status, priority)
+          VALUES ($1, 'READY', $2)
+          RETURNING id::text
+        `,
+        [projectId, input.priority],
+      );
+      const jobId = job.rows[0]?.id;
+      if (!jobId) throw new Error("job insert did not return an id");
+
+      const task = await client.query<IdRow>(
+        `
+          INSERT INTO tasks (job_id, kind, status, skill_name, arguments_json)
+          VALUES ($1, 'goal', 'READY', $2, $3)
+          RETURNING id::text
+        `,
+        [jobId, input.skillName, asJson(input.arguments)],
+      );
+      const taskId = task.rows[0]?.id;
+      if (!taskId) throw new Error("task insert did not return an id");
+      await client.query("COMMIT");
+      return {
+        projectId,
+        jobId,
+        taskId,
+        goalText: input.goalText,
+        status: "READY",
+        skillName: input.skillName,
+        arguments: input.arguments,
+      };
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  public async listGoals(): Promise<readonly Record<string, unknown>[]> {
+    const result = await this.pool.query(
+      `
+        SELECT p.id::text AS "projectId", j.id::text AS "jobId", t.id::text AS "taskId",
+               p.goal_text AS "goalText", p.status AS "projectStatus", j.status AS "jobStatus",
+               t.status AS "taskStatus", t.skill_name AS "skillName", t.arguments_json AS arguments
+        FROM projects p
+        JOIN jobs j ON j.project_id = p.id
+        JOIN tasks t ON t.job_id = j.id
+        ORDER BY p.created_at DESC, t.id DESC
+      `,
+    );
+    return result.rows;
+  }
 
   public async register(
     payload: Omit<GatewayRegistration, "capabilities"> & { readonly capabilities?: unknown },

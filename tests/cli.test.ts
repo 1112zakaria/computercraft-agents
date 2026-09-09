@@ -120,3 +120,47 @@ test("CLI constructs a bounded excavation command", async () => {
     else process.env.CONTROL_PLANE_ADMIN_SECRET = previousSecret;
   }
 });
+
+test("CLI submits the first addressed gather goal", async () => {
+  const previousFetch = globalThis.fetch;
+  const previousUrl = process.env.CONTROL_PLANE_URL;
+  const previousSecret = process.env.CONTROL_PLANE_ADMIN_SECRET;
+  const previousPrincipal = process.env.CONTROL_PLANE_PRINCIPAL;
+  let capturedInit: RequestInit | undefined;
+  process.env.CONTROL_PLANE_URL = "http://control-plane.test";
+  process.env.CONTROL_PLANE_ADMIN_SECRET = "test-admin-secret";
+  process.env.CONTROL_PLANE_PRINCIPAL = "test-operator";
+  globalThis.fetch = async (_input, init) => {
+    capturedInit = init;
+    return new Response(JSON.stringify({ taskId: "task-test", status: "READY" }), { status: 202 });
+  };
+  try {
+    await runCli([
+      "goal",
+      "@alice",
+      "get",
+      "64",
+      "cobblestone",
+      "and",
+      "deposit",
+      "it",
+      "in",
+      "Test",
+      "Chest",
+    ]);
+    const body = JSON.parse(String(capturedInit?.body)) as {
+      goalText: string;
+      createdByPrincipal: string;
+    };
+    assert.equal(body.goalText, "@alice get 64 cobblestone and deposit it in Test Chest");
+    assert.equal(body.createdByPrincipal, "test-operator");
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousUrl === undefined) delete process.env.CONTROL_PLANE_URL;
+    else process.env.CONTROL_PLANE_URL = previousUrl;
+    if (previousSecret === undefined) delete process.env.CONTROL_PLANE_ADMIN_SECRET;
+    else process.env.CONTROL_PLANE_ADMIN_SECRET = previousSecret;
+    if (previousPrincipal === undefined) delete process.env.CONTROL_PLANE_PRINCIPAL;
+    else process.env.CONTROL_PLANE_PRINCIPAL = previousPrincipal;
+  }
+});

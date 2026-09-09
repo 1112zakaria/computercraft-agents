@@ -16,6 +16,7 @@ export function usage(): string {
     `${cliName} workers <worker-id>`,
     `${cliName} provision-worker --id <worker-id> --server <server-id> --computer-id <number> --version <version>`,
     `${cliName} diagnose`,
+    `${cliName} goal <@worker get ... and deposit it in ...>`,
     `${cliName} move <worker-id> <N|E|S|W|UP|DOWN>`,
     `${cliName} excavate <worker-id> <width> <height> <depth>`,
     `${cliName} deposit <worker-id> [quantity] [slot]`,
@@ -112,6 +113,28 @@ export async function runCli(args: readonly string[]): Promise<void> {
   }
   if (command === "diagnose") {
     console.log(JSON.stringify(await request("/v1/diagnostics"), null, 2));
+    return;
+  }
+  if (command === "goal") {
+    const goalText = args.slice(1).join(" ").trim();
+    if (!goalText) {
+      throw new Error(`usage: ${cliName} goal <@worker get ... and deposit it in ...>`);
+    }
+    console.log(
+      JSON.stringify(
+        await request("/v1/goals", {
+          method: "POST",
+          body: JSON.stringify({
+            protocolVersion: 1,
+            goalText,
+            createdByPrincipal: process.env.CONTROL_PLANE_PRINCIPAL?.trim() || "cli",
+            priority: 0,
+          }),
+        }),
+        null,
+        2,
+      ),
+    );
     return;
   }
   if (command === "move") {

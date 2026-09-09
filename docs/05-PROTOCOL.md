@@ -78,6 +78,21 @@ Direct event submission contains `workerId`, `workerBootId`, `batchId`, and a bo
 events. Each event has the worker identity and no `gatewayId`. Event IDs are deduplicated by the
 control plane, so a durable turtle outbox can retry after an HTTP failure.
 
+## 2b. Operator goal entry point
+
+The protected operator API accepts the first narrow addressed gather goal:
+
+```text
+POST /v1/goals
+GET  /v1/goals
+```
+
+The request contains `protocolVersion`, `goalText`, `createdByPrincipal`, and an optional bounded
+priority. In v1, `goalText` must match the deterministic form
+`@worker get <quantity> <item> and deposit it in <location>`. The control plane validates the
+sentence and persists a project, ready job, and ready task with the normalized resource arguments.
+It does not yet dispatch the task to a worker; persistent scheduler claiming is a later step.
+
 ## 3. Gateway registration
 
 Example:

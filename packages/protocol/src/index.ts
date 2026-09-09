@@ -353,6 +353,17 @@ export type SkillName = z.infer<typeof SkillNameSchema>;
 export type CommandBudget = z.infer<typeof CommandBudgetSchema>;
 export type Command = z.infer<typeof CommandSchema>;
 
+export const GoalCreateRequestSchema = z
+  .object({
+    protocolVersion: ProtocolVersionSchema,
+    goalText: z.string().trim().min(1).max(4096),
+    createdByPrincipal: z.string().trim().min(1).max(128),
+    priority: z.number().int().min(-1000).max(1000).default(0),
+  })
+  .strict();
+
+export type GoalCreateRequest = z.infer<typeof GoalCreateRequestSchema>;
+
 const StopControlBaseShape = {
   protocolVersion: ProtocolVersionSchema,
   controlId: IdentifierSchema,

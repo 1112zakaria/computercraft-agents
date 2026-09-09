@@ -173,6 +173,29 @@ class FakeGatewayStore implements GatewayServiceStore {
     this.directEvents.push(payload);
     return payload.events.map((event) => event.eventId);
   }
+
+  public async createGoal(input: {
+    readonly projectName: string;
+    readonly createdByPrincipal: string;
+    readonly goalText: string;
+    readonly priority: number;
+    readonly skillName: string;
+    readonly arguments: unknown;
+  }) {
+    return {
+      projectId: "project-test",
+      jobId: "job-test",
+      taskId: "task-test",
+      goalText: input.goalText,
+      status: "READY",
+      skillName: input.skillName,
+      arguments: input.arguments,
+    };
+  }
+
+  public async listGoals(): Promise<readonly Record<string, unknown>[]> {
+    return [];
+  }
 }
 
 async function startServer(
@@ -235,6 +258,28 @@ test("control-plane gateway API authenticates and validates gateway identity", a
       { headers: gatewayHeaders() },
     );
     assert.equal(authenticatedConnectivity.status, 204);
+  } finally {
+    await server.close();
+  }
+});
+
+test("operator goal API creates a validated gather task", async () => {
+  const store = new FakeGatewayStore();
+  const server = await startServer(store);
+  try {
+    const response = await fetch(`${server.baseUrl}/v1/goals`, {
+      method: "POST",
+      headers: adminHeaders(),
+      body: JSON.stringify({
+        protocolVersion: 1,
+        goalText: "@alice get 64 cobblestone and deposit it in Test Chest",
+        createdByPrincipal: "test-operator",
+      }),
+    });
+    assert.equal(response.status, 202);
+    const body = (await response.json()) as { status: string; skillName: string };
+    assert.equal(body.status, "READY");
+    assert.equal(body.skillName, "resource.gather");
   } finally {
     await server.close();
   }
