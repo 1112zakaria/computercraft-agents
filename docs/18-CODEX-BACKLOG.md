@@ -935,7 +935,8 @@ workflow idempotently. Inventory-full failures now attempt a bounded return to t
 deposit the collected quantity, and queue a fresh gather step; if the route or evidence is
 insufficient, the workflow pauses with an explicit resume instruction. Target-stack-aware local
 capacity checks now avoid false inventory-full failures when an existing item stack still has room;
-full capacity planning, destination-content postcondition verification, and full live acceptance
+workflow deposits carry and enforce the canonical target item key; full capacity planning,
+destination-content postcondition verification, and full live acceptance
 remain.
 
 ### CC-103 — Implement known-container deposit skill

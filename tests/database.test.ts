@@ -244,6 +244,18 @@ test("urgent command cancellation pauses the logical task", () => {
 
 test("workflow deposit requires the complete transfer quantity", () => {
   assert.equal(transferMeetsQuantity({ moved: 8 }, 8), true);
+  assert.equal(
+    transferMeetsQuantity(
+      { itemKey: "minecraft:cobblestone", moved: 8 },
+      8,
+      "minecraft:cobblestone",
+    ),
+    true,
+  );
+  assert.equal(
+    transferMeetsQuantity({ itemKey: "minecraft:dirt", moved: 8 }, 8, "minecraft:cobblestone"),
+    false,
+  );
   assert.equal(transferMeetsQuantity({ moved: 7 }, 8), false);
   assert.equal(transferMeetsQuantity({ status: "OK" }, 8), false);
 });

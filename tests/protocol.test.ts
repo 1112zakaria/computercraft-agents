@@ -92,6 +92,27 @@ test("bounded gather commands require a target and depth budget", () => {
   );
 });
 
+test("deposit commands may carry a canonical target item", () => {
+  const command = CommandSchema.parse({
+    protocolVersion: 1,
+    commandId: "command-deposit-1",
+    workerId: "alice",
+    issuedAt: "2026-09-08T12:00:00.000Z",
+    expiresAt: "2026-09-08T12:10:00.000Z",
+    budget: { maxPrimitives: 1, maxBlockChanges: 0, maxInventoryTransfers: 1 },
+    skill: "inventory.deposit",
+    arguments: { itemKey: "minecraft:cobblestone", quantity: 8 },
+  });
+  assert.equal(command.arguments.itemKey, "minecraft:cobblestone");
+  assert.equal(
+    CommandSchema.safeParse({
+      ...command,
+      arguments: { ...command.arguments, itemKey: "not valid" },
+    }).success,
+    false,
+  );
+});
+
 test("task-dispatched commands preserve task correlation", () => {
   const command = CommandSchema.parse({
     protocolVersion: 1,

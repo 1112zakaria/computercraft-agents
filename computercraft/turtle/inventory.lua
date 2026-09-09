@@ -161,15 +161,32 @@ function M.new(api, config, cancellation)
     return { status = transferred and "OK" or "NO_TRANSFER", moved = math.max(delta, 0) }
   end
 
-  function inventory:deposit(direction, quantity, slot)
+  function inventory:deposit(direction, quantity, item_key, slot)
+    if item_key then
+      item_key = normalize_item_key(item_key)
+    end
     local selected = self:selected_slot()
-    if slot then
-      local selected_ok, select_error = self:select(slot)
+    local target_slot = slot
+    if item_key and not target_slot then
+      target_slot = self:find(item_key, 1)
+      if not target_slot then
+        return { status = "MISSING_ITEM", itemKey = item_key }
+      end
+    end
+    if target_slot then
+      if item_key and self.api.getItemDetail then
+        local detail = self.api.getItemDetail(target_slot)
+        if not detail or detail.name ~= item_key then
+          return { status = "ITEM_MISMATCH", itemKey = item_key, slot = target_slot }
+        end
+      end
+      local selected_ok, select_error = self:select(target_slot)
       if not selected_ok then
         return { status = "ERROR", error = select_error }
       end
     end
     local result = self:transfer("deposit", direction, quantity)
+    if item_key then result.itemKey = item_key end
     self:select(selected)
     return result
   end

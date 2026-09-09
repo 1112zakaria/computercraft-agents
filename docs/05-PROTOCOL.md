@@ -175,6 +175,10 @@ Only tasks whose `skillName` is already a protocol command skill are dispatched 
 gather step completes, the repository advances the linked workflow to a known-cell navigation
 step and then an allowlisted `inventory.deposit` step. Missing destination anchors, incomplete
 positions, or unknown paths set the parent workflow to `BLOCKED`; the system never guesses a route.
+Workflow deposit commands carry the requested `itemKey`; the turtle selects that item (or rejects
+an explicitly mismatched slot) before dropping it. The control plane requires the same canonical
+item key in the completed transfer result, preventing a different inventory item from satisfying a
+gather delivery.
 The scheduler tick is an explicit bounded operator action that selects compatible online workers
 for those same protocol-level tasks and invokes the atomic dispatch path once per selected worker.
 It does not auto-dispatch multi-step goal workflows. Its response includes `skipped` entries when a
@@ -366,8 +370,9 @@ protocol.error
 `inventory.changed` events contain a bounded post-transfer inventory snapshot. The control plane
 stores it on the latest worker observation, preserving the previously observed position when one
 exists. A gather deposit workflow also requires this event alongside the reported moved quantity
-before it marks the transfer complete. This proves the bounded turtle transfer operation; it is not
-proof of the destination's exact contents unless a destination peripheral adapter is available.
+and matching target item key before it marks the transfer complete. This proves the bounded turtle
+transfer operation; it is not proof of the destination's exact contents unless a destination
+peripheral adapter is available.
 
 ## 8. Idempotency
 
@@ -470,6 +475,8 @@ Commands SHOULD reference large blueprints/path batches by IDs/chunks rather tha
 
 `inventory.deposit` and `inventory.withdraw` may carry a `containerId`. The worker must resolve
 that ID through its local configured container allowlist and reject unknown IDs without a transfer.
+`inventory.deposit` may also carry an `itemKey`; when present, the worker must select a matching
+stack and reject a missing or mismatched item before transferring.
 
 Building execution MAY use paged/chunked blueprint segments:
 

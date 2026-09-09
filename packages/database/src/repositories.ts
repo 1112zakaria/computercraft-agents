@@ -321,8 +321,13 @@ export function taskStatusForCommandEvent(
   }
 }
 
-export function transferMeetsQuantity(result: unknown, requestedQuantity: number): boolean {
+export function transferMeetsQuantity(
+  result: unknown,
+  requestedQuantity: number,
+  expectedItemKey?: string,
+): boolean {
   if (!isRecord(result) || typeof result.moved !== "number") return false;
+  if (expectedItemKey !== undefined && result.itemKey !== expectedItemKey) return false;
   return Number.isSafeInteger(result.moved) && result.moved >= requestedQuantity;
 }
 
@@ -512,6 +517,7 @@ export class GatewayRuntimeRepository {
       readonly jobId: string;
       readonly parentTaskId: string;
       readonly targetWorkerId: string;
+      readonly itemKey: string;
       readonly destination: string;
       readonly position: Coordinate;
       readonly depositQuantity: number;
@@ -644,6 +650,7 @@ export class GatewayRuntimeRepository {
           asJson({
             targetWorkerId: input.targetWorkerId,
             containerId,
+            itemKey: input.itemKey,
             quantity: input.depositQuantity,
           }),
           input.parentTaskId,
@@ -3015,6 +3022,7 @@ export class GatewayRuntimeRepository {
               jobId: task.job_id,
               parentTaskId: task.parent_task_id,
               targetWorkerId: recovery.targetWorkerId,
+              itemKey: recovery.itemKey,
               destination: recovery.destination,
               position,
               depositQuantity: recovery.depositQuantity,
@@ -3165,7 +3173,11 @@ export class GatewayRuntimeRepository {
             )
             VALUES ($1, 'workflow-step', 'READY', 'inventory.deposit', $2, $3, 'DEPOSIT')
           `,
-          [task.job_id, asJson({ targetWorkerId, containerId, quantity }), task.parent_task_id],
+          [
+            task.job_id,
+            asJson({ targetWorkerId, containerId, itemKey, quantity }),
+            task.parent_task_id,
+          ],
         );
       }
       return;
@@ -3174,6 +3186,7 @@ export class GatewayRuntimeRepository {
     if (task.workflow_phase === "NAVIGATE") {
       const targetWorkerId = parentArguments.targetWorkerId;
       const destination = parentArguments.destination;
+      const itemKey = parentArguments.itemKey;
       const quantity = parentArguments.quantity;
       const pendingDepositQuantity = integerArgument(parentArguments, "pendingDepositQuantity", 0);
       const remainingQuantity = integerArgument(parentArguments, "remainingQuantity", 0);
@@ -3181,6 +3194,7 @@ export class GatewayRuntimeRepository {
         typeof destination === "string" ? normalizeContainerId(destination) : undefined;
       if (
         typeof targetWorkerId !== "string" ||
+        typeof itemKey !== "string" ||
         typeof quantity !== "number" ||
         !Number.isSafeInteger(quantity) ||
         !containerId
@@ -3208,6 +3222,7 @@ export class GatewayRuntimeRepository {
           asJson({
             targetWorkerId,
             containerId,
+            itemKey,
             quantity:
               parentArguments.resumeGatherAfterDeposit === true && pendingDepositQuantity > 0
                 ? pendingDepositQuantity
@@ -3227,6 +3242,7 @@ export class GatewayRuntimeRepository {
         : {};
       const result = eventPayload.result;
       const configuredQuantity = parentArguments.quantity;
+      const itemKey = parentArguments.itemKey;
       const remainingQuantity = integerArgument(parentArguments, "remainingQuantity", 0);
       const requestedQuantity = remainingQuantity > 0 ? remainingQuantity : configuredQuantity;
       const pendingDepositQuantity = integerArgument(parentArguments, "pendingDepositQuantity", 0);
@@ -3237,7 +3253,8 @@ export class GatewayRuntimeRepository {
       if (
         typeof depositQuantity !== "number" ||
         !Number.isSafeInteger(depositQuantity) ||
-        !transferMeetsQuantity(result, depositQuantity)
+        typeof itemKey !== "string" ||
+        !transferMeetsQuantity(result, depositQuantity, itemKey)
       ) {
         await block("deposit completed without transferring the requested quantity");
         return;

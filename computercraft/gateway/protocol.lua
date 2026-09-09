@@ -161,9 +161,12 @@ local function validate_arguments(skill, arguments)
     end
     return true
   elseif skill == "inventory.deposit" then
-    local ok, error_message = has_only_keys(arguments, { containerId = true, quantity = true, slot = true })
+    local ok, error_message = has_only_keys(arguments, { containerId = true, itemKey = true, quantity = true, slot = true })
     if not ok then
       return fail(error_message)
+    end
+    if arguments.itemKey ~= nil and not is_id(arguments.itemKey) then
+      return fail("inventory.deposit.itemKey is invalid")
     end
     if arguments.quantity ~= nil and (not is_integer(arguments.quantity) or arguments.quantity < 1 or arguments.quantity > 64) then
       return fail("inventory.deposit.quantity is invalid")

@@ -172,7 +172,11 @@ test("turtle startup warns when first-use capabilities are omitted", () => {
 
 test("turtle transfer commands emit post-transfer inventory changes", () => {
   const executor = readFileSync(join(runtimeRoot, "turtle/executor.lua"), "utf8");
+  const inventory = readFileSync(join(runtimeRoot, "turtle/inventory.lua"), "utf8");
   assert.match(executor, /result\.inventory = self\.inventory:snapshot\(\)/);
+  assert.match(executor, /args\.itemKey/);
+  assert.match(inventory, /status = "MISSING_ITEM"/);
+  assert.match(inventory, /status = "ITEM_MISMATCH"/);
   assert.match(executor, /"inventory\.changed"/);
   assert.match(executor, /slots = result\.inventory\.slots/);
 });

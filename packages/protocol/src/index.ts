@@ -256,6 +256,7 @@ const EmptyArgumentsSchema = z.object({}).strict();
 const InventoryDepositArgumentsSchema = z
   .object({
     containerId: IdentifierSchema.optional(),
+    itemKey: ItemKeySchema.optional(),
     quantity: QuantitySchema.optional(),
     slot: SlotSchema.optional(),
   })

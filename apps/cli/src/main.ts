@@ -53,7 +53,7 @@ export function usage(): string {
     `${cliName} go-to <worker-id> <location-name>`,
     `${cliName} excavate <worker-id> <width> <height> <depth> [--dry-run]`,
     `${cliName} gather <worker-id> <item-key> <quantity> <max-depth> [--dry-run]`,
-    `${cliName} deposit <worker-id> [quantity] [slot] [--container-id <id>] [--dry-run]`,
+    `${cliName} deposit <worker-id> [quantity] [slot] [--container-id <id>] [--item-key <id>] [--dry-run]`,
     `${cliName} withdraw <worker-id> <item-key> <quantity> [slot] [--container-id <id>] [--dry-run]`,
     `${cliName} stop <worker-id|all> [--dry-run]`,
     `${cliName} update --target <gateway:id|worker:id|fleet:gateway-id> --version <vX.Y.Z> [--dry-run]`,
@@ -644,25 +644,40 @@ export async function runCli(args: readonly string[]): Promise<void> {
     return;
   }
   if (command === "deposit") {
-    const quantity = args[2] === undefined ? undefined : Number(args[2]);
-    const slot = args[3] === undefined ? undefined : Number(args[3]);
+    const positionals: string[] = [];
+    for (let index = 2; index < args.length; index += 1) {
+      const value = args[index];
+      if (value === "--container-id" || value === "--item-key") {
+        index += 1;
+        continue;
+      }
+      if (value !== "--dry-run") positionals.push(value!);
+    }
+    const quantity = positionals[0] === undefined ? undefined : Number(positionals[0]);
+    const slot = positionals[1] === undefined ? undefined : Number(positionals[1]);
     const containerId = flag(args, "--container-id");
+    const itemKey = flag(args, "--item-key");
     if (
       !first ||
       (quantity !== undefined && (!Number.isInteger(quantity) || quantity < 1 || quantity > 64))
     ) {
       throw new Error(
-        `usage: ${cliName} deposit <worker-id> [quantity] [slot] [--container-id <id>]`,
+        `usage: ${cliName} deposit <worker-id> [quantity] [slot] [--container-id <id>] [--item-key <id>]`,
       );
     }
     if (slot !== undefined && (!Number.isInteger(slot) || slot < 1 || slot > 16)) {
       throw new Error(
-        `usage: ${cliName} deposit <worker-id> [quantity] [slot] [--container-id <id>]`,
+        `usage: ${cliName} deposit <worker-id> [quantity] [slot] [--container-id <id>] [--item-key <id>]`,
       );
     }
     if (containerId !== undefined && !IdentifierSchema.safeParse(containerId).success) {
       throw new Error(
-        `usage: ${cliName} deposit <worker-id> [quantity] [slot] [--container-id <id>]`,
+        `usage: ${cliName} deposit <worker-id> [quantity] [slot] [--container-id <id>] [--item-key <id>]`,
+      );
+    }
+    if (itemKey !== undefined && !IdentifierSchema.safeParse(normalizeItemKey(itemKey)).success) {
+      throw new Error(
+        `usage: ${cliName} deposit <worker-id> [quantity] [slot] [--container-id <id>] [--item-key <id>]`,
       );
     }
     const body = {
@@ -675,6 +690,7 @@ export async function runCli(args: readonly string[]): Promise<void> {
       skill: "inventory.deposit" as const,
       arguments: {
         ...(containerId === undefined ? {} : { containerId }),
+        ...(itemKey === undefined ? {} : { itemKey: normalizeItemKey(itemKey) }),
         ...(quantity === undefined ? {} : { quantity }),
         ...(slot === undefined ? {} : { slot }),
       },

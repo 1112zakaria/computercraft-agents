@@ -89,7 +89,7 @@ npm run cli -- set-location "Test Chest" 0 10 64 -2 E --approach 0 9 64 -2 N
 npm run cli -- path-to alice "Test Chest"
 npm run cli -- go-to alice "Test Chest"
 npm run cli -- gather alice minecraft:cobblestone 8 12
-npm run cli -- deposit alice 8 --container-id test-chest
+npm run cli -- deposit alice 8 --container-id test-chest --item-key cobblestone
 ```
 
 The final argument is the maximum forward depth. This command gathers only up to the explicit

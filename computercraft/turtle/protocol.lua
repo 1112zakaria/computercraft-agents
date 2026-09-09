@@ -86,9 +86,12 @@ local function arguments_valid(skill, args)
       return fail(error_message)
     end
   elseif skill == "inventory.deposit" then
-    local ok, error_message = only_keys(args, { containerId = true, quantity = true, slot = true })
+    local ok, error_message = only_keys(args, { containerId = true, itemKey = true, quantity = true, slot = true })
     if not ok then
       return fail(error_message)
+    end
+    if args.itemKey ~= nil and not identifier(args.itemKey) then
+      return fail("inventory.deposit.itemKey is invalid")
     end
   elseif skill == "inventory.withdraw" then
     local ok, error_message = only_keys(args, { containerId = true, itemKey = true, quantity = true, slot = true })

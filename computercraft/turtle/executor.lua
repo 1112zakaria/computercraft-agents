@@ -66,7 +66,7 @@ function M.new(config, client, state, cancellation, movement, observation, inven
       if not direction then
         return { status = "UNKNOWN_CONTAINER", containerId = args.containerId, error = direction_error }
       end
-      local result = self.inventory:deposit(direction, args.quantity, args.slot)
+      local result = self.inventory:deposit(direction, args.quantity, args.itemKey, args.slot)
       if result.status == "OK" then result.inventory = self.inventory:snapshot() end
       return result
     elseif skill == "inventory.withdraw" then
