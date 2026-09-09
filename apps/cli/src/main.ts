@@ -47,6 +47,7 @@ export function usage(): string {
     `${cliName} set-location <name> <dimension> <x> <y> <z> [N|E|S|W] [--approach <dimension> <x> <y> <z> [N|E|S|W]]`,
     `${cliName} world-cells`,
     `${cliName} anchor <worker-id> <dimension> <x> <y> <z> [N|E|S|W]`,
+    `${cliName} inspect <worker-id> [--dry-run]`,
     `${cliName} move <worker-id> <N|E|S|W|UP|DOWN> [--dry-run]`,
     `${cliName} path <worker-id> <N|E|S|W|UP|DOWN>... [--dry-run]`,
     `${cliName} path-to <worker-id> <location-name>`,
@@ -130,6 +131,7 @@ export async function runCli(args: readonly string[]): Promise<void> {
     (command === undefined ||
       !new Set([
         "move",
+        "inspect",
         "path",
         "excavate",
         "gather",
@@ -141,7 +143,7 @@ export async function runCli(args: readonly string[]): Promise<void> {
       ]).has(command))
   ) {
     throw new Error(
-      "--dry-run is supported for goal, move, path, excavate, gather, deposit, withdraw, stop, and update",
+      "--dry-run is supported for goal, move, inspect, path, excavate, gather, deposit, withdraw, stop, and update",
     );
   }
   if (command === "provision-worker") {
@@ -555,6 +557,23 @@ export async function runCli(args: readonly string[]): Promise<void> {
       budget: { maxPrimitives: 1, maxBlockChanges: 0 },
       skill: "movement.step",
       arguments: { direction: second },
+    };
+    console.log(JSON.stringify(await postOrPreview("/v1/commands", body, dryRun), null, 2));
+    return;
+  }
+  if (command === "inspect") {
+    if (!first || second) {
+      throw new Error(`usage: ${cliName} inspect <worker-id>`);
+    }
+    const body = {
+      protocolVersion: 1,
+      commandId: `cli-${randomUUID()}`,
+      workerId: first,
+      issuedAt: new Date().toISOString(),
+      expiresAt: timestampAfterMinutes(5),
+      budget: { maxPrimitives: 1, maxBlockChanges: 0 },
+      skill: "inventory.inspect" as const,
+      arguments: {},
     };
     console.log(JSON.stringify(await postOrPreview("/v1/commands", body, dryRun), null, 2));
     return;

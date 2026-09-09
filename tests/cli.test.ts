@@ -345,6 +345,38 @@ test("CLI dry-run previews a physical command without calling the control plane"
   }
 });
 
+test("CLI constructs a bounded inventory inspection command", async () => {
+  const previousFetch = globalThis.fetch;
+  const previousUrl = process.env.CONTROL_PLANE_URL;
+  const previousSecret = process.env.CONTROL_PLANE_ADMIN_SECRET;
+  let capturedInit: RequestInit | undefined;
+  process.env.CONTROL_PLANE_URL = "http://control-plane.test";
+  process.env.CONTROL_PLANE_ADMIN_SECRET = "test-admin-secret";
+  globalThis.fetch = async (_input, init) => {
+    capturedInit = init;
+    return new Response(JSON.stringify({ accepted: true }), { status: 200 });
+  };
+  try {
+    await runCli(["inspect", "alice"]);
+    const body = JSON.parse(String(capturedInit?.body)) as {
+      workerId: string;
+      skill: string;
+      arguments: Record<string, never>;
+      budget: { maxPrimitives: number; maxBlockChanges: number };
+    };
+    assert.equal(body.workerId, "alice");
+    assert.equal(body.skill, "inventory.inspect");
+    assert.deepEqual(body.arguments, {});
+    assert.deepEqual(body.budget, { maxPrimitives: 1, maxBlockChanges: 0 });
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousUrl === undefined) delete process.env.CONTROL_PLANE_URL;
+    else process.env.CONTROL_PLANE_URL = previousUrl;
+    if (previousSecret === undefined) delete process.env.CONTROL_PLANE_ADMIN_SECRET;
+    else process.env.CONTROL_PLANE_ADMIN_SECRET = previousSecret;
+  }
+});
+
 test("CLI dry-run validates and previews an addressed gather goal without persisting it", async () => {
   const previousFetch = globalThis.fetch;
   const previousLog = console.log;

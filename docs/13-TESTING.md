@@ -42,6 +42,7 @@ Test:
 - scheduler selection skips workers whose worker inspection reports an active task;
 - operator pause/cancel stops active delivery atomically and resume returns work to `READY`;
 - agent and project inspection API/CLI responses;
+- bounded CLI inventory inspection command construction and dry-run behavior;
 - environment-backed feature-gate inspection and disabled-skill rejection;
 - read-only first-use goal preflight reports missing capabilities, anchors, destinations, and
   known routes without creating work;

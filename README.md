@@ -69,6 +69,7 @@ identity, Minecraft server ID, and the existing bearer secret:
 ```text
   npm run cli -- provision-worker --id alice --server friends-server --computer-id 21 --version v0.4.1
 npm run cli -- workers alice
+npm run cli -- inspect alice
 npm run cli -- agents
 npm run cli -- agent alice
 npm run cli -- projects

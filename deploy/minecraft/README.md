@@ -69,7 +69,8 @@ over ComputerCraft's outbound HTTPS API, so no gateway computer or modem is requ
 5. Reboot or run `startup`.
 
 Do not set `modem_side`, `gateway_rednet_id`, or `rednet_protocol` for this transport. Verify the
-worker with `npm run cli -- workers alice` after its registration and heartbeat arrive.
+worker with `npm run cli -- workers alice` after its registration and heartbeat arrive, then use
+`npm run cli -- inspect alice` to request a bounded inventory snapshot.
 
 If an existing `worker.conf` explicitly lists capabilities but omits the first-use gather skills,
 run `lua enable-gather.lua`. The helper creates a `worker.conf.before-gather*` backup, adds only

@@ -179,6 +179,7 @@ turtle registers, heartbeats, and polls `/v1/worker/commands`. Confirm it with:
 
 ```bash
 npm run cli -- workers alice
+npm run cli -- inspect alice
 ```
 
 Worker inspection includes the current runtime state and, when a task is active, its
