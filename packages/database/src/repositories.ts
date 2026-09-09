@@ -85,6 +85,16 @@ export interface PlannerTriggerRecord {
 
 export type PlannerTriggerStatus = "PENDING" | "PROCESSING" | "SUCCEEDED" | "FAILED";
 
+export type PlannerRuntimeState = "AVAILABLE" | "DEGRADED" | "PAUSED";
+
+export interface PlannerRuntimeStateRecord {
+  readonly state: PlannerRuntimeState;
+  readonly consecutiveFailures: number;
+  readonly lastFailureAt: string | null;
+  readonly retryAfter: string | null;
+  readonly updatedAt: string;
+}
+
 export interface CreateGoalInput {
   readonly projectName: string;
   readonly createdByPrincipal: string;
@@ -354,6 +364,20 @@ function plannerTriggerRecord(row: Record<string, unknown>): PlannerTriggerRecor
   };
 }
 
+function plannerRuntimeStateRecord(row: Record<string, unknown>): PlannerRuntimeStateRecord {
+  const state = String(row.state);
+  if (state !== "AVAILABLE" && state !== "DEGRADED" && state !== "PAUSED") {
+    throw new Error(`invalid planner runtime state: ${state}`);
+  }
+  return {
+    state,
+    consecutiveFailures: Number(row.consecutiveFailures),
+    lastFailureAt: timestampString(row.lastFailureAt as Date | string | null),
+    retryAfter: timestampString(row.retryAfter as Date | string | null),
+    updatedAt: timestampString(row.updatedAt as Date | string)!,
+  };
+}
+
 export class GatewayRuntimeRepository {
   public constructor(
     private readonly pool: Pool,
@@ -574,6 +598,49 @@ export class GatewayRuntimeRepository {
       [limit],
     );
     return result.rows.map((row) => plannerTriggerRecord(row));
+  }
+
+  public async getPlannerRuntimeState(): Promise<PlannerRuntimeStateRecord> {
+    const result = await this.pool.query(
+      `
+        SELECT state, consecutive_failures AS "consecutiveFailures",
+               last_failure_at AS "lastFailureAt", retry_after AS "retryAfter",
+               updated_at AS "updatedAt"
+        FROM planner_runtime_state
+        WHERE runtime_id = 'default'
+      `,
+    );
+    const row = result.rows[0];
+    if (!row) {
+      return {
+        state: "AVAILABLE",
+        consecutiveFailures: 0,
+        lastFailureAt: null,
+        retryAfter: null,
+        updatedAt: new Date(0).toISOString(),
+      };
+    }
+    return plannerRuntimeStateRecord(row);
+  }
+
+  public async savePlannerRuntimeState(
+    state: Omit<PlannerRuntimeStateRecord, "updatedAt">,
+  ): Promise<void> {
+    await this.pool.query(
+      `
+        INSERT INTO planner_runtime_state (
+          runtime_id, state, consecutive_failures, last_failure_at, retry_after, updated_at
+        )
+        VALUES ('default', $1, $2, $3, $4, NOW())
+        ON CONFLICT (runtime_id) DO UPDATE SET
+          state = EXCLUDED.state,
+          consecutive_failures = EXCLUDED.consecutive_failures,
+          last_failure_at = EXCLUDED.last_failure_at,
+          retry_after = EXCLUDED.retry_after,
+          updated_at = NOW()
+      `,
+      [state.state, state.consecutiveFailures, state.lastFailureAt, state.retryAfter],
+    );
   }
 
   public async claimPlannerTriggers(limit = 1): Promise<readonly PlannerTriggerRecord[]> {

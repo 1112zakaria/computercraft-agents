@@ -804,8 +804,9 @@ Implement complexity heuristic and structured project plan output.
 **Dependencies:** CC-082, CC-087
 
 **Status:** PARTIAL — the reasoning package now provides an explicit available/degraded/paused
-state machine with bounded retry timing and recovery reset. Control-plane persistence, operator
-visibility, and automatic resume of pending planner triggers remain.
+state machine with bounded retry timing and recovery reset. The control plane persists the outage
+snapshot, restores it during startup, and automatically retries durable pending triggers after the
+pause window. Operator visibility and richer outage policy remain.
 
 **Acceptance criteria**
 
@@ -1182,9 +1183,9 @@ Test whether turtles can continue intended work with humans offline and across r
 **Priority:** P0  
 **Dependencies:** CC-089, CC-160
 
-**Status:** PARTIAL — failed planner triggers are retained in a bounded retry queue and can be
-replayed through a recovery sweep after the outage gate opens; the production planner loop still
-needs to call that sweep and persist trigger state across control-plane restarts.
+**Status:** PARTIAL — failed planner triggers are released to the durable queue and retried by the
+production planner loop after the outage gate opens; outage state is persisted across control-plane
+restarts. A broader recovery sweep, operator controls, and richer retry policy remain.
 
 ---
 

@@ -172,8 +172,9 @@ explicit decision sink only after a validated result is returned. The control pl
 opt-in, plan-only loop: when enabled, it claims a bounded batch, invokes the configured read-only
 Codex boundary, and records the validated decision as a HIGH-retention audit event. It does not
 create tasks, dispatch commands, or apply model output. Provider failures release the durable
-trigger for retry; stale claims are also requeued after the configured lease. The loop is disabled
-by default and decision application remains a separate safety-gated work item.
+trigger for retry; stale claims are also requeued after the configured lease. The planner outage
+snapshot is persisted so a restart preserves the pause window. The loop is disabled by default and
+decision application remains a separate safety-gated work item.
 
 The reasoning package now exposes a provider-neutral planner-trigger service. It accepts only the
 bounded causes `goal.created`, `command.completed`, `command.failed`, `worker.blocked`,

@@ -548,6 +548,23 @@ test("reasoning outage pauses provider work without coupling deterministic execu
   assert.equal(outage.snapshot().consecutiveFailures, 0);
 });
 
+test("reasoning outage state can be restored and persisted through change callbacks", () => {
+  const changes: string[] = [];
+  const outage = new ReasoningOutageStateMachine({
+    initial: {
+      state: "PAUSED",
+      consecutiveFailures: 2,
+      lastFailureAt: "2026-09-09T00:00:00.000Z",
+      retryAfter: "2026-09-09T00:01:00.000Z",
+    },
+    onChange: (snapshot) => changes.push(snapshot.state),
+  });
+  assert.equal(outage.canAttempt(new Date("2026-09-09T00:00:30.000Z")), false);
+  assert.equal(outage.canAttempt(new Date("2026-09-09T00:01:00.000Z")), true);
+  assert.equal(outage.recordSuccess().state, "AVAILABLE");
+  assert.deepEqual(changes, ["AVAILABLE"]);
+});
+
 test("Codex CLI provider validates structured output without executing it", async () => {
   let executionInput: { args: readonly string[]; prompt: string; timeoutMs: number } | undefined;
   const provider = new CodexCliProvider({

@@ -1,6 +1,7 @@
 import type {
   AuditEventRepository,
   GatewayRuntimeRepository,
+  PlannerRuntimeStateRecord,
   PlannerTriggerRecord,
 } from "@computercraft-agents/database";
 import {
@@ -10,6 +11,7 @@ import {
   PlannerTriggerService,
   ReasoningConcurrencyLimiter,
   ReasoningOutageStateMachine,
+  type ReasoningOutageSnapshot,
   type PlannerTriggerQueue,
 } from "@computercraft-agents/reasoning";
 
@@ -44,13 +46,22 @@ function triggerFromRecord(record: PlannerTriggerRecord) {
   });
 }
 
-export function createPlannerRunner(
+export async function createPlannerRunner(
   repository: GatewayRuntimeRepository,
   auditEvents: AuditEventRepository,
   config: PlannerRuntimeConfig,
   logger: Logger,
-): PlannerTriggerRunner {
-  const outage = new ReasoningOutageStateMachine();
+): Promise<PlannerTriggerRunner> {
+  const persisted = await repository.getPlannerRuntimeState();
+  const outage = new ReasoningOutageStateMachine({
+    initial: plannerOutageSnapshot(persisted),
+    onChange: (snapshot) => {
+      void repository.savePlannerRuntimeState(snapshot).catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : "unknown outage persistence error";
+        logger.error("planner.outage.persistence.failed", { error: message, outcome: "error" });
+      });
+    },
+  });
   const provider = new ReasoningConcurrencyLimiter(
     new CodexCliProvider({ executable: config.codexCommand }),
     config.plannerMaxConcurrent,
@@ -120,4 +131,13 @@ export function createPlannerRunner(
     },
     config.plannerBatchSize,
   );
+}
+
+function plannerOutageSnapshot(record: PlannerRuntimeStateRecord): ReasoningOutageSnapshot {
+  return {
+    state: record.state,
+    consecutiveFailures: record.consecutiveFailures,
+    lastFailureAt: record.lastFailureAt,
+    retryAfter: record.retryAfter,
+  };
 }

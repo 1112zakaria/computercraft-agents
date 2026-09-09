@@ -43,7 +43,7 @@ async function main(): Promise<void> {
   );
 
   const planner = config.plannerEnabled
-    ? createPlannerRunner(repository, auditEvents, config, logger)
+    ? await createPlannerRunner(repository, auditEvents, config, logger)
     : undefined;
   const server = createControlPlaneServer({
     service,

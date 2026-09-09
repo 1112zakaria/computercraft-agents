@@ -386,6 +386,8 @@ export interface ReasoningOutageSnapshot {
 export interface ReasoningOutageStateMachineOptions {
   readonly failureThreshold?: number;
   readonly retryAfterMs?: number;
+  readonly initial?: ReasoningOutageSnapshot;
+  readonly onChange?: (snapshot: ReasoningOutageSnapshot) => void;
 }
 
 /**
@@ -395,12 +397,7 @@ export interface ReasoningOutageStateMachineOptions {
 export class ReasoningOutageStateMachine {
   private readonly failureThreshold: number;
   private readonly retryAfterMs: number;
-  private current: ReasoningOutageSnapshot = {
-    state: "AVAILABLE",
-    consecutiveFailures: 0,
-    lastFailureAt: null,
-    retryAfter: null,
-  };
+  private current: ReasoningOutageSnapshot;
 
   public constructor(options: ReasoningOutageStateMachineOptions = {}) {
     this.failureThreshold = options.failureThreshold ?? 1;
@@ -411,7 +408,24 @@ export class ReasoningOutageStateMachine {
     if (!Number.isSafeInteger(this.retryAfterMs) || this.retryAfterMs < 1) {
       throw new Error("retryAfterMs must be a positive integer");
     }
+    const initial = options.initial ?? {
+      state: "AVAILABLE",
+      consecutiveFailures: 0,
+      lastFailureAt: null,
+      retryAfter: null,
+    };
+    if (
+      !Number.isSafeInteger(initial.consecutiveFailures) ||
+      initial.consecutiveFailures < 0 ||
+      (initial.state !== "AVAILABLE" && initial.state !== "DEGRADED" && initial.state !== "PAUSED")
+    ) {
+      throw new Error("initial outage snapshot is invalid");
+    }
+    this.current = { ...initial };
+    this.onChange = options.onChange;
   }
+
+  private readonly onChange?: (snapshot: ReasoningOutageSnapshot) => void;
 
   public snapshot(): ReasoningOutageSnapshot {
     return { ...this.current };
@@ -432,7 +446,7 @@ export class ReasoningOutageStateMachine {
       lastFailureAt: now.toISOString(),
       retryAfter,
     };
-    return this.snapshot();
+    return this.publish();
   }
 
   public recordSuccess(): ReasoningOutageSnapshot {
@@ -442,7 +456,13 @@ export class ReasoningOutageStateMachine {
       lastFailureAt: null,
       retryAfter: null,
     };
-    return this.snapshot();
+    return this.publish();
+  }
+
+  private publish(): ReasoningOutageSnapshot {
+    const snapshot = this.snapshot();
+    this.onChange?.(snapshot);
+    return snapshot;
   }
 }
 
