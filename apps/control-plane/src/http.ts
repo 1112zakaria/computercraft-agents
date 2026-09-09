@@ -511,11 +511,13 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
       sendJson(response, 404, { error: "not found" });
     } catch (error) {
       const httpError = repositoryErrorToHttp(error);
-      if (httpError.statusCode >= 500) {
+      if (httpError.statusCode >= 400) {
         logger.error("http.request.failed", {
           requestId,
           outcome: "error",
           error: httpError.message,
+          code: httpError.code,
+          details: httpError.details,
         });
       }
       sendJson(response, httpError.statusCode, errorResponse(httpError));
