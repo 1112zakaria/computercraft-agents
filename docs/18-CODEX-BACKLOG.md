@@ -625,8 +625,9 @@ Evaluate GPS/manual docking/other available approaches and implement the simples
 **Dependencies:** CC-023, CC-022
 
 **Status:** PARTIAL — deterministic capability-aware selection, dependency-filtered runnable-task
-inspection, an atomic explicit command-task dispatch path, and a bounded operator scheduler tick
-are implemented; an autonomous background scheduler loop and multi-step workflow dispatch remain.
+inspection, an atomic explicit command-task dispatch path, a bounded operator scheduler tick, and
+an opt-in non-overlapping background scheduler loop are implemented; multi-step workflow dispatch
+remains.
 
 Select tasks based on dependencies, worker availability, required capabilities, and priority.
 
@@ -636,8 +637,8 @@ Select tasks based on dependencies, worker availability, required capabilities, 
 **Dependencies:** CC-070
 
 **Status:** PARTIAL — scheduler selection reserves each worker once per decision and the database
-dispatch path enforces one active command-task per worker; the operator tick exercises this path,
-while an autonomous loop and multi-step workflow ownership remain.
+dispatch path enforces one active command-task per worker; the operator tick and opt-in background
+loop exercise this path, while multi-step workflow ownership remains.
 
 **Acceptance criteria**
 

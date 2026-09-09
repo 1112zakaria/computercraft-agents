@@ -24,6 +24,23 @@ async function main(): Promise<void> {
   );
   const server = createControlPlaneServer({ service, maxBodyBytes: config.maxHttpBodyBytes });
 
+  let schedulerInFlight = false;
+  const schedulerTimer = config.schedulerEnabled
+    ? setInterval(() => {
+        if (schedulerInFlight) return;
+        schedulerInFlight = true;
+        void service
+          .dispatchRunnableTasks()
+          .catch((error: unknown) => {
+            const message = error instanceof Error ? error.message : "unknown scheduler failure";
+            console.error(`Scheduler tick failed: ${message}`);
+          })
+          .finally(() => {
+            schedulerInFlight = false;
+          });
+      }, config.schedulerIntervalSeconds * 1000)
+    : undefined;
+
   const staleWorkerTimer = setInterval(() => {
     void repository.markStale().catch((error: unknown) => {
       const message = error instanceof Error ? error.message : "unknown stale-worker failure";
@@ -33,6 +50,7 @@ async function main(): Promise<void> {
 
   const shutdown = async (signal: string): Promise<void> => {
     clearInterval(staleWorkerTimer);
+    if (schedulerTimer) clearInterval(schedulerTimer);
     await new Promise<void>((resolve, reject) => {
       server.close((error) => (error ? reject(error) : resolve()));
     });

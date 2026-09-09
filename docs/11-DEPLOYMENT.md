@@ -256,6 +256,11 @@ per worker. Worker completion/failure/cancellation events update the linked task
 Natural-language `resource.gather` goals remain multi-step workflow records and are not silently
 dispatched as a single command.
 
+The control plane also supports an opt-in bounded background scheduler loop. Set
+`SCHEDULER_ENABLED=true` and choose `SCHEDULER_INTERVAL_SECONDS` (10 seconds by default) after
+reviewing the task set. Each interval performs at most one non-overlapping scheduler tick; the
+loop is disabled by default so deployment does not silently begin dispatching queued work.
+
 ## 10. Releases
 
 GitHub Actions SHOULD eventually build/test TypeScript and package:

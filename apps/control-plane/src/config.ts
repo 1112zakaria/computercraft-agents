@@ -9,6 +9,8 @@ export interface ControlPlaneConfig {
   readonly workerTimeoutSeconds: number;
   readonly maxHttpBodyBytes: number;
   readonly staleCheckIntervalSeconds: number;
+  readonly schedulerEnabled: boolean;
+  readonly schedulerIntervalSeconds: number;
 }
 
 function required(name: string): string {
@@ -31,6 +33,14 @@ function positiveInteger(name: string, fallback: number): number {
   return value;
 }
 
+function booleanValue(name: string, fallback: boolean): boolean {
+  const raw = process.env[name];
+  if (raw === undefined || raw.trim() === "") return fallback;
+  if (raw.trim().toLowerCase() === "true") return true;
+  if (raw.trim().toLowerCase() === "false") return false;
+  throw new Error(`${name} must be true or false`);
+}
+
 export function loadConfig(): ControlPlaneConfig {
   return {
     nodeEnv: process.env.NODE_ENV ?? "development",
@@ -43,5 +53,7 @@ export function loadConfig(): ControlPlaneConfig {
     workerTimeoutSeconds: positiveInteger("WORKER_TIMEOUT_SECONDS", 45),
     maxHttpBodyBytes: positiveInteger("MAX_HTTP_BODY_BYTES", 1_048_576),
     staleCheckIntervalSeconds: positiveInteger("STALE_CHECK_INTERVAL_SECONDS", 10),
+    schedulerEnabled: booleanValue("SCHEDULER_ENABLED", false),
+    schedulerIntervalSeconds: positiveInteger("SCHEDULER_INTERVAL_SECONDS", 10),
   };
 }
