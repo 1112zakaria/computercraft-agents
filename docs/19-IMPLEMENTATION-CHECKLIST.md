@@ -27,7 +27,7 @@ Direct HTTP canary status (the modem-less primary path):
 - [x] Position/orientation persistence.
 - [x] Position confidence states.
 - [ ] Inspect/move/dig/place normalized results.
-- [ ] Inventory snapshot.
+- [x] Inventory snapshot, including persisted results from bounded `inventory.inspect` commands.
 - [ ] Fuel handling.
 - [x] Cancellation checks.
 - [x] Primitive/block budgets.
