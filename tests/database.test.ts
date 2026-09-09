@@ -119,6 +119,8 @@ test("stale recovery keeps command delivery behind an explicit resume boundary",
   assert.match(repositories, /worker became stale; explicit resume required/);
   assert.match(repositories, /status = 'CANCELLED'/);
   assert.match(repositories, /worker became stale; stop before explicit resume/);
+  assert.match(repositories, /worker\.recovery\.stale/);
+  assert.match(repositories, /retention_class/);
 });
 
 test("operator pause and cancel preserve a transport-aware stop boundary", () => {

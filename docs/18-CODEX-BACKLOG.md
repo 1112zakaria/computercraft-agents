@@ -1130,8 +1130,8 @@ Verify high-retention audit, feature gate, bounded canary action.
 **Dependencies:** CC-023, CC-012
 
 **Status:** PARTIAL — stale-worker recovery now pauses assigned tasks, cancels persisted command
-delivery, and queues an independent stop control in one transaction. Boot-aware reconciliation,
-command outcome inspection, and explicit recovery audit records remain.
+delivery, queues an independent stop control, and writes a high-retention recovery audit record in
+one transaction. Boot-aware reconciliation and command outcome inspection remain.
 
 Persist jobs, rediscover gateway/workers, refresh observations, resume/replan.
 

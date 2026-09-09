@@ -1426,6 +1426,23 @@ export class GatewayRuntimeRepository {
       for (const worker of staleWorkers.rows) {
         await client.query(
           `
+            INSERT INTO audit_events (
+              category, worker_id, action_json, result_json, retention_class
+            )
+            VALUES (
+              'worker.recovery.stale',
+              (SELECT id FROM workers WHERE worker_key = $1),
+              $2, $3, 'HIGH'
+            )
+          `,
+          [
+            worker.worker_key,
+            asJson({ action: "reconcile-stale-worker", workerId: worker.worker_key }),
+            asJson({ outcome: "paused-cancelled-stopped", explicitResumeRequired: true }),
+          ],
+        );
+        await client.query(
+          `
             UPDATE tasks
             SET status = 'PAUSED', assigned_worker_id = NULL,
                 last_error_json = $2

@@ -26,6 +26,7 @@ Test:
 - protocol schema validation;
 - event deduplication;
 - stale-worker recovery pauses and cancels work before explicit resume;
+- stale-worker reconciliation writes a high-retention recovery audit record;
 - operator pause/cancel stops active delivery atomically and resume returns work to `READY`;
 - agent and project inspection API/CLI responses;
 - environment-backed feature-gate inspection and disabled-skill rejection;
