@@ -68,6 +68,12 @@ After a manual relocation, an operator may record a verified worker coordinate w
 and an omitted facing is intentional: the runtime cannot universally determine compass direction.
 Treat the supplied coordinate as an assertion that must be checked in-game before use.
 
+The control plane preserves that confirmation across ordinary telemetry heartbeats only when
+the heartbeat reports the exact anchored coordinate. If the reported coordinate changes, the
+position becomes unconfirmed again and the operator must re-anchor before planning another
+consequential route. This prevents a local turtle restart, manual relocation, or stale local
+state from silently authorizing movement from the wrong position.
+
 ## 5. Budgets
 
 Every physical command SHOULD support limits such as:

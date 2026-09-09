@@ -194,3 +194,4 @@ export function createDatabasePool(connectionString: string): Pool {
 }
 
 export * from "./repositories";
+export * from "./position-confidence";

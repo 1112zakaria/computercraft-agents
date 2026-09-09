@@ -21,7 +21,7 @@ import type {
 import { CommandSchema, SkillNameSchema } from "@computercraft-agents/protocol";
 import { findKnownPath, SparseWorldModel, type Coordinate } from "@computercraft-agents/navigation";
 import type { Pool, PoolClient, QueryResultRow } from "pg";
-import { storedPositionConfidence } from "./position-confidence";
+import { effectivePositionConfidence, storedPositionConfidence } from "./position-confidence";
 
 export interface GatewayRuntimeConfig {
   readonly gatewayTimeoutSeconds: number;
@@ -2472,7 +2472,9 @@ export class GatewayRuntimeRepository {
                observation.facing, observation.position_confidence AS "positionConfidence",
                observation.fuel_level AS "fuelLevel",
                observation.current_command_id AS "currentCommandId",
-               observation.status AS "observedStatus"
+               observation.status AS "observedStatus",
+               anchor."anchorDimension", anchor."anchorX", anchor."anchorY", anchor."anchorZ",
+               anchor."anchorPositionConfidence"
         FROM workers w
         LEFT JOIN gateways g ON g.id = w.gateway_id
         LEFT JOIN LATERAL (
@@ -2491,6 +2493,15 @@ export class GatewayRuntimeRepository {
           ORDER BY observed_at DESC, id DESC
           LIMIT 1
         ) observation ON TRUE
+        LEFT JOIN LATERAL (
+          SELECT dimension AS "anchorDimension", x AS "anchorX", y AS "anchorY",
+                 z AS "anchorZ", position_confidence AS "anchorPositionConfidence"
+          FROM worker_observations
+          WHERE worker_id = w.id
+            AND position_confidence = 'CONFIRMED_ANCHOR'
+          ORDER BY observed_at DESC, id DESC
+          LIMIT 1
+        ) anchor ON TRUE
         WHERE w.worker_key = $1
       `,
       [workerId],
@@ -2505,6 +2516,11 @@ export class GatewayRuntimeRepository {
           positionConfidence?: string | null;
           fuelLevel?: number | null;
           observedAt?: Date | null;
+          anchorDimension?: number | null;
+          anchorX?: number | null;
+          anchorY?: number | null;
+          anchorZ?: number | null;
+          anchorPositionConfidence?: string | null;
           currentTaskId?: string | null;
           currentCommandId?: string | null;
           observedStatus?: string | null;
@@ -2527,8 +2543,23 @@ export class GatewayRuntimeRepository {
       currentTaskId,
       currentCommandId,
       observedStatus,
+      anchorDimension,
+      anchorX,
+      anchorY,
+      anchorZ,
+      anchorPositionConfidence,
       ...worker
     } = row;
+    const effectiveConfidence = effectivePositionConfidence(
+      { dimension, x, y, z, confidence: positionConfidence },
+      {
+        dimension: anchorDimension,
+        x: anchorX,
+        y: anchorY,
+        z: anchorZ,
+        confidence: anchorPositionConfidence,
+      },
+    );
     return {
       ...worker,
       currentTaskId: currentTaskId ?? null,
@@ -2538,7 +2569,7 @@ export class GatewayRuntimeRepository {
             status: observedStatus,
             currentCommandId,
             position: hasPosition
-              ? { dimension, x, y, z, facing, confidence: positionConfidence }
+              ? { dimension, x, y, z, facing, confidence: effectiveConfidence }
               : null,
             fuel: fuelLevel === null || fuelLevel === undefined ? null : { level: fuelLevel },
           }

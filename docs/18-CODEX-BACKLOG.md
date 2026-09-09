@@ -975,8 +975,9 @@ The runtime must start automatically after installation, reboot, and successful 
 
 **Status:** PARTIAL — the protected read-only `goal-preflight` API and CLI now report the
 control-plane prerequisites (worker online/idle state, advertised capabilities, confirmed anchor,
-named destination, and known walkable route) without persisting work. Live execution and verified
-delivery remain outstanding.
+named destination, and known walkable route) without persisting work. Operator anchors survive
+ordinary same-coordinate telemetry heartbeats but are invalidated by a changed reported
+coordinate. Live execution and verified delivery remain outstanding.
 
 Pass live acceptance:
 

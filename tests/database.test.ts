@@ -6,6 +6,7 @@ import test from "node:test";
 import {
   createDatabasePool,
   blockedMovementForReplan,
+  effectivePositionConfidence,
   inventoryFullRecoveryPlan,
   isInventoryFullFailure,
   migrationChecksum,
@@ -170,6 +171,38 @@ test("position persistence seeds only the observed world cell as walkable", () =
   );
   assert.match(repositorySql, /replanGatherNavigation/);
   assert.match(repositorySql, /navigationReplanCount/);
+  assert.match(repositorySql, /position_confidence = 'CONFIRMED_ANCHOR'/);
+});
+
+test("position confidence preserves an anchor only at the same coordinate", () => {
+  const anchor = {
+    dimension: 0,
+    x: 10,
+    y: 64,
+    z: -2,
+    confidence: "CONFIRMED_ANCHOR",
+  };
+  assert.equal(
+    effectivePositionConfidence(
+      { dimension: 0, x: 10, y: 64, z: -2, confidence: "UNKNOWN" },
+      anchor,
+    ),
+    "CONFIRMED_ANCHOR",
+  );
+  assert.equal(
+    effectivePositionConfidence(
+      { dimension: 0, x: 11, y: 64, z: -2, confidence: "UNKNOWN" },
+      anchor,
+    ),
+    "UNKNOWN",
+  );
+  assert.equal(
+    effectivePositionConfidence(
+      { dimension: 0, x: 10, y: 64, z: -2, confidence: "DEAD_RECKONED" },
+      undefined,
+    ),
+    "DEAD_RECKONED",
+  );
 });
 
 test("blocked movement failures expose a bounded replan input", () => {
