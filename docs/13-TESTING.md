@@ -29,6 +29,7 @@ Test:
 - stale-worker reconciliation writes a high-retention recovery audit record;
 - structured request logs carry correlation IDs and redact secret-like fields;
 - retention cleanup deletes only expired STANDARD/HIGH audit events and preserves IMMUTABLE history;
+- gateway restart recovery cancels uncertain delivery, pauses assigned work, and queues stops;
 - operator pause/cancel stops active delivery atomically and resume returns work to `READY`;
 - agent and project inspection API/CLI responses;
 - environment-backed feature-gate inspection and disabled-skill rejection;

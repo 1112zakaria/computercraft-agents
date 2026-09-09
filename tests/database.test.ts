@@ -147,6 +147,18 @@ test("audit retention cleanup preserves immutable history", () => {
   assert.doesNotMatch(repositories, /retention_class = 'IMMUTABLE'.*DELETE/s);
 });
 
+test("gateway restart recovery cancels uncertain work behind an explicit resume boundary", () => {
+  const repositories = readFileSync(
+    join(__dirname, "../packages/database/src/repositories.ts"),
+    "utf8",
+  );
+  assert.match(repositories, /reconcileGatewayRestart/);
+  assert.match(repositories, /gateway restarted; explicit resume required/);
+  assert.match(repositories, /gateway restarted; stop before explicit resume/);
+  assert.match(repositories, /gateway\.recovery\.restart/);
+  assert.match(repositories, /status IN \('QUEUED', 'DELIVERED', 'RUNNING'\)/);
+});
+
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 if (testDatabaseUrl) {
   test("database migrations apply and are idempotent in the configured test database", async () => {

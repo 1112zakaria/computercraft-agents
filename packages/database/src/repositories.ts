@@ -568,12 +568,20 @@ export class GatewayRuntimeRepository {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
+      const previousGateway = await client.query<GatewayRow>(
+        `SELECT id, gateway_key, boot_id FROM gateways WHERE gateway_key = $1 FOR UPDATE`,
+        [payload.gatewayId],
+      );
       const gateway = await this.upsertGateway(client, payload.gatewayId, payload.bootId, {
         minecraftServerId: payload.minecraftServerId,
         runtimeVersion: payload.runtimeVersion ?? null,
         capabilities: payload.capabilities ?? [],
         status: "ONLINE",
       });
+
+      if (previousGateway.rows[0] && previousGateway.rows[0].boot_id !== payload.bootId) {
+        await this.reconcileGatewayRestart(client, gateway.id, payload.gatewayId, payload.bootId);
+      }
 
       await client.query("UPDATE workers SET online = FALSE WHERE gateway_id = $1", [gateway.id]);
       for (const worker of payload.workers) {
@@ -1691,6 +1699,76 @@ export class GatewayRuntimeRepository {
       throw new RepositoryError("INTERNAL_ERROR", "gateway upsert returned no row", 500);
     }
     return row;
+  }
+
+  private async reconcileGatewayRestart(
+    client: PoolClient,
+    gatewayId: string,
+    gatewayKey: string,
+    bootId: string,
+  ): Promise<void> {
+    const workers = await client.query<{ worker_key: string }>(
+      `SELECT worker_key FROM workers WHERE gateway_id = $1 ORDER BY worker_key`,
+      [gatewayId],
+    );
+    const workerKeys = workers.rows.map((row) => row.worker_key);
+    if (workerKeys.length > 0) {
+      await client.query(
+        `
+          UPDATE tasks
+          SET status = 'PAUSED', assigned_worker_id = NULL,
+              last_error_json = $2
+          WHERE assigned_worker_id IN (
+            SELECT id FROM workers WHERE gateway_id = $1
+          )
+            AND status = 'RUNNING'
+        `,
+        [gatewayId, asJson({ reason: "gateway restarted; explicit resume required" })],
+      );
+      await client.query(
+        `
+          UPDATE gateway_commands
+          SET status = 'CANCELLED', completed_at = NOW()
+          WHERE worker_key = ANY($1::text[])
+            AND status IN ('QUEUED', 'DELIVERED', 'RUNNING')
+        `,
+        [workerKeys],
+      );
+      for (const workerKey of workerKeys) {
+        const control = {
+          protocolVersion: 1,
+          controlId: `reconcile-stop-${gatewayKey}-${workerKey}`.slice(0, 128),
+          issuedAt: new Date().toISOString(),
+          type: "worker.stop",
+          workerId: workerKey,
+          reason: "gateway restarted; stop before explicit resume",
+        };
+        await client.query(
+          `
+            INSERT INTO gateway_stop_controls (control_id, worker_key, payload_json, transport_type)
+            VALUES ($1, $2, $3, 'gateway-rednet')
+            ON CONFLICT (control_id) DO NOTHING
+          `,
+          [control.controlId, workerKey, asJson(control)],
+        );
+      }
+    }
+    await client.query(
+      `
+        INSERT INTO audit_events (
+          category, action_json, result_json, retention_class
+        )
+        VALUES ('gateway.recovery.restart', $1, $2, 'HIGH')
+      `,
+      [
+        asJson({ action: "reconcile-gateway-restart", gatewayId: gatewayKey, bootId }),
+        asJson({
+          outcome: "paused-cancelled-stopped",
+          workerCount: workerKeys.length,
+          explicitResumeRequired: workerKeys.length > 0,
+        }),
+      ],
+    );
   }
 
   private async findGateway(

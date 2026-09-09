@@ -1144,6 +1144,9 @@ Persist jobs, rediscover gateway/workers, refresh observations, resume/replan.
 **Priority:** P0  
 **Dependencies:** CC-034, CC-047
 
+**Status:** DONE — a changed gateway boot ID cancels uncertain command delivery, pauses assigned
+tasks behind explicit resume, queues worker stops, and records a high-retention recovery event.
+
 Use boot/session IDs to avoid assuming prior in-flight command state.
 
 ### CC-162 — Turtle restart reconciliation

@@ -108,6 +108,10 @@ Gateway:
 - report current turtle state;
 - VPS does not assume previous in-flight command completed.
 
+Registration with a changed boot ID is a recovery boundary: uncertain command deliveries are
+cancelled, assigned tasks are paused, and transport-aware worker stop controls are queued. An
+operator must inspect the workers and explicitly resume safe tasks.
+
 ### Turtle restarts
 
 - re-register;
