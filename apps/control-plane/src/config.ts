@@ -17,6 +17,14 @@ export interface ControlPlaneConfig {
   readonly auditHighRetentionDays: number;
   readonly retentionCleanupIntervalSeconds: number;
   readonly enabledSkills: readonly SkillName[];
+  readonly plannerEnabled: boolean;
+  readonly plannerIntervalSeconds: number;
+  readonly plannerBatchSize: number;
+  readonly plannerTimeoutMs: number;
+  readonly plannerMaxConcurrent: number;
+  readonly plannerClaimLeaseSeconds: number;
+  readonly plannerReasoningTier: "fast" | "standard" | "strong";
+  readonly codexCommand: string;
 }
 
 function required(name: string): string {
@@ -45,6 +53,14 @@ function booleanValue(name: string, fallback: boolean): boolean {
   if (raw.trim().toLowerCase() === "true") return true;
   if (raw.trim().toLowerCase() === "false") return false;
   throw new Error(`${name} must be true or false`);
+}
+
+function reasoningTier(): "fast" | "standard" | "strong" {
+  const value = process.env.PLANNER_REASONING_TIER?.trim() || "fast";
+  if (value !== "fast" && value !== "standard" && value !== "strong") {
+    throw new Error("PLANNER_REASONING_TIER must be fast, standard, or strong");
+  }
+  return value;
 }
 
 function enabledSkills(): readonly SkillName[] {
@@ -77,5 +93,13 @@ export function loadConfig(): ControlPlaneConfig {
     auditHighRetentionDays: positiveInteger("AUDIT_HIGH_RETENTION_DAYS", 365),
     retentionCleanupIntervalSeconds: positiveInteger("RETENTION_CLEANUP_INTERVAL_SECONDS", 86_400),
     enabledSkills: enabledSkills(),
+    plannerEnabled: booleanValue("PLANNER_ENABLED", false),
+    plannerIntervalSeconds: positiveInteger("PLANNER_INTERVAL_SECONDS", 30),
+    plannerBatchSize: positiveInteger("PLANNER_BATCH_SIZE", 1),
+    plannerTimeoutMs: positiveInteger("PLANNER_TIMEOUT_MS", 30_000),
+    plannerMaxConcurrent: positiveInteger("PLANNER_MAX_CONCURRENT", 1),
+    plannerClaimLeaseSeconds: positiveInteger("PLANNER_CLAIM_LEASE_SECONDS", 300),
+    plannerReasoningTier: reasoningTier(),
+    codexCommand: process.env.CODEX_COMMAND?.trim() || "codex",
   };
 }

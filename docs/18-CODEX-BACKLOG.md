@@ -782,13 +782,12 @@ Assemble goal, current job/task, relevant worker observation, skills, world know
 
 **Status:** PARTIAL — the reasoning package now validates the supported trigger causes, assembles
 bounded context, invokes the configured provider, and suppresses duplicate trigger IDs. The
-control plane now persists idempotent `goal.created`, task-correlated command completion/failure,
-and `worker.blocked` triggers and exposes bounded operator inspection; consuming triggers,
-decision application and outage transitions remain. The repository also provides a transactional
-claim/complete boundary with stale-claim recovery for a future planner worker without enabling
-model execution yet. A tested runner now releases provider failures for retry and requires an
-explicit decision sink before completing a trigger; production loop wiring and decision
-application remain.
+control plane persists idempotent `goal.created`, task-correlated command completion/failure, and
+`worker.blocked` triggers, exposes bounded operator inspection, and has an opt-in plan-only loop
+that claims triggers, records validated decisions as HIGH-retention audit events, and never mutates
+tasks or dispatches commands. The repository provides a transactional claim/complete boundary
+with stale-claim recovery, and the runner releases provider failures for retry. Decision
+application, persistent outage state/recovery, and broader planner policy remain.
 
 Trigger on new goal, meaningful completion/failure, unexpected state, delegation need, replan.
 

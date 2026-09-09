@@ -9,6 +9,7 @@ import { loadConfig } from "./config";
 import { createRepositoryService } from "./gateway-service";
 import { createControlPlaneServer } from "./http";
 import { createLogger } from "./logger";
+import { createPlannerRunner } from "./planner";
 
 async function main(): Promise<void> {
   const config = loadConfig();
@@ -18,6 +19,7 @@ async function main(): Promise<void> {
     host: config.host,
     port: config.port,
     schedulerEnabled: config.schedulerEnabled,
+    plannerEnabled: config.plannerEnabled,
   });
   const pool = createDatabasePool(config.databaseUrl);
   await runMigrations(pool);
@@ -39,6 +41,10 @@ async function main(): Promise<void> {
     config.adminSecret,
     config.enabledSkills,
   );
+
+  const planner = config.plannerEnabled
+    ? createPlannerRunner(repository, auditEvents, config, logger)
+    : undefined;
   const server = createControlPlaneServer({
     service,
     maxBodyBytes: config.maxHttpBodyBytes,
@@ -68,6 +74,34 @@ async function main(): Promise<void> {
       logger.error("worker.recovery.check.failed", { error: message, outcome: "error" });
     });
   }, config.staleCheckIntervalSeconds * 1000);
+
+  let plannerInFlight = false;
+  const plannerTimer = planner
+    ? setInterval(() => {
+        if (plannerInFlight) return;
+        plannerInFlight = true;
+        void planner
+          .runOnce()
+          .then((summary) => {
+            if (summary.claimed > 0) {
+              logger.info("planner.tick.completed", {
+                claimed: summary.claimed,
+                succeeded: summary.succeeded,
+                failed: summary.failed,
+                released: summary.released,
+                outcome: "success",
+              });
+            }
+          })
+          .catch((error: unknown) => {
+            const message = error instanceof Error ? error.message : "unknown planner failure";
+            logger.error("planner.tick.failed", { error: message, outcome: "error" });
+          })
+          .finally(() => {
+            plannerInFlight = false;
+          });
+      }, config.plannerIntervalSeconds * 1000)
+    : undefined;
 
   let cleanupInFlight = false;
   const cleanupAuditEvents = (): void => {
@@ -106,6 +140,7 @@ async function main(): Promise<void> {
     clearInterval(staleWorkerTimer);
     clearInterval(retentionCleanupTimer);
     if (schedulerTimer) clearInterval(schedulerTimer);
+    if (plannerTimer) clearInterval(plannerTimer);
     await new Promise<void>((resolve, reject) => {
       server.close((error) => (error ? reject(error) : resolve()));
     });

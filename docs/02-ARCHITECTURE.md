@@ -196,7 +196,10 @@ The supported v1 decision kinds are `plan`, `create-task`, `continue`, `delegate
 world mutations or bypass the control plane. The CLI provider invokes `codex exec` in an
 ephemeral read-only sandbox, sends only a structured planning prompt, passes a sanitized child
 environment, and validates the returned JSON again locally. Its output is still inert until a
-planner service persists and dispatches the resulting semantic tasks.
+planner service persists and dispatches the resulting semantic tasks. The control plane currently
+offers an opt-in plan-only runner that claims durable triggers, invokes the read-only provider,
+and records decisions for review without applying them to tasks or commands. It is disabled by
+default; applying a decision remains an explicit safety-gated follow-up.
 Provider calls pass through a concurrency limiter before production planner integration so queued
 requests can be cancelled and the control plane does not create an unbounded number of Codex
 processes.

@@ -26,6 +26,10 @@ npm test
 workspace does not require a live Minecraft server, PostgreSQL instance, or Codex credentials for
 these baseline checks.
 
+The control plane's Codex planner loop is disabled by default. When explicitly enabled, it is
+currently plan-only: it claims durable triggers and records validated decisions for review without
+creating tasks or dispatching commands. See [deployment](docs/11-DEPLOYMENT.md) before enabling it.
+
 To package the ComputerCraft programs for friend-side installation, run
 `npm run release:lua`. The resulting `dist/release/computercraft-lua.zip` contains no populated
 configuration or secrets.

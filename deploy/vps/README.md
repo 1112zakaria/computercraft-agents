@@ -32,11 +32,23 @@ STALE_CHECK_INTERVAL_SECONDS=10
 SCHEDULER_ENABLED=false
 SCHEDULER_INTERVAL_SECONDS=10
 ENABLED_SKILLS=movement.step,navigate.path,observation.block,inventory.inspect,inventory.deposit,inventory.withdraw,mining.excavate,mining.gather,fuel.refuel
+PLANNER_ENABLED=false
+PLANNER_INTERVAL_SECONDS=30
+PLANNER_BATCH_SIZE=1
+PLANNER_TIMEOUT_MS=30000
+PLANNER_MAX_CONCURRENT=1
+PLANNER_CLAIM_LEASE_SECONDS=300
+PLANNER_REASONING_TIER=fast
+CODEX_COMMAND=codex
 ```
 
 `ENABLED_SKILLS` is an optional comma-separated feature gate. Omit it to preserve the default of
 enabling every currently defined skill; set it explicitly during a canary to disable a capability.
 Inspect the effective state with `npm run cli -- feature-gates` before dispatching work.
+
+The planner settings are disabled by default. Enabling them requires a locally authenticated
+Codex CLI and only records validated, plan-only decisions for review; it does not create tasks or
+dispatch Minecraft commands. Keep `PLANNER_ENABLED=false` until that review boundary is intended.
 
 ## Install/update
 

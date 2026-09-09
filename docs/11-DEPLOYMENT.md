@@ -289,6 +289,26 @@ The control plane also supports an opt-in bounded background scheduler loop. Set
 reviewing the task set. Each interval performs at most one non-overlapping scheduler tick; the
 loop is disabled by default so deployment does not silently begin dispatching queued work.
 
+The planner loop is separately opt-in and currently plan-only. Set `PLANNER_ENABLED=true` only
+after confirming the VPS has an authenticated `codex` executable and reviewing the cost, timeout,
+and retention implications:
+
+```text
+PLANNER_ENABLED=true
+PLANNER_INTERVAL_SECONDS=30
+PLANNER_BATCH_SIZE=1
+PLANNER_TIMEOUT_MS=30000
+PLANNER_MAX_CONCURRENT=1
+PLANNER_CLAIM_LEASE_SECONDS=300
+PLANNER_REASONING_TIER=fast
+CODEX_COMMAND=codex
+```
+
+The loop claims durable planner triggers, invokes Codex in its read-only ephemeral boundary, and
+records validated decisions as HIGH-retention audit events. It does not create tasks, dispatch
+commands, or apply model output. Keep it disabled for installations that are not ready to review
+planner decisions; decision application is a later safety-gated milestone.
+
 Every stale-worker check is also a recovery boundary. When a worker transitions from online to
 stale, the control plane pauses its assigned task, cancels queued or in-flight command delivery,
 and queues an independent worker stop control. The task is not automatically retried; after

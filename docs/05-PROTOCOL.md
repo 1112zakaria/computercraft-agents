@@ -168,14 +168,18 @@ boundary uses `FOR UPDATE SKIP LOCKED`, increments attempts, and accepts complet
 a timestamp and stale `PROCESSING` claims can be returned to `PENDING` after a bounded lease,
 preventing a crashed planner worker from losing the trigger permanently.
 The reasoning package provides a runner that releases provider failures for retry and calls an
-explicit decision sink only after a validated result is returned; the production control-plane
-loop and decision sink remain opt-in follow-up work.
+explicit decision sink only after a validated result is returned. The control plane now has an
+opt-in, plan-only loop: when enabled, it claims a bounded batch, invokes the configured read-only
+Codex boundary, and records the validated decision as a HIGH-retention audit event. It does not
+create tasks, dispatch commands, or apply model output. Provider failures release the durable
+trigger for retry; stale claims are also requeued after the configured lease. The loop is disabled
+by default and decision application remains a separate safety-gated work item.
 
 The reasoning package now exposes a provider-neutral planner-trigger service. It accepts only the
 bounded causes `goal.created`, `command.completed`, `command.failed`, `worker.blocked`,
 `delegation.required`, and `replan.required`, deduplicates trigger IDs, assembles the same bounded
-context, and returns a schema-validated planner decision. It does not mutate tasks or execute model
-output; control-plane persistence and event wiring remain a subsequent step.
+context, and returns a schema-validated planner decision. The plan-only sink persists the decision
+for operator review but does not mutate tasks or execute model output.
 
 After a successful `observation.block` command, the turtle emits a `block.observed` event. The
 control plane derives the inspected cell from the worker position/facing and persists it in the
