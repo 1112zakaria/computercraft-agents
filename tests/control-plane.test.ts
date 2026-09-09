@@ -1575,6 +1575,41 @@ test("direct worker API authenticates, polls, and ingests worker events", async 
       ["direct-event-1"],
     );
     assert.equal(store.directEvents.length, 1);
+
+    const legacyProtocolError = await fetch(`${server.baseUrl}/v1/worker/events`, {
+      method: "POST",
+      headers: workerHeaders,
+      body: JSON.stringify({
+        protocolVersion: 1,
+        workerId,
+        workerBootId,
+        batchId: "direct-batch-legacy-protocol-error",
+        events: [
+          {
+            protocolVersion: 1,
+            eventId: "direct-event-legacy-protocol-error",
+            workerId,
+            commandId: null,
+            sequence: 2,
+            type: "protocol.error",
+            occurredAt: "2026-09-08T12:00:02.000Z",
+            payload: {
+              error: {
+                code: "INVALID_PAYLOAD",
+                message: "legacy runtime payload",
+                retryable: false,
+              },
+            },
+          },
+        ],
+      }),
+    });
+    assert.equal(legacyProtocolError.status, 200);
+    assert.deepEqual(
+      (await responseJson<{ acceptedEventIds: string[] }>(legacyProtocolError)).acceptedEventIds,
+      ["direct-event-legacy-protocol-error"],
+    );
+    assert.equal(store.directEvents.length, 2);
   } finally {
     await server.close();
   }
