@@ -168,6 +168,9 @@ boundary uses `FOR UPDATE SKIP LOCKED`, increments attempts, and accepts complet
 `PROCESSING`, so a future worker can safely run more than one control-plane instance. Claims carry
 a timestamp and stale `PROCESSING` claims can be returned to `PENDING` after a bounded lease,
 preventing a crashed planner worker from losing the trigger permanently.
+The planner status endpoint returns the persisted outage state (`AVAILABLE`, `DEGRADED`, or
+`PAUSED`) together with failure count and retry timestamps, so operators can distinguish an idle
+planner from one deliberately waiting for provider recovery.
 The reasoning package provides a runner that releases provider failures for retry and calls an
 explicit decision sink only after a validated result is returned. The control plane now has an
 opt-in, plan-only loop: when enabled, it claims a bounded batch, invokes the configured read-only
