@@ -517,8 +517,10 @@ attempt rollback after interrupted activation.
 
 **Priority:** P0
 **Dependencies:** CC-010, CC-020, CC-050, CC-053
-**Status:** LIVE CANARY COMPLETE on `main`/`v0.4.1`; automatic startup-hook creation/repair is
-implemented and tested, while live post-reboot validation remains open as issue #7
+**Status:** LIVE CANARY COMPLETE on `main`/`v0.4.1`; registration, heartbeat, bounded movement,
+inventory inspection, event ingestion, and individual OTA activation/reboot have all been verified
+on the modem-less turtle. Automatic startup-hook creation/repair is implemented and tested, while
+live post-reboot validation remains open as issue #7.
 
 Add `direct-http` as a transport-aware alternative to `gateway-rednet`. Direct turtles register,
 heartbeat, poll commands/stop controls/updates, and submit durable event batches through the
@@ -528,10 +530,10 @@ gateway-backed workers and fleet rollouts remain unchanged.
 
 **Remaining live acceptance**
 
-- provision one direct worker;
-- install the direct runtime and `worker.conf` on a modem-less turtle;
-- verify registration, heartbeat, bounded movement, stop, and event ingestion;
-- queue an individual update and verify activation/rollback without overwriting local state.
+- validate automatic CraftOS startup after a reboot using the repaired extensionless `startup`
+  hook;
+- complete the first useful gather-and-deposit workflow once the turtle advertises
+  `mining.gather` and the operator has confirmed an anchor, chest side, and known route.
 
 **Future hardening**
 

@@ -109,7 +109,8 @@ npm run cli -- set-location "Test Chest" 0 10 64 -2 E
 ```
 
 See [architecture](docs/02-ARCHITECTURE.md), [protocol](docs/05-PROTOCOL.md), and
-[Minecraft-side deployment](deploy/minecraft/README.md) for endpoint and installation details.
+[first-use runbook](docs/23-FIRST-USE-RUNBOOK.md) and [Minecraft-side deployment](deploy/minecraft/README.md)
+for endpoint and installation details.
 The gateway route remains available for modem-equipped fleets.
 
 Run `goal-preflight` before creating the first useful gather goal. It is read-only and reports

@@ -89,11 +89,11 @@ Direct HTTP canary status (the modem-less primary path):
 
 ## G. First useful worker
 
-- [ ] Bounded excavation.
-- [ ] Gather resource.
-- [ ] Inventory full handling.
-- [ ] Deposit to known chest.
-- [ ] Delivery verification.
+- [x] Bounded excavation primitives.
+- [x] Target-aware gather primitive and capability advertisement (live capability migration pending).
+- [x] Inventory-full handling and bounded recovery paths.
+- [x] Deposit to a known chest with an allowlisted local side.
+- [x] Delivery evidence checks in the workflow state machine.
 - [ ] `@alice get 64 cobblestone and deposit it in Test Chest` passes.
 
 ## H. Multi-agent
