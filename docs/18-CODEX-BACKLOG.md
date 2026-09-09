@@ -603,8 +603,9 @@ cells remain.
 **Dependencies:** CC-020
 
 **Status:** PARTIAL — named locations can be created, listed, and case-insensitively resolved
-through the protected API and CLI (`set-location` records an operator-confirmed anchor); navigation
-resolution, approach/docking semantics, and route execution remain.
+through the protected API and CLI (`set-location` records an operator-confirmed anchor), and an
+optional approach/docking coordinate now drives route planning and destination-aware gather
+workflow targets; full route execution and postcondition verification remain.
 
 **Acceptance criteria**
 

@@ -21,7 +21,7 @@ test("database migration set is ordered and contains the core relational model",
   const migrations = readMigrationFiles(migrationDirectory);
   assert.deepEqual(
     migrations.map((migration) => migration.version),
-    ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010"],
+    ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011"],
   );
   const migrationsReadAgain = readMigrationFiles(migrationDirectory);
   assert.equal(migrationChecksum(migrations[0]!), migrationChecksum(migrationsReadAgain[0]!));
@@ -99,6 +99,11 @@ test("database migration set is ordered and contains the core relational model",
   );
   assert.match(plannerRuntimeSql, /CREATE TABLE planner_runtime_state/);
   assert.match(plannerRuntimeSql, /ON CONFLICT \(runtime_id\) DO NOTHING/);
+  const locationApproachSql = readFileSync(
+    join(migrationDirectory, "011_named_location_approach.sql"),
+    "utf8",
+  );
+  assert.match(locationApproachSql, /approach_json JSONB/);
   const repositorySql = readFileSync(
     join(__dirname, "../packages/database/src/repositories.ts"),
     "utf8",
@@ -127,6 +132,8 @@ test("position persistence seeds only the observed world cell as walkable", () =
     repositorySql,
     /public async upsertNamedLocation[\s\S]+source_worker_id\s*\)\s*VALUES \(\$1, \$2, \$3, \$4, NULL, NULL, TRUE, NOW\(\), NULL/s,
   );
+  assert.match(repositorySql, /const approach = coordinateFromUnknown\(input\.approach\)/);
+  assert.match(repositorySql, /approach\.dimension, approach\.x, approach\.y, approach\.z/);
 });
 
 test("urgent command cancellation pauses the logical task", () => {

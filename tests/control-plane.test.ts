@@ -332,6 +332,7 @@ class FakeGatewayStore implements GatewayServiceStore {
     readonly y: number;
     readonly z: number;
     readonly facing?: string | null;
+    readonly approach?: unknown;
     readonly source: string;
     readonly confidence: string;
     readonly metadata: unknown;
@@ -804,6 +805,48 @@ test("operator path API plans only through known walkable cells", async () => {
     const body = (await response.json()) as { directions: string[]; expandedNodes: number };
     assert.deepEqual(body.directions, ["E", "UP", "UP", "S", "S", "S"]);
     assert.ok(body.expandedNodes > 0);
+  } finally {
+    await server.close();
+  }
+});
+
+test("operator path API uses a named location approach coordinate when configured", async () => {
+  const store = new FakeGatewayStore();
+  store.worldCells.push(
+    ...[
+      [0, 0, 0],
+      [1, 0, 0],
+      [2, 0, 0],
+    ].map(([x, y, z]) => ({
+      dimension: 0,
+      x,
+      y,
+      z,
+      walkable: true,
+      observedAt: "2026-09-09T00:00:00.000Z",
+      sourceWorkerId: "path-worker",
+    })),
+  );
+  const originalResolve = store.resolveNamedLocation.bind(store);
+  store.resolveNamedLocation = async (name) => {
+    const location = await originalResolve(name);
+    return location
+      ? { ...location, approach: { dimension: 0, x: 2, y: 0, z: 0, facing: "N" } }
+      : location;
+  };
+  const server = await startServer(store);
+  try {
+    const response = await fetch(
+      `${server.baseUrl}/v1/workers/path-worker/path-to/${encodeURIComponent("Test Chest")}`,
+      { headers: adminHeaders() },
+    );
+    assert.equal(response.status, 200);
+    const body = (await response.json()) as {
+      target: { x: number; z: number };
+      directions: string[];
+    };
+    assert.deepEqual(body.target, { dimension: 0, x: 2, y: 0, z: 0 });
+    assert.deepEqual(body.directions, ["E", "E"]);
   } finally {
     await server.close();
   }

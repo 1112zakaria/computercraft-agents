@@ -40,6 +40,18 @@ export const PositionSchema = z
   })
   .strict();
 
+export const NamedLocationApproachSchema = z
+  .object({
+    dimension: z.number().int(),
+    x: z.number().int(),
+    y: z.number().int(),
+    z: z.number().int(),
+    facing: FacingSchema.nullable().optional(),
+  })
+  .strict();
+
+export type NamedLocationApproach = z.infer<typeof NamedLocationApproachSchema>;
+
 export const CapabilityMaturitySchema = z.enum([
   "UNIMPLEMENTED",
   "EXPERIMENTAL",
@@ -428,6 +440,7 @@ export const NamedLocationCreateRequestSchema = z
     y: z.number().int(),
     z: z.number().int(),
     facing: FacingSchema.nullable().optional(),
+    approach: NamedLocationApproachSchema.nullable().optional(),
     source: z.string().trim().min(1).max(128),
     confidence: StoredPositionConfidenceSchema,
     metadata: z.record(z.string(), z.unknown()).default({}),

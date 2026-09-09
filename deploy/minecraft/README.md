@@ -77,13 +77,15 @@ when absent. Neither path overwrites an existing hook or any configuration/state
 For a bounded target-aware mining canary, use the operator CLI only after the worker is online:
 
 ```bash
-npm run cli -- set-location "Test Chest" 0 10 64 -2 E
+npm run cli -- set-location "Test Chest" 0 10 64 -2 E --approach 0 9 64 -2 N
 npm run cli -- gather alice minecraft:cobblestone 8 12
 npm run cli -- deposit alice 8 --container-id test-chest
 ```
 
 The final argument is the maximum forward depth. This command gathers only up to the explicit
-bound; it does not yet navigate to or deposit into a named destination.
+bound. A named location's optional approach coordinate is used by `path-to` and the addressed
+gather workflow so the turtle stops at a safe interaction position rather than entering the
+container block.
 
 Use only the smallest read-only/registration canary first. Do not issue movement, mining, or
 placement commands until the worker appears online in `computercraft-agents workers`.

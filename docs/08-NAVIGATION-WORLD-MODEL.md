@@ -33,9 +33,10 @@ SPECIAL
 Metadata MAY contain block IDs, observation time, hardness/tool hints, or transport semantics.
 
 Online heartbeat positions, operator-confirmed anchors, and named-location endpoint writes also seed
-their exact coordinate as a walkable `world_cells` record. This gives the planner a trustworthy
-start/end anchor for a bounded route without claiming that any unobserved neighboring cell is safe.
-Block observations and later movement observations extend the known map incrementally.
+their exact coordinate as a walkable `world_cells` record. A configured named-location approach
+coordinate is seeded as well. This gives the planner trustworthy start/end anchors for a bounded
+route without claiming that any unobserved neighboring cell is safe. Block observations and later
+movement observations extend the known map incrementally.
 
 ## 3. Planner boundary
 
@@ -102,6 +103,9 @@ approach: {x: 111, y: 64, z: -30, facing: E}
 ```
 
 For turtles, an `approach`/dock coordinate is often more useful than the block coordinate itself.
+The protected location API accepts this as an optional typed `approach` object. Route planning and
+destination-aware workflows use it when present, while the block coordinate remains the physical
+landmark and named identity.
 
 ## 8. Worker collision/reservation
 

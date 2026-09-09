@@ -42,7 +42,7 @@ export function usage(): string {
     `${cliName} cancel-task <task-id> [reason]`,
     `${cliName} locations`,
     `${cliName} location <name>`,
-    `${cliName} set-location <name> <dimension> <x> <y> <z> [N|E|S|W]`,
+    `${cliName} set-location <name> <dimension> <x> <y> <z> [N|E|S|W] [--approach <dimension> <x> <y> <z> [N|E|S|W]]`,
     `${cliName} world-cells`,
     `${cliName} anchor <worker-id> <dimension> <x> <y> <z> [N|E|S|W]`,
     `${cliName} move <worker-id> <N|E|S|W|UP|DOWN> [--dry-run]`,
@@ -370,17 +370,33 @@ export async function runCli(args: readonly string[]): Promise<void> {
     return;
   }
   if (command === "set-location") {
-    const dimension = Number(positionalArgs[2]);
-    const x = Number(positionalArgs[3]);
-    const y = Number(positionalArgs[4]);
-    const z = Number(positionalArgs[5]);
-    const facing = positionalArgs[6];
+    const approachIndex = positionalArgs.indexOf("--approach");
+    const locationArgs = positionalArgs.slice(1, approachIndex === -1 ? undefined : approachIndex);
+    const approachArgs = approachIndex === -1 ? [] : positionalArgs.slice(approachIndex + 1);
+    const dimension = Number(locationArgs[1]);
+    const x = Number(locationArgs[2]);
+    const y = Number(locationArgs[3]);
+    const z = Number(locationArgs[4]);
+    const facing = locationArgs[5];
+    const approachDimension = Number(approachArgs[0]);
+    const approachX = Number(approachArgs[1]);
+    const approachY = Number(approachArgs[2]);
+    const approachZ = Number(approachArgs[3]);
+    const approachFacing = approachArgs[4];
+    const hasApproach = approachIndex !== -1;
     if (
       !first ||
       ![dimension, x, y, z].every((value) => Number.isInteger(value)) ||
-      (facing !== undefined && !["N", "E", "S", "W"].includes(facing))
+      (facing !== undefined && !["N", "E", "S", "W"].includes(facing)) ||
+      (hasApproach &&
+        (![approachDimension, approachX, approachY, approachZ].every((value) =>
+          Number.isInteger(value),
+        ) ||
+          (approachFacing !== undefined && !["N", "E", "S", "W"].includes(approachFacing))))
     ) {
-      throw new Error(`usage: ${cliName} set-location <name> <dimension> <x> <y> <z> [N|E|S|W]`);
+      throw new Error(
+        `usage: ${cliName} set-location <name> <dimension> <x> <y> <z> [N|E|S|W] [--approach <dimension> <x> <y> <z> [N|E|S|W]]`,
+      );
     }
     const locationRequest = NamedLocationCreateRequestSchema.parse({
       protocolVersion: 1,
@@ -390,6 +406,17 @@ export async function runCli(args: readonly string[]): Promise<void> {
       y,
       z,
       ...(facing === undefined ? {} : { facing }),
+      ...(hasApproach
+        ? {
+            approach: {
+              dimension: approachDimension,
+              x: approachX,
+              y: approachY,
+              z: approachZ,
+              ...(approachFacing === undefined ? {} : { facing: approachFacing }),
+            },
+          }
+        : {}),
       source: "operator",
       confidence: "CONFIRMED_ANCHOR",
       metadata: {},

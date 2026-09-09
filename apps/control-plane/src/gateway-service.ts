@@ -122,6 +122,7 @@ export interface GatewayServiceStore {
     readonly y: number;
     readonly z: number;
     readonly facing?: string | null;
+    readonly approach?: unknown;
     readonly source: string;
     readonly confidence: string;
     readonly metadata: unknown;
@@ -718,7 +719,7 @@ export class GatewayService {
       throw new HttpError(409, "POSITION_UNKNOWN", "worker has no known position");
     }
     const start = coordinateFromUnknown(observation.position);
-    const target = coordinateFromUnknown(location);
+    const target = coordinateFromUnknown(location.approach) ?? coordinateFromUnknown(location);
     if (!start || !target) {
       throw new HttpError(409, "POSITION_UNKNOWN", "worker or location position is incomplete");
     }

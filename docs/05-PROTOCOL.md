@@ -117,11 +117,14 @@ GET  /v1/locations/:name
 GET  /v1/workers/:workerId/path-to/:locationName
 ```
 
-Location writes are idempotent by name and store dimension, coordinates, optional facing, source,
-confidence, and metadata. Location resolution is case-insensitive. The route-plan endpoint returns
-a bounded deterministic path only through known walkable cells from the worker's latest observed
-position; it never moves a worker and fails safely when position, dimension, or path knowledge is
-insufficient. Ready tasks can be inspected and claimed with:
+Location writes are idempotent by name and store dimension, coordinates, an optional facing, an
+optional `approach`/dock coordinate, source, confidence, and metadata. The approach coordinate is
+the turtle's safe standing position for interacting with the named block; when present,
+`path-to` and destination-aware workflows target it instead of the block coordinate. Location
+resolution is case-insensitive. The route-plan endpoint returns a bounded deterministic path only
+through known walkable cells from the worker's latest observed position; it never moves a worker
+and fails safely when position, dimension, or path knowledge is insufficient. Ready tasks can be
+inspected and claimed with:
 
 ```text
 GET  /v1/tasks

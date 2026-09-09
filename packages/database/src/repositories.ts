@@ -112,6 +112,7 @@ export interface NamedLocationInput {
   readonly y: number;
   readonly z: number;
   readonly facing?: string | null;
+  readonly approach?: unknown;
   readonly source: string;
   readonly confidence: string;
   readonly metadata: unknown;
@@ -793,20 +794,22 @@ export class GatewayRuntimeRepository {
     const result = await this.pool.query(
       `
         INSERT INTO named_locations (
-          name, dimension, x, y, z, facing, source, confidence, observed_at, metadata_json
+          name, dimension, x, y, z, facing, approach_json, source, confidence, observed_at, metadata_json
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), $9)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), $10)
         ON CONFLICT (name) DO UPDATE SET
           dimension = EXCLUDED.dimension,
           x = EXCLUDED.x,
           y = EXCLUDED.y,
           z = EXCLUDED.z,
           facing = EXCLUDED.facing,
+          approach_json = EXCLUDED.approach_json,
           source = EXCLUDED.source,
           confidence = EXCLUDED.confidence,
           observed_at = EXCLUDED.observed_at,
           metadata_json = EXCLUDED.metadata_json
-        RETURNING id::text AS "locationId", name, dimension, x, y, z, facing, source, confidence,
+        RETURNING id::text AS "locationId", name, dimension, x, y, z, facing,
+                  approach_json AS approach, source, confidence,
                   observed_at AS "observedAt", metadata_json AS metadata
       `,
       [
@@ -816,6 +819,7 @@ export class GatewayRuntimeRepository {
         input.y,
         input.z,
         input.facing ?? null,
+        asJson(input.approach ?? null),
         input.source.trim(),
         input.confidence,
         asJson(input.metadata),
@@ -839,13 +843,37 @@ export class GatewayRuntimeRepository {
       `,
       [input.dimension, input.x, input.y, input.z],
     );
+    const approach = coordinateFromUnknown(input.approach);
+    if (
+      approach &&
+      (approach.dimension !== input.dimension ||
+        approach.x !== input.x ||
+        approach.y !== input.y ||
+        approach.z !== input.z)
+    ) {
+      await this.pool.query(
+        `
+          INSERT INTO world_cells (
+            dimension, x, y, z, block_name, block_metadata, walkable, observed_at, source_worker_id
+          )
+          VALUES ($1, $2, $3, $4, NULL, NULL, TRUE, NOW(), NULL)
+          ON CONFLICT (dimension, x, y, z) DO UPDATE SET
+            walkable = TRUE,
+            observed_at = NOW(),
+            source_worker_id = NULL
+          WHERE world_cells.observed_at <= NOW()
+        `,
+        [approach.dimension, approach.x, approach.y, approach.z],
+      );
+    }
     return location;
   }
 
   public async listNamedLocations(): Promise<readonly Record<string, unknown>[]> {
     const result = await this.pool.query(
       `
-        SELECT id::text AS "locationId", name, dimension, x, y, z, facing, source, confidence,
+        SELECT id::text AS "locationId", name, dimension, x, y, z, facing,
+               approach_json AS approach, source, confidence,
                observed_at AS "observedAt", metadata_json AS metadata
         FROM named_locations
         ORDER BY name
@@ -857,7 +885,8 @@ export class GatewayRuntimeRepository {
   public async resolveNamedLocation(name: string): Promise<Record<string, unknown> | undefined> {
     const result = await this.pool.query(
       `
-        SELECT id::text AS "locationId", name, dimension, x, y, z, facing, source, confidence,
+        SELECT id::text AS "locationId", name, dimension, x, y, z, facing,
+               approach_json AS approach, source, confidence,
                observed_at AS "observedAt", metadata_json AS metadata
         FROM named_locations
         WHERE LOWER(name) = LOWER($1)
@@ -2507,12 +2536,14 @@ export class GatewayRuntimeRepository {
         x: number;
         y: number;
         z: number;
+        approach: unknown;
       }>(
-        `SELECT name, dimension, x, y, z FROM named_locations WHERE LOWER(name) = LOWER($1) LIMIT 1`,
+        `SELECT name, dimension, x, y, z, approach_json AS approach
+         FROM named_locations WHERE LOWER(name) = LOWER($1) LIMIT 1`,
         [destination.trim()],
       );
       const location = locationResult.rows[0];
-      const target = coordinateFromUnknown(location);
+      const target = coordinateFromUnknown(location?.approach) ?? coordinateFromUnknown(location);
       if (!target || target.dimension !== position.dimension) {
         await block("gather destination is not a known location in the worker dimension");
         return;
