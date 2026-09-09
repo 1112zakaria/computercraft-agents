@@ -42,6 +42,7 @@ async function main(): Promise<void> {
     config.gatewayBearerSecret,
     config.adminSecret,
     config.enabledSkills,
+    config.schedulerEnabled,
   );
 
   const planner = config.plannerEnabled

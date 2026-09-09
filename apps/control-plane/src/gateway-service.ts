@@ -61,6 +61,7 @@ export interface GatewayServiceConfig {
   readonly bearerSecret: string;
   readonly adminSecret: string;
   readonly enabledSkills?: readonly SkillName[];
+  readonly schedulerEnabled?: boolean;
 }
 
 type GatewayRegistrationPayload = Omit<GatewayRegistration, "capabilities"> & {
@@ -481,6 +482,17 @@ export class GatewayService {
           status: onlineWorkers > 0 ? "PASS" : "PENDING",
           detail: onlineWorkers > 0 ? `${onlineWorkers} worker(s) online` : "no worker is online",
         },
+        scheduler: {
+          status: this.config.schedulerEnabled === true ? "PASS" : "MANUAL",
+          detail:
+            this.config.schedulerEnabled === true
+              ? "background scheduler is enabled"
+              : "background scheduler is disabled; use scheduler-tick or goal --start",
+        },
+      },
+      scheduler: {
+        enabled: this.config.schedulerEnabled === true,
+        mode: this.config.schedulerEnabled === true ? "BACKGROUND" : "MANUAL",
       },
       runtimeVersions: {
         gateway: gatewayRuntimeVersions,
@@ -1187,10 +1199,12 @@ export function createRepositoryService(
   bearerSecret: string,
   adminSecret: string,
   enabledSkills?: readonly SkillName[],
+  schedulerEnabled = false,
 ): GatewayService {
   return new GatewayService(repository, {
     bearerSecret,
     adminSecret,
     enabledSkills,
+    schedulerEnabled,
   });
 }

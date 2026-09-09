@@ -231,10 +231,12 @@ output directly.
 
 The protected `GET /v1/diagnostics` endpoint and `npm run cli -- diagnose` command provide one
 bounded summary for live validation. The response includes registered and online gateway/worker
-counts, transport-specific endpoint names, current gateway and worker runtime versions, and
-`PASS`/`PENDING` checks for registration and worker liveness. It does not claim to observe the
-Minecraft host's public source address: the source-IP allowlist remains enforced and verified at
-the TLS reverse proxy/firewall boundary.
+counts, transport-specific endpoint names, current gateway and worker runtime versions, scheduler
+mode (`BACKGROUND` or `MANUAL`), and `PASS`/`PENDING`/`MANUAL` checks for registration, worker
+liveness, and dispatch mode. A `MANUAL` scheduler means queued work will not advance until an
+operator runs `scheduler-tick` or uses `goal --start`. It does not claim to observe the Minecraft
+host's public source address: the source-IP allowlist remains enforced and verified at the TLS
+reverse proxy/firewall boundary.
 
 After a successful `observation.block` command, the turtle emits a `block.observed` event. The
 control plane derives the inspected cell from the worker position/facing and persists it in the

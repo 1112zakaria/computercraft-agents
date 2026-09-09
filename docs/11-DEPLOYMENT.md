@@ -382,9 +382,11 @@ npm run cli -- audit 50
 npm run cli -- diagnose
 ```
 
-`diagnose` reports gateway/worker registration and liveness, transports, and observed runtime
-versions in one bounded response. It complements the reverse-proxy/firewall source-IP check; the
-application cannot independently verify the Minecraft host's public egress address.
+`diagnose` reports gateway/worker registration and liveness, transports, observed runtime versions,
+and whether the background scheduler is enabled. When the scheduler mode is `MANUAL`, queued work
+will not advance until an operator runs `scheduler-tick` or uses `goal --start`. It complements the
+reverse-proxy/firewall source-IP check; the application cannot independently verify the Minecraft
+host's public egress address.
 
 Use `pause-task`, `resume-task`, and `cancel-task` for explicit lifecycle control. Pausing or
 cancelling a running task cancels its active command delivery, releases the worker claim, and

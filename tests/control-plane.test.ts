@@ -367,12 +367,14 @@ class FakeGatewayStore implements GatewayServiceStore {
 async function startServer(
   store: FakeGatewayStore,
   enabledSkills?: readonly SkillName[],
+  schedulerEnabled = false,
 ): Promise<{ baseUrl: string; close: () => Promise<void> }> {
   const server = createControlPlaneServer({
     service: new GatewayService(store, {
       bearerSecret: secret,
       adminSecret: "admin-secret",
       enabledSkills,
+      schedulerEnabled,
     }),
     maxBodyBytes: 100_000,
   });
@@ -1209,7 +1211,12 @@ test("operator diagnostics summarize registration, liveness, transports, and run
         registeredWorkers: number;
         onlineWorkers: number;
       };
-      checks: { gatewayRegistration: { status: string }; onlineWorker: { status: string } };
+      checks: {
+        gatewayRegistration: { status: string };
+        onlineWorker: { status: string };
+        scheduler: { status: string };
+      };
+      scheduler: { enabled: boolean; mode: string };
       runtimeVersions: { gateway: string[]; worker: string[] };
     };
     assert.equal(body.protocolVersion, 1);
@@ -1221,10 +1228,31 @@ test("operator diagnostics summarize registration, liveness, transports, and run
     });
     assert.equal(body.checks.gatewayRegistration.status, "PASS");
     assert.equal(body.checks.onlineWorker.status, "PASS");
+    assert.equal(body.checks.scheduler.status, "MANUAL");
+    assert.equal(body.scheduler.enabled, false);
+    assert.equal(body.scheduler.mode, "MANUAL");
     assert.deepEqual(body.runtimeVersions, {
       gateway: ["v0.4.1"],
       worker: ["v0.4.1", "v0.4.0"],
     });
+  } finally {
+    await server.close();
+  }
+});
+
+test("operator diagnostics report background scheduler mode", async () => {
+  const server = await startServer(new FakeGatewayStore(), undefined, true);
+  try {
+    const response = await fetch(`${server.baseUrl}/v1/diagnostics`, {
+      headers: adminHeaders(),
+    });
+    assert.equal(response.status, 200);
+    const body = (await response.json()) as {
+      scheduler: { enabled: boolean; mode: string };
+      checks: { scheduler: { status: string } };
+    };
+    assert.deepEqual(body.scheduler, { enabled: true, mode: "BACKGROUND" });
+    assert.equal(body.checks.scheduler.status, "PASS");
   } finally {
     await server.close();
   }
