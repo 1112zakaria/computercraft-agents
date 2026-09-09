@@ -90,6 +90,17 @@ test("stable update bootstraps repair a missing CraftOS startup hook", () => {
   assert.match(installer, /if not fs\.exists\("startup"\)/);
 });
 
+test("stable update bootstraps remove newly introduced files during rollback", () => {
+  for (const relativePath of ["gateway/update_bootstrap.lua", "turtle/update_bootstrap.lua"]) {
+    const source = readFileSync(join(runtimeRoot, relativePath), "utf8");
+    assert.match(
+      source,
+      /for _, path in ipairs\(journal\.files\) do[\s\S]*?if fs\.exists\(path\) then[\s\S]*?fs\.delete\(path\)[\s\S]*?if fs\.exists\(backup\) then[\s\S]*?fs\.copy\(backup, path\)/,
+      relativePath,
+    );
+  }
+});
+
 test("turtle executor emits a world observation event after block inspection", () => {
   const source = readFileSync(join(runtimeRoot, "turtle/executor.lua"), "utf8");
   assert.match(source, /command\.skill == "observation\.block"/);

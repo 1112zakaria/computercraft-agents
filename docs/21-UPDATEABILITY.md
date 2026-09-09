@@ -69,7 +69,8 @@ information are visible through `GET /v1/updates` and `GET /v1/updates/:updateId
 6. The turtle writes to an update-specific staging directory, preserves configuration/state/cache,
    writes an activation journal and rollback copy, then activates and reboots.
 7. The turtle registers and heartbeats with the new runtime version. The activation journal is
-   confirmed only after startup succeeds; an interrupted activation restores the prior files.
+   confirmed only after startup succeeds; an interrupted activation restores the prior files and
+   removes managed files introduced only by the failed release.
 
 For `fleet:<gateway-id>`, the gateway applies the release to its currently registered workers in
 sequence. A failed worker halts the rollout and emits a failure event; a worker that has already
@@ -93,7 +94,8 @@ control in the turtle's next fixed-interval poll. The turtle then:
 5. preserves `worker.conf`, state, command cache, cursor, outbox, logs, and update journal;
 6. activates through the stable bootstrap and reboots;
 7. registers/heartbeats with the new runtime version;
-8. restores the previous runtime and emits `worker.update.rolled_back` if startup recovery fails.
+8. restores the previous runtime and removes managed files introduced only by the failed release if
+   startup recovery fails, then emits `worker.update.rolled_back`.
 
 The direct turtle is not a gateway proxy: it needs the ComputerCraft HTTP allowlist for the VPS
 and GitHub release URLs, but it needs no modem. Direct fleet rollouts and automatic direct/gateway
@@ -105,7 +107,7 @@ Gateway updates use the same manifest and release source. The gateway stages onl
 `computercraft/gateway/` managed files, preserves `gateway.conf` and the outbox, writes the
 activation journal, creates a rollback copy, replaces the allowlisted files, and reboots. The
 stable bootstrap confirms a healthy restart; if startup does not confirm, the next boot restores
-the previous runtime.
+the previous runtime and removes managed files introduced only by the failed release.
 
 ## Safety boundaries
 

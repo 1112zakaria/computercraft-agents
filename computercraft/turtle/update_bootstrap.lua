@@ -58,10 +58,13 @@ local function restore(journal)
   end
   for _, path in ipairs(journal.files) do
     local backup = fs.combine(journal.backupPath, path)
+    -- Remove the active file even when it did not exist before the update. This
+    -- prevents a failed activation from leaving newly introduced runtime files
+    -- behind after rollback.
+    if fs.exists(path) then
+      fs.delete(path)
+    end
     if fs.exists(backup) then
-      if fs.exists(path) then
-        fs.delete(path)
-      end
       fs.copy(backup, path)
     end
   end
