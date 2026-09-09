@@ -73,6 +73,7 @@ npm run cli -- locations
 npm run cli -- tasks
 npm run cli -- runnable-tasks
 npm run cli -- dispatch-task <task-id> <worker-id>
+npm run cli -- scheduler-tick
 npm run cli -- task-status <task-id> BLOCKED
 ```
 

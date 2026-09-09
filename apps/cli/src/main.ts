@@ -19,6 +19,7 @@ export function usage(): string {
     `${cliName} goal <@worker get ... and deposit it in ...>`,
     `${cliName} tasks`,
     `${cliName} runnable-tasks`,
+    `${cliName} scheduler-tick`,
     `${cliName} claim-task <task-id> <worker-id>`,
     `${cliName} dispatch-task <task-id> <worker-id>`,
     `${cliName} task-status <task-id> <PENDING|READY|RUNNING|PAUSED|BLOCKED|DONE|FAILED|CANCELLED>`,
@@ -154,6 +155,13 @@ export async function runCli(args: readonly string[]): Promise<void> {
   if (command === "runnable-tasks") {
     if (first) throw new Error(`usage: ${cliName} runnable-tasks`);
     console.log(JSON.stringify(await request("/v1/tasks/runnable"), null, 2));
+    return;
+  }
+  if (command === "scheduler-tick") {
+    if (first) throw new Error(`usage: ${cliName} scheduler-tick`);
+    console.log(
+      JSON.stringify(await request("/v1/scheduler/tick", { method: "POST", body: "{}" }), null, 2),
+    );
     return;
   }
   if (command === "claim-task") {

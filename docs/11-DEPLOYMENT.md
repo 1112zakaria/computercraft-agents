@@ -245,13 +245,16 @@ command. Inspect compatible work, then dispatch it to a specific online worker:
 
 ```text
 npm run cli -- runnable-tasks
+npm run cli -- scheduler-tick
 npm run cli -- dispatch-task <task-id> <worker-id>
 ```
 
-Dispatch persists the task claim and command together, includes the task ID in the command for
-event correlation, and enforces one active task per worker. Worker completion/failure/cancellation
-events update the linked task. Natural-language `resource.gather` goals remain multi-step workflow
-records and are not silently dispatched as a single command.
+The scheduler tick selects compatible online workers for protocol-level command tasks and then
+dispatches them through the same atomic path. Dispatch persists the task claim and command
+together, includes the task ID in the command for event correlation, and enforces one active task
+per worker. Worker completion/failure/cancellation events update the linked task.
+Natural-language `resource.gather` goals remain multi-step workflow records and are not silently
+dispatched as a single command.
 
 ## 10. Releases
 

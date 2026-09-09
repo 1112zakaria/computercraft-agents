@@ -18,11 +18,13 @@ import {
   GatewayHeartbeatSchema,
   GatewayRegistrationSchema,
   IdentifierSchema,
+  SkillNameSchema,
   StopControlSchema,
   TaskDispatchRequestSchema,
   TaskTransitionRequestSchema,
   UpdateRequestSchema,
 } from "@computercraft-agents/protocol";
+import { selectDispatchableTasks } from "@computercraft-agents/scheduler";
 import { parseAddressedGatherGoal } from "@computercraft-agents/domain";
 import type {
   CommandPollResponse,
@@ -149,6 +151,18 @@ function secretsEqual(left: string, right: string): boolean {
   const leftBuffer = Buffer.from(left);
   const rightBuffer = Buffer.from(right);
   return leftBuffer.length === rightBuffer.length && timingSafeEqual(leftBuffer, rightBuffer);
+}
+
+function stringList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (typeof entry === "string") return [entry];
+    if (typeof entry === "object" && entry !== null && "name" in entry) {
+      const name = (entry as { name?: unknown }).name;
+      return typeof name === "string" ? [name] : [];
+    }
+    return [];
+  });
 }
 
 export class GatewayService {
@@ -391,6 +405,65 @@ export class GatewayService {
 
   public async listRunnableTasks(): Promise<readonly Record<string, unknown>[]> {
     return this.store.listRunnableTasks();
+  }
+
+  public async dispatchRunnableTasks(): Promise<readonly Record<string, unknown>[]> {
+    const [taskRows, workerRows] = await Promise.all([
+      this.store.listRunnableTasks(),
+      this.store.listWorkers(),
+    ]);
+    const tasks = taskRows.flatMap((row) => {
+      const taskId = typeof row.taskId === "string" ? row.taskId : undefined;
+      const skillName = typeof row.skillName === "string" ? row.skillName : undefined;
+      if (!taskId || !skillName || !SkillNameSchema.safeParse(skillName).success) return [];
+      return [
+        {
+          taskId,
+          state: "READY" as const,
+          priority: typeof row.priority === "number" ? row.priority : 0,
+          requiredCapabilities: stringList(row.requiredCapabilities),
+          assignedWorkerId: null,
+        },
+      ];
+    });
+    const workers = workerRows.flatMap((row) => {
+      const workerId = typeof row.workerId === "string" ? row.workerId : undefined;
+      if (!workerId) return [];
+      return [
+        {
+          workerId,
+          online: row.online === true,
+          capabilities: stringList(row.capabilities),
+          currentTaskId: null,
+        },
+      ];
+    });
+    const assignments = selectDispatchableTasks(tasks, workers);
+    const results: Record<string, unknown>[] = [];
+    for (const assignment of assignments) {
+      try {
+        const command = await this.store.dispatchTask(
+          assignment.taskId,
+          assignment.workerId,
+          `scheduler-${randomUUID()}`,
+        );
+        results.push({
+          taskId: assignment.taskId,
+          workerId: assignment.workerId,
+          status: "DISPATCHED",
+          commandId: command.commandId,
+        });
+      } catch (error) {
+        const failure = repositoryErrorToHttp(error);
+        results.push({
+          taskId: assignment.taskId,
+          workerId: assignment.workerId,
+          status: "FAILED",
+          reason: failure.message,
+        });
+      }
+    }
+    return results;
   }
 
   public async claimTask(taskId: string, input: unknown): Promise<Record<string, unknown>> {

@@ -58,6 +58,10 @@ class FakeGatewayStore implements GatewayServiceStore {
   public readonly directRegistrations: DirectWorkerRegistration[] = [];
   public readonly directHeartbeats: DirectWorkerHeartbeat[] = [];
   public readonly directEvents: DirectWorkerEventBatch[] = [];
+  public readonly runnableTasks: Record<string, unknown>[] = [
+    { taskId: "task-runnable", status: "READY" },
+  ];
+  public readonly availableWorkers: Record<string, unknown>[] = [];
 
   public async register(payload: GatewayRegistration): Promise<void> {
     this.registrations.push(payload);
@@ -120,7 +124,7 @@ class FakeGatewayStore implements GatewayServiceStore {
   }
 
   public async listWorkers(): Promise<readonly Record<string, unknown>[]> {
-    return [];
+    return this.availableWorkers;
   }
 
   public async getWorker(workerId: string): Promise<Record<string, unknown> | undefined> {
@@ -204,7 +208,7 @@ class FakeGatewayStore implements GatewayServiceStore {
   }
 
   public async listRunnableTasks(): Promise<readonly Record<string, unknown>[]> {
-    return [{ taskId: "task-runnable", status: "READY" }];
+    return this.runnableTasks;
   }
 
   public async claimTask(taskId: string, workerKey: string): Promise<Record<string, unknown>> {
@@ -410,6 +414,43 @@ test("operator task API dispatches a task as a correlated worker command", async
     assert.equal(body.workerId, "alice");
     assert.equal(body.command.taskId, "task-test");
     assert.equal(body.command.workerId, "alice");
+  } finally {
+    await server.close();
+  }
+});
+
+test("operator scheduler tick dispatches only protocol-level runnable work", async () => {
+  const store = new FakeGatewayStore();
+  store.runnableTasks.splice(0, 1, {
+    taskId: "task-runnable",
+    skillName: "movement.step",
+    priority: 5,
+    requiredCapabilities: ["movement.step"],
+  });
+  store.availableWorkers.push({
+    workerId: "alice",
+    online: true,
+    capabilities: ["movement.step"],
+  });
+  const server = await startServer(store);
+  try {
+    const response = await fetch(`${server.baseUrl}/v1/scheduler/tick`, {
+      method: "POST",
+      headers: adminHeaders(),
+      body: "{}",
+    });
+    assert.equal(response.status, 200);
+    const body = (await response.json()) as {
+      dispatched: Array<Record<string, unknown>>;
+    };
+    assert.equal(body.dispatched.length, 1);
+    assert.deepEqual(body.dispatched[0], {
+      taskId: "task-runnable",
+      workerId: "alice",
+      status: "DISPATCHED",
+      commandId: body.dispatched[0]?.commandId,
+    });
+    assert.match(String(body.dispatched[0]?.commandId), /^scheduler-[0-9a-f-]+$/);
   } finally {
     await server.close();
   }

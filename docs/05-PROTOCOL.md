@@ -111,6 +111,7 @@ GET  /v1/tasks/runnable
 POST /v1/tasks/:taskId
 POST /v1/tasks/:taskId/dispatch
 POST /v1/tasks/:taskId/transition
+POST /v1/scheduler/tick
 ```
 
 The claim request contains `workerId`. The database rejects claims for offline workers, unmet
@@ -124,6 +125,9 @@ failure, or cancellation events correlate back to that task and move it to its t
 Only tasks whose `skillName` is already a protocol command skill are dispatchable through this
 path; the multi-step `resource.gather` workflow remains planner-owned until its orchestration is
 implemented.
+The scheduler tick is an explicit bounded operator action that selects compatible online workers
+for those same protocol-level tasks and invokes the atomic dispatch path once per selected worker.
+It does not auto-dispatch multi-step goal workflows.
 The transition request contains `{ "protocolVersion": 1, "status": "...", "reason": "..." }`
 and is checked against the persisted task transition graph. When supplied, the reason is stored
 in the task's error/context field for auditability. It is an explicit operator control path; it
