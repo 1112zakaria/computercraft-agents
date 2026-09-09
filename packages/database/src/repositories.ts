@@ -224,6 +224,19 @@ function coordinateFromUnknown(value: unknown): Coordinate | undefined {
   return { dimension, x, y, z };
 }
 
+export function coordinatesMatch(left: unknown, right: unknown): boolean {
+  const leftCoordinate = coordinateFromUnknown(left);
+  const rightCoordinate = coordinateFromUnknown(right);
+  return (
+    leftCoordinate !== undefined &&
+    rightCoordinate !== undefined &&
+    leftCoordinate.dimension === rightCoordinate.dimension &&
+    leftCoordinate.x === rightCoordinate.x &&
+    leftCoordinate.y === rightCoordinate.y &&
+    leftCoordinate.z === rightCoordinate.z
+  );
+}
+
 function movedCoordinate(
   position: Coordinate & { readonly facing?: string },
   direction: string,
@@ -250,6 +263,7 @@ function normalizeContainerId(value: string): string | undefined {
 function commandArguments(value: Record<string, unknown>): Record<string, unknown> {
   const {
     targetWorkerId: _targetWorkerId,
+    _targetPosition: _targetPosition,
     _plannerTriggerId: _plannerTriggerId,
     _plannerIndex: _plannerIndex,
     _plannerPriority: _plannerPriority,
@@ -742,6 +756,14 @@ export class GatewayRuntimeRepository {
         input.parentTaskId,
       ]);
     }
+    await client.query(
+      `
+        UPDATE tasks
+        SET arguments_json = jsonb_set(arguments_json, '{destinationPosition}', $2::jsonb, true)
+        WHERE id = $1
+      `,
+      [input.parentTaskId, asJson(target)],
+    );
 
     if (path.directions.length > 0) {
       await client.query(
@@ -753,7 +775,11 @@ export class GatewayRuntimeRepository {
         `,
         [
           input.jobId,
-          asJson({ targetWorkerId: input.targetWorkerId, steps: path.directions }),
+          asJson({
+            targetWorkerId: input.targetWorkerId,
+            steps: path.directions,
+            _targetPosition: target,
+          }),
           input.parentTaskId,
         ],
       );
@@ -3174,6 +3200,18 @@ export class GatewayRuntimeRepository {
       );
     };
 
+    if (task.workflow_phase === "NAVIGATE" && event.type === "command.completed") {
+      const expectedPosition = coordinateFromUnknown(parentArguments.destinationPosition);
+      const eventPayload = isRecord(event.payload)
+        ? (event.payload as Record<string, unknown>)
+        : {};
+      const actualPosition = coordinateFromUnknown(eventPayload.position);
+      if (expectedPosition && !coordinatesMatch(expectedPosition, actualPosition)) {
+        await block("navigation completed without reaching the named destination");
+        return;
+      }
+    }
+
     if (event.type === "command.failed") {
       if (inventoryFull) {
         const recovery = inventoryFullRecoveryPlan(event, parentArguments);
@@ -3367,9 +3405,15 @@ export class GatewayRuntimeRepository {
         await block("gather destination cannot be converted to a safe container ID");
         return;
       }
-      await client.query(`UPDATE tasks SET status = 'RUNNING' WHERE id = $1 AND status = 'READY'`, [
-        task.parent_task_id,
-      ]);
+      await client.query(
+        `
+          UPDATE tasks
+          SET status = 'RUNNING',
+              arguments_json = jsonb_set(arguments_json, '{destinationPosition}', $2::jsonb, true)
+          WHERE id = $1 AND status = 'READY'
+        `,
+        [task.parent_task_id, asJson(target)],
+      );
       const nextStep = await client.query(
         `SELECT 1 FROM tasks WHERE parent_task_id = $1 AND workflow_phase = $2 LIMIT 1`,
         [task.parent_task_id, path.directions.length > 0 ? "NAVIGATE" : "DEPOSIT"],
@@ -3383,7 +3427,11 @@ export class GatewayRuntimeRepository {
             )
             VALUES ($1, 'workflow-step', 'READY', 'navigate.path', $2, $3, 'NAVIGATE')
           `,
-          [task.job_id, asJson({ targetWorkerId, steps: path.directions }), task.parent_task_id],
+          [
+            task.job_id,
+            asJson({ targetWorkerId, steps: path.directions, _targetPosition: target }),
+            task.parent_task_id,
+          ],
         );
       } else {
         await client.query(
@@ -3686,7 +3734,10 @@ export class GatewayRuntimeRepository {
       `
         UPDATE tasks
         SET status = 'RUNNING',
-            arguments_json = jsonb_set(arguments_json, '{navigationReplanCount}', to_jsonb($2::int), true),
+            arguments_json = jsonb_set(
+              jsonb_set(arguments_json, '{navigationReplanCount}', to_jsonb($2::int), true),
+              '{destinationPosition}', $4::jsonb, true
+            ),
             last_error_json = $3
         WHERE id = $1
       `,
@@ -3697,6 +3748,7 @@ export class GatewayRuntimeRepository {
           reason: "navigation blocked; bounded replan queued",
           replanCount: nextReplanCount,
         }),
+        asJson(target),
       ],
     );
     await client.query(
@@ -3706,7 +3758,11 @@ export class GatewayRuntimeRepository {
         )
         VALUES ($1, 'workflow-step', 'READY', 'navigate.path', $2, $3, 'NAVIGATE')
       `,
-      [task.job_id, asJson({ targetWorkerId, steps: path.directions }), task.parent_task_id],
+      [
+        task.job_id,
+        asJson({ targetWorkerId, steps: path.directions, _targetPosition: target }),
+        task.parent_task_id,
+      ],
     );
     return true;
   }

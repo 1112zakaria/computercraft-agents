@@ -26,6 +26,8 @@ Test:
 - item-targeted deposits reject missing or mismatched inventory stacks and workflow completion
   requires the canonical target item key;
 - blocked navigation contradiction handling and the maximum-three-attempt gather replan boundary;
+- gather navigation completion verifies the turtle-reported position matches the named destination
+  approach coordinate before queuing deposit;
 - reasoning output validation;
 - project-planner escalation;
 - addressed gather-goal dry-run validation and explicit one-tick goal start behavior;

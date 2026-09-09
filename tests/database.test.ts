@@ -6,6 +6,7 @@ import test from "node:test";
 import {
   createDatabasePool,
   blockedMovementForReplan,
+  coordinatesMatch,
   effectivePositionConfidence,
   gatherResultMeetsTarget,
   inventorySlotsFromCommandEvent,
@@ -201,7 +202,24 @@ test("position persistence seeds only the observed world cell as walkable", () =
   assert.match(repositorySql, /payload\.block === null \|\| payload\.block === undefined/);
   assert.match(repositorySql, /replanGatherNavigation/);
   assert.match(repositorySql, /navigationReplanCount/);
+  assert.match(repositorySql, /destinationPosition/);
+  assert.match(repositorySql, /navigation completed without reaching the named destination/);
   assert.match(repositorySql, /position_confidence = 'CONFIRMED_ANCHOR'/);
+});
+
+test("navigation postconditions compare complete coordinates only", () => {
+  assert.equal(
+    coordinatesMatch(
+      { dimension: 0, x: 1, y: 2, z: 3 },
+      { dimension: 0, x: 1, y: 2, z: 3, facing: "N" },
+    ),
+    true,
+  );
+  assert.equal(
+    coordinatesMatch({ dimension: 0, x: 1, y: 2, z: 3 }, { dimension: 0, x: 1, y: 2, z: 4 }),
+    false,
+  );
+  assert.equal(coordinatesMatch({ dimension: 0, x: 1 }, { dimension: 0, x: 1, y: 2, z: 3 }), false);
 });
 
 test("position confidence preserves an anchor only at the same coordinate", () => {

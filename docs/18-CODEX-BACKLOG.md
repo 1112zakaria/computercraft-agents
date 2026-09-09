@@ -615,7 +615,8 @@ frontier exploration through unknown cells and general-purpose replan policy rem
 **Status:** PARTIAL — named locations can be created, listed, and case-insensitively resolved
 through the protected API and CLI (`set-location` records an operator-confirmed anchor), and an
 optional approach/docking coordinate now drives route planning and destination-aware gather
-workflow targets; full route execution and postcondition verification remain.
+workflow targets. Gather navigation now verifies the turtle-reported destination coordinate before
+queuing deposit; general route execution and broader postcondition tooling remain.
 
 **Acceptance criteria**
 
