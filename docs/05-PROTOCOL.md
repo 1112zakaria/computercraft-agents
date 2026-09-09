@@ -126,6 +126,10 @@ through known walkable cells from the worker's latest observed position; it neve
 and fails safely when position, dimension, or path knowledge is insufficient. Ready tasks can be
 inspected and claimed with:
 
+When a turtle reports `movement.blocked`, the control plane records the one attempted destination
+cell as non-walkable using the event timestamp. This is a bounded contradiction update: it does not
+infer neighboring cells or retry movement, and later fresher observations may replace it.
+
 ```text
 GET  /v1/tasks
 GET  /v1/tasks/runnable

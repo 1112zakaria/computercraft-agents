@@ -200,6 +200,19 @@ function coordinateFromUnknown(value: unknown): Coordinate | undefined {
   return { dimension, x, y, z };
 }
 
+function movedCoordinate(
+  position: Coordinate & { readonly facing?: string },
+  direction: string,
+): Coordinate | undefined {
+  if (direction === "UP") return { ...position, y: position.y + 1 };
+  if (direction === "DOWN") return { ...position, y: position.y - 1 };
+  if (direction === "N") return { ...position, z: position.z - 1 };
+  if (direction === "E") return { ...position, x: position.x + 1 };
+  if (direction === "S") return { ...position, z: position.z + 1 };
+  if (direction === "W") return { ...position, x: position.x - 1 };
+  return undefined;
+}
+
 function normalizeContainerId(value: string): string | undefined {
   const normalized = value
     .trim()
@@ -2816,6 +2829,48 @@ export class GatewayRuntimeRepository {
             payload.position.z,
             new Date(event.occurredAt),
             workerRow.id,
+          ],
+        );
+      }
+    }
+
+    if (event.type === "movement.blocked" && event.workerId) {
+      const payload = event.payload as {
+        readonly direction?: string;
+        readonly position?: {
+          readonly dimension: number;
+          readonly x: number;
+          readonly y: number;
+          readonly z: number;
+          readonly facing?: string;
+        };
+      };
+      const position = coordinateFromUnknown(payload.position);
+      const blocked = position && movedCoordinate(position, payload.direction ?? "");
+      if (blocked) {
+        const worker = await client.query<{ id: string }>(
+          `SELECT id::text FROM workers WHERE worker_key = $1`,
+          [event.workerId],
+        );
+        await client.query(
+          `
+            INSERT INTO world_cells (
+              dimension, x, y, z, block_name, block_metadata, walkable, observed_at, source_worker_id
+            )
+            VALUES ($1, $2, $3, $4, NULL, NULL, FALSE, $5, $6)
+            ON CONFLICT (dimension, x, y, z) DO UPDATE SET
+              walkable = FALSE,
+              observed_at = EXCLUDED.observed_at,
+              source_worker_id = EXCLUDED.source_worker_id
+            WHERE world_cells.observed_at <= EXCLUDED.observed_at
+          `,
+          [
+            blocked.dimension,
+            blocked.x,
+            blocked.y,
+            blocked.z,
+            new Date(event.occurredAt),
+            worker.rows[0]?.id ?? null,
           ],
         );
       }

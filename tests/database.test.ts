@@ -134,6 +134,11 @@ test("position persistence seeds only the observed world cell as walkable", () =
   );
   assert.match(repositorySql, /const approach = coordinateFromUnknown\(input\.approach\)/);
   assert.match(repositorySql, /approach\.dimension, approach\.x, approach\.y, approach\.z/);
+  assert.match(repositorySql, /event\.type === "movement\.blocked"/);
+  assert.match(
+    repositorySql,
+    /walkable, observed_at, source_worker_id\s*\)\s*VALUES \(\$1, \$2, \$3, \$4, NULL, NULL, FALSE/s,
+  );
 });
 
 test("urgent command cancellation pauses the logical task", () => {
