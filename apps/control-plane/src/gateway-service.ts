@@ -525,6 +525,11 @@ export class GatewayService {
       const taskId = typeof row.taskId === "string" ? row.taskId : undefined;
       const skillName = typeof row.skillName === "string" ? row.skillName : undefined;
       if (!taskId || !skillName || !SkillNameSchema.safeParse(skillName).success) return [];
+      if (
+        !(this.config.enabledSkills ?? SkillNameSchema.options).includes(skillName as SkillName)
+      ) {
+        return [];
+      }
       return [
         {
           taskId,
