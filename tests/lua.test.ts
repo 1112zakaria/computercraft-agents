@@ -51,6 +51,14 @@ test("ComputerCraft runtime modules parse as Lua 5.1", () => {
   }
 });
 
+test("ComputerCraft HTTP clients preserve connection error details", () => {
+  for (const relativePath of ["gateway/http_client.lua", "turtle/direct_http_client.lua"]) {
+    const source = readFileSync(join(runtimeRoot, relativePath), "utf8");
+    assert.match(source, /response_or_error, request_error/);
+    assert.match(source, /request_error or response_or_error or "HTTP request failed"/);
+  }
+});
+
 test("direct turtle updater filters the combined release manifest", () => {
   const source = readFileSync(join(runtimeRoot, "turtle/update_manager.lua"), "utf8");
   assert.match(source, /local function is_turtle_runtime_path/);
