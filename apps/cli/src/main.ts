@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
 
-import { normalizeItemKey } from "@computercraft-agents/domain";
+import { normalizeItemKey, parseAddressedGatherGoal } from "@computercraft-agents/domain";
 import {
   DirectionSchema,
   DirectWorkerProvisionSchema,
+  GoalCreateRequestSchema,
   IdentifierSchema,
   NamedLocationCreateRequestSchema,
   ReleaseVersionSchema,
@@ -120,12 +121,20 @@ export async function runCli(args: readonly string[]): Promise<void> {
   if (
     dryRun &&
     (command === undefined ||
-      !new Set(["move", "path", "excavate", "gather", "deposit", "withdraw", "stop", "update"]).has(
-        command,
-      ))
+      !new Set([
+        "move",
+        "path",
+        "excavate",
+        "gather",
+        "deposit",
+        "withdraw",
+        "stop",
+        "update",
+        "goal",
+      ]).has(command))
   ) {
     throw new Error(
-      "--dry-run is supported for move, path, excavate, gather, deposit, withdraw, stop, and update",
+      "--dry-run is supported for goal, move, path, excavate, gather, deposit, withdraw, stop, and update",
     );
   }
   if (command === "provision-worker") {
@@ -199,16 +208,35 @@ export async function runCli(args: readonly string[]): Promise<void> {
     if (!goalText) {
       throw new Error(`usage: ${cliName} goal <@worker get ... and deposit it in ...>`);
     }
+    const body = GoalCreateRequestSchema.parse({
+      protocolVersion: 1,
+      goalText,
+      createdByPrincipal: process.env.CONTROL_PLANE_PRINCIPAL?.trim() || "cli",
+      priority: 0,
+    });
+    if (dryRun) {
+      const parsed = parseAddressedGatherGoal(goalText);
+      if (!parsed.ok) throw new Error(parsed.error);
+      console.log(
+        JSON.stringify(
+          {
+            dryRun: true,
+            method: "POST",
+            path: "/v1/goals",
+            body,
+            parsedGoal: parsed.goal,
+          },
+          null,
+          2,
+        ),
+      );
+      return;
+    }
     console.log(
       JSON.stringify(
         await request("/v1/goals", {
           method: "POST",
-          body: JSON.stringify({
-            protocolVersion: 1,
-            goalText,
-            createdByPrincipal: process.env.CONTROL_PLANE_PRINCIPAL?.trim() || "cli",
-            priority: 0,
-          }),
+          body: JSON.stringify(body),
         }),
         null,
         2,

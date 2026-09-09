@@ -298,6 +298,64 @@ test("CLI dry-run previews a physical command without calling the control plane"
   }
 });
 
+test("CLI dry-run validates and previews an addressed gather goal without persisting it", async () => {
+  const previousFetch = globalThis.fetch;
+  const previousLog = console.log;
+  const previousPrincipal = process.env.CONTROL_PLANE_PRINCIPAL;
+  let fetchCalled = false;
+  let output = "";
+  process.env.CONTROL_PLANE_PRINCIPAL = "overnight-operator";
+  globalThis.fetch = async () => {
+    fetchCalled = true;
+    return new Response("{}", { status: 200 });
+  };
+  console.log = (...values: unknown[]) => {
+    output = values.map(String).join(" ");
+  };
+  try {
+    await runCli([
+      "goal",
+      "@alice",
+      "get",
+      "64",
+      "cobblestone",
+      "and",
+      "deposit",
+      "it",
+      "in",
+      "Test Chest",
+      "--dry-run",
+    ]);
+    const preview = JSON.parse(output) as {
+      dryRun: boolean;
+      path: string;
+      body: { goalText: string; createdByPrincipal: string };
+      parsedGoal: {
+        targetWorkerId: string;
+        itemKey: string;
+        quantity: number;
+        destination: string;
+      };
+    };
+    assert.equal(fetchCalled, false);
+    assert.equal(preview.dryRun, true);
+    assert.equal(preview.path, "/v1/goals");
+    assert.equal(preview.body.createdByPrincipal, "overnight-operator");
+    assert.equal(preview.body.goalText, "@alice get 64 cobblestone and deposit it in Test Chest");
+    assert.deepEqual(preview.parsedGoal, {
+      targetWorkerId: "alice",
+      itemKey: "minecraft:cobblestone",
+      quantity: 64,
+      destination: "Test Chest",
+    });
+  } finally {
+    globalThis.fetch = previousFetch;
+    console.log = previousLog;
+    if (previousPrincipal === undefined) delete process.env.CONTROL_PLANE_PRINCIPAL;
+    else process.env.CONTROL_PLANE_PRINCIPAL = previousPrincipal;
+  }
+});
+
 test("CLI constructs a named-container deposit command", async () => {
   const previousFetch = globalThis.fetch;
   const previousUrl = process.env.CONTROL_PLANE_URL;

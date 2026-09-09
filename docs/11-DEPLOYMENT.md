@@ -335,9 +335,11 @@ and queues an independent worker stop control. The task is not automatically ret
 confirming the turtle is safe, inspect it with `task <task-id>` and explicitly resume it with
 `task-status <task-id> READY`.
 
-Physical command, stop-control, and update CLI requests also accept `--dry-run`. Dry-run builds
-the same validated payload and prints the intended POST path without requiring the admin secret or
-contacting the control plane.
+Physical command, stop-control, update, and addressed gather-goal CLI requests also accept
+`--dry-run`. Dry-run builds the same bounded payload locally and prints the intended POST path
+without requiring the admin secret or contacting the control plane. For a goal, the preview also
+shows the deterministic worker/item/quantity/destination parse, so an operator can catch an
+addressing or spelling mistake before creating a persistent goal.
 
 The protected operator inspection commands are:
 

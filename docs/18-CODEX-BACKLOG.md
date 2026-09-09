@@ -1230,10 +1230,11 @@ canary limits, and audit-history integration remain.
 **Priority:** P0  
 **Dependencies:** CC-085, CC-170
 
-**Status:** PARTIAL — physical command, stop-control, and update CLI requests support
-`--dry-run`, which constructs the validated payload locally without contacting the control plane.
-The opt-in planner loop records plan-only decisions and exposes outage status; goal/task planning
-previews, decision review tooling, and feature-gate integration remain.
+**Status:** PARTIAL — physical command, stop-control, update, and addressed gather-goal CLI
+requests support `--dry-run`, which validates and constructs a bounded preview locally without
+contacting the control plane. The opt-in planner loop records plan-only decisions and exposes
+outage status; task planning previews, decision review tooling, and feature-gate integration
+remain.
 
 ### CC-172 — Implement agent/project inspection CLI
 
