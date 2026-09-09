@@ -89,6 +89,7 @@ HTTP is the primary low-hardware path for a single turtle.
 - [19-IMPLEMENTATION-CHECKLIST.md](19-IMPLEMENTATION-CHECKLIST.md) — release-readiness checklist.
 - [20-CONNECTIVITY-SEQUENCE.md](20-CONNECTIVITY-SEQUENCE.md) — gateway/VPS/turtle message flow.
 - [21-UPDATEABILITY.md](21-UPDATEABILITY.md) — gateway-managed OTA-style runtime updates.
+- [22-CHUNK-LOADING.md](22-CHUNK-LOADING.md) — offline operation, chunk loading, and bounded validation.
 - [AGENTS.md](AGENTS.md) — repository instructions for Codex/coding agents.
 
 ## Normative language

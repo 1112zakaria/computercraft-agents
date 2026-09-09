@@ -7,7 +7,7 @@ return {
   gateway_bearer_secret = "set-locally",
   modem_side = "back",
   rednet_protocol = "computercraft-agents-v1",
-  worker_runtime_version = "0.1.0",
+  worker_runtime_version = "v0.4.1",
   runtime_version_path = "gateway-runtime-version.txt",
   update_journal_path = "gateway-update-journal.json",
   update_staging_path = "gateway-update-staging",

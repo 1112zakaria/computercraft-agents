@@ -47,6 +47,33 @@ capabilities:
 
 Maturity is operational state, not planner persuasion.
 
+The control plane's v1 gate is the `ENABLED_SKILLS` environment variable. It is a comma-separated
+allowlist of protocol skills checked before operator or scheduled dispatch. Omit it to preserve the
+backward-compatible default of enabling all currently defined skills; set it explicitly during a
+canary to restrict execution, then inspect the effective result with:
+
+```bash
+npm run cli -- feature-gates
+```
+
+Disabled skills are rejected with `CAPABILITY_NOT_ENABLED`; the gate does not bypass worker
+capability checks, command budgets, stop controls, or audit/event handling. Persistent per-worker
+gates and canary quotas remain future hardening.
+
+## 4a. Position anchoring
+
+After a manual relocation, an operator may record a verified worker coordinate with
+`npm run cli -- anchor <worker-id> <dimension> <x> <y> <z> [N|E|S|W]`. This creates a
+`CONFIRMED_ANCHOR` observation for future bounded planning. The command does not move the turtle,
+and an omitted facing is intentional: the runtime cannot universally determine compass direction.
+Treat the supplied coordinate as an assertion that must be checked in-game before use.
+
+The control plane preserves that confirmation across ordinary telemetry heartbeats only when
+the heartbeat reports the exact anchored coordinate. If the reported coordinate changes, the
+position becomes unconfirmed again and the operator must re-anchor before planning another
+consequential route. This prevents a local turtle restart, manual relocation, or stale local
+state from silently authorizing movement from the wrong position.
+
 ## 5. Budgets
 
 Every physical command SHOULD support limits such as:
@@ -73,6 +100,13 @@ Gateway:
 - tells turtles to finish safe primitive/current bounded command then idle;
 - does not autonomously invent new goals.
 
+### Control-plane restart
+
+On control-plane startup, persisted online gateways/workers and uncertain active deliveries are
+treated as unsafe until they reconnect. The service marks them offline, pauses assigned tasks,
+cancels active command delivery, queues transport-aware stop controls, and requires explicit task
+resume after inspection.
+
 ### Codex unavailable, VPS healthy
 
 - deterministic in-flight bounded action may finish;
@@ -86,6 +120,10 @@ Gateway:
 - rediscover turtles;
 - report current turtle state;
 - VPS does not assume previous in-flight command completed.
+
+Registration with a changed boot ID is a recovery boundary: uncertain command deliveries are
+cancelled, assigned tasks are paused, and transport-aware worker stop controls are queued. An
+operator must inspect the workers and explicitly resume safe tasks.
 
 ### Turtle restarts
 

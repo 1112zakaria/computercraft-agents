@@ -32,6 +32,18 @@ SPECIAL
 
 Metadata MAY contain block IDs, observation time, hardness/tool hints, or transport semantics.
 
+Online heartbeat positions, operator-confirmed anchors, and named-location endpoint writes also seed
+their exact coordinate as a walkable `world_cells` record. A configured named-location approach
+coordinate is seeded as well. This gives the planner trustworthy start/end anchors for a bounded
+route without claiming that any unobserved neighboring cell is safe. Block observations and later
+movement observations extend the known map incrementally.
+
+The control plane applies a bounded freshness window to persisted world cells before planning or
+returning the world-cell inspection view. `WORLD_CELL_MAX_AGE_SECONDS` defaults to 86,400 seconds
+and can be shortened for worlds that change frequently. A stale cell is treated as unknown until a
+new heartbeat, anchor, block observation, named-location write, or movement contradiction refreshes
+that coordinate.
+
 ## 3. Planner boundary
 
 The LLM SHOULD choose destination/strategy. A deterministic navigation engine SHOULD choose the actual path.
@@ -85,6 +97,10 @@ The navigation layer SHALL invalidate assumptions when:
 - position confidence is suspect;
 - a server restart or manual relocation occurred.
 
+The current gather workflow implements a bounded form of this reconciliation: a blocked navigation
+step records the contradicted cell and may replan from the turtle's reported position up to three
+times. Frontier exploration and general-purpose replanning remain separate future work.
+
 ## 7. Named locations
 
 Named locations anchor high-level plans:
@@ -92,11 +108,14 @@ Named locations anchor high-level plans:
 ```yaml
 name: Main Warehouse
 dimension: 0
-position: {x: 112, y: 64, z: -30}
-approach: {x: 111, y: 64, z: -30, facing: E}
+position: { x: 112, y: 64, z: -30 }
+approach: { x: 111, y: 64, z: -30, facing: E }
 ```
 
 For turtles, an `approach`/dock coordinate is often more useful than the block coordinate itself.
+The protected location API accepts this as an optional typed `approach` object. Route planning and
+destination-aware workflows use it when present, while the block coordinate remains the physical
+landmark and named identity.
 
 ## 8. Worker collision/reservation
 

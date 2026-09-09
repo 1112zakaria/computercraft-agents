@@ -2,6 +2,13 @@
 
 ## A. Milestone-zero feasibility
 
+Direct HTTP canary status (the modem-less primary path):
+
+- [x] Direct turtle registration and heartbeat visible from the CLI.
+- [x] Direct bounded movement command and event submission validated on `alice`.
+- [x] Direct runtime OTA activation/reboot validated on `alice`.
+- [ ] Post-reboot automatic CraftOS startup-hook behavior validated live (tracked in issue #7).
+
 - [ ] Exact Java/Forge builds recorded.
 - [x] Public DNS hostname and trusted TLS certificate verified for the gateway endpoint.
 - [x] VPS firewall and reverse-proxy allowlist admit only `51.161.113.44/32`.
@@ -10,31 +17,32 @@
 - [ ] One turtle registers over Rednet.
 - [ ] Worker heartbeat/state visible from CLI.
 - [ ] One bounded movement command works end-to-end.
-- [ ] `stop alice` works without Codex.
+- [x] Direct HTTP `stop alice` control delivery works without Codex.
+- [ ] Gateway-Rednet `stop alice` works without Codex.
 - [ ] Events persist in PostgreSQL.
 
 ## B. Turtle runtime
 
 - [ ] Stable worker IDs.
 - [ ] Boot/session IDs.
-- [ ] Position/orientation persistence.
-- [ ] Position confidence states.
+- [x] Position/orientation persistence.
+- [x] Position confidence states.
 - [ ] Inspect/move/dig/place normalized results.
-- [ ] Inventory snapshot.
+- [x] Inventory snapshot, including persisted results from bounded `inventory.inspect` commands.
 - [ ] Fuel handling.
-- [ ] Cancellation checks.
-- [ ] Primitive/block budgets.
-- [ ] Command idempotency.
-- [ ] Bounded event/outbox storage.
+- [x] Cancellation checks.
+- [x] Primitive/block budgets.
+- [x] Command idempotency.
+- [x] Bounded event/outbox storage.
 
 ## C. Navigation
 
 - [ ] Sparse world model.
-- [ ] A* known-map pathfinding.
-- [ ] Path executor.
+- [x] A* known-map pathfinding.
+- [x] Path executor.
 - [ ] Blocked-path replan.
-- [ ] Position anchoring/recalibration.
-- [ ] Named location/dock model.
+- [x] Position anchoring/recalibration.
+- [x] Named location/dock model.
 - [ ] Exploration strategy.
 - [ ] Worker-area reservations.
 
@@ -45,7 +53,7 @@
 - [ ] Projects/jobs/tasks/dependencies.
 - [ ] Central scheduler.
 - [ ] One execution stream invariant.
-- [ ] Stop/pause/resume/cancel.
+- [x] Stop/pause/resume/cancel.
 - [ ] Delegation requests.
 - [ ] Resource reservations.
 - [ ] Standing policies.
@@ -55,13 +63,12 @@
 
 ## E. Reasoning
 
-- [ ] `ReasoningProvider` interface.
-- [ ] Fake provider for CI.
-- [ ] Codex CLI provider.
-- [ ] Structured decisions.
-- [ ] Fast/standard/strong tier config.
-- [ ] Concurrent request limiter.
-- [ ] Event-driven triggers.
+- [x] `ReasoningProvider` interface.
+- [x] Fake provider for CI.
+- [x] Codex CLI provider.
+- [x] Structured decisions.
+- [x] Concurrent request limiter.
+- [x] Event-driven triggers.
 - [ ] Individual planners.
 - [ ] Shared project planner heuristic.
 - [ ] Refusal/override.
@@ -83,11 +90,11 @@
 
 ## G. First useful worker
 
-- [ ] Bounded excavation.
-- [ ] Gather resource.
-- [ ] Inventory full handling.
-- [ ] Deposit to known chest.
-- [ ] Delivery verification.
+- [x] Bounded excavation primitives.
+- [x] Target-aware gather primitive and capability advertisement (live capability migration pending).
+- [x] Inventory-full handling and bounded recovery paths.
+- [x] Deposit to a known chest with an allowlisted local side.
+- [x] Delivery evidence checks in the workflow state machine.
 - [ ] `@alice get 64 cobblestone and deposit it in Test Chest` passes.
 
 ## H. Multi-agent
@@ -148,15 +155,15 @@
 
 ## K. Operations
 
-- [ ] Feature gates.
-- [ ] Global stop.
-- [ ] Per-worker stop.
-- [ ] Plan-only mode.
+- [x] Feature gates.
+- [x] Global stop.
+- [x] Per-worker stop.
+- [x] Plan-only mode.
 - [ ] Live-world action budgets.
-- [ ] Structured logs.
-- [ ] Retention cleanup.
+- [x] Structured logs.
+- [x] Retention cleanup.
 - [ ] Control-plane systemd service.
-- [ ] ComputerCraft release bundle.
-- [ ] Friend-side installation guide.
-- [ ] Automatic reconnect/reconcile after server restart.
+- [x] ComputerCraft release bundle.
+- [x] Friend-side installation guide.
+- [x] Automatic reconnect/reconcile after server restart.
 - [ ] No-human-online/chunk behavior validated.

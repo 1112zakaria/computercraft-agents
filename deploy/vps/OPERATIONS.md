@@ -27,7 +27,29 @@ sudo journalctl -u computercraft-agents-control-plane -f
 
 The application must not log bearer secrets, database URLs, request authorization headers, or
 certificate private keys. `Restart=on-failure` covers crashes; an operator restart is still
-required after updates or configuration changes.
+required after updates or configuration changes. During shutdown, the control plane closes idle
+and active HTTP sockets before waiting for the server to close. ComputerCraft clients retry
+bounded requests and persist event outboxes, so an operator restart does not wait for a long poll
+or leave systemd to SIGKILL the process after the stop timeout.
+
+## Safe control-plane rollout
+
+From a clean checkout, check out the reviewed commit and run:
+
+```bash
+cd /opt/computercraft-agents
+git fetch origin
+git checkout --detach <reviewed-commit>
+deploy/vps/update-control-plane.sh /opt/computercraft-agents
+```
+
+The helper validates the complete repository before restarting systemd and waits for the private
+`/healthz` endpoint. It never sources or prints `/etc/computercraft-agents/control-plane.env`.
+The control plane closes idle and active HTTP connections during shutdown so ComputerCraft clients
+do not make an operator restart wait for the full systemd stop timeout. In-flight requests are
+safe to retry because direct worker events are outboxed and the poll cursor is durable.
+For rollback, check out the previous deployed commit and run the helper again. Do not use a dirty
+working tree for either operation.
 
 ## Install PostgreSQL backups
 

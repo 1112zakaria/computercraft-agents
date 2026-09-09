@@ -2,15 +2,18 @@ local M = {}
 local compat = assert(loadfile("compat.lua"))()
 
 M.VERSION = 1
+M.JSON_NULL = compat.JSON_NULL
 
 local skills = {
   ["movement.step"] = true,
   ["navigate.path"] = true,
   ["observation.block"] = true,
+  ["peripheral.inspect"] = true,
   ["inventory.inspect"] = true,
   ["inventory.deposit"] = true,
   ["inventory.withdraw"] = true,
   ["mining.excavate"] = true,
+  ["mining.gather"] = true,
   ["fuel.refuel"] = true,
 }
 
@@ -79,15 +82,25 @@ local function arguments_valid(skill, args)
     if not ok or not relative_directions[args.direction] then
       return fail(error_message or "observation.block.direction is invalid")
     end
+  elseif skill == "peripheral.inspect" then
+    local ok, error_message = only_keys(args, { side = true })
+    if not ok then return fail(error_message) end
+    if args.side ~= nil and args.side ~= "top" and args.side ~= "bottom" and args.side ~= "front"
+      and args.side ~= "back" and args.side ~= "left" and args.side ~= "right" then
+      return fail("peripheral.inspect.side is invalid")
+    end
   elseif skill == "inventory.inspect" then
     local ok, error_message = only_keys(args, {})
     if not ok then
       return fail(error_message)
     end
   elseif skill == "inventory.deposit" then
-    local ok, error_message = only_keys(args, { containerId = true, quantity = true, slot = true })
+    local ok, error_message = only_keys(args, { containerId = true, itemKey = true, quantity = true, slot = true })
     if not ok then
       return fail(error_message)
+    end
+    if args.itemKey ~= nil and not identifier(args.itemKey) then
+      return fail("inventory.deposit.itemKey is invalid")
     end
   elseif skill == "inventory.withdraw" then
     local ok, error_message = only_keys(args, { containerId = true, itemKey = true, quantity = true, slot = true })
@@ -103,6 +116,20 @@ local function arguments_valid(skill, args)
       if not integer(args[key]) or args[key] < 1 or args[key] > 64 then
         return fail("mining.excavate dimensions are invalid")
       end
+    end
+  elseif skill == "mining.gather" then
+    local ok, error_message = only_keys(args, { itemKey = true, quantity = true, maxDepth = true })
+    if not ok then
+      return fail(error_message)
+    end
+    if not identifier(args.itemKey) then
+      return fail("mining.gather.itemKey is required")
+    end
+    if not integer(args.quantity) or args.quantity < 1 or args.quantity > 64 then
+      return fail("mining.gather.quantity is invalid")
+    end
+    if not integer(args.maxDepth) or args.maxDepth < 1 or args.maxDepth > 64 then
+      return fail("mining.gather.maxDepth is invalid")
     end
   elseif skill == "fuel.refuel" then
     local ok, error_message = only_keys(args, { maxItems = true })

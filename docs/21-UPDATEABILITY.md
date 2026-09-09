@@ -55,7 +55,13 @@ the manifest URL to the repository's GitHub release asset; `--manifest-url` or
 The control plane validates the target, immutable version, HTTPS manifest URL, and expiry; it
 persists the rollout and rejects overlapping active updates for the same gateway or direct worker.
 Repeating the same `updateId` with the same rollout data is idempotent. Update status and failure
-information are visible through `GET /v1/updates` and `GET /v1/updates/:updateId`.
+information are visible through `GET /v1/updates` and `GET /v1/updates/:updateId`; the individual
+status response includes its chronological update-event history. If a rollout
+expires before successful activation (for example, while its turtle is offline), maintenance marks
+it `FAILED` with `failureCode: UPDATE_EXPIRED` and writes an update-history event. The operator
+must review the failure and enqueue a new immutable update request; expired work is never silently
+delivered later. Delayed lifecycle events remain in the raw worker/gateway event audit but cannot
+replace the terminal `UPDATE_EXPIRED` rollout state.
 
 ## Worker rollout
 
@@ -69,7 +75,8 @@ information are visible through `GET /v1/updates` and `GET /v1/updates/:updateId
 6. The turtle writes to an update-specific staging directory, preserves configuration/state/cache,
    writes an activation journal and rollback copy, then activates and reboots.
 7. The turtle registers and heartbeats with the new runtime version. The activation journal is
-   confirmed only after startup succeeds; an interrupted activation restores the prior files.
+   confirmed only after startup succeeds; an interrupted activation restores the prior files and
+   removes managed files introduced only by the failed release.
 
 For `fleet:<gateway-id>`, the gateway applies the release to its currently registered workers in
 sequence. A failed worker halts the rollout and emits a failure event; a worker that has already
@@ -80,7 +87,7 @@ activated can be rolled back by its bootstrap recovery path.
 Direct workers are updated individually:
 
 ```bash
-npm run cli -- update --target worker:alice --version v0.4.0
+npm run cli -- update --target worker:alice --version v0.4.1
 ```
 
 The control plane resolves `alice` as `transport: direct-http` and includes a direct update
@@ -93,7 +100,8 @@ control in the turtle's next fixed-interval poll. The turtle then:
 5. preserves `worker.conf`, state, command cache, cursor, outbox, logs, and update journal;
 6. activates through the stable bootstrap and reboots;
 7. registers/heartbeats with the new runtime version;
-8. restores the previous runtime and emits `worker.update.rolled_back` if startup recovery fails.
+8. restores the previous runtime and removes managed files introduced only by the failed release if
+   startup recovery fails, then emits `worker.update.rolled_back`.
 
 The direct turtle is not a gateway proxy: it needs the ComputerCraft HTTP allowlist for the VPS
 and GitHub release URLs, but it needs no modem. Direct fleet rollouts and automatic direct/gateway
@@ -105,7 +113,7 @@ Gateway updates use the same manifest and release source. The gateway stages onl
 `computercraft/gateway/` managed files, preserves `gateway.conf` and the outbox, writes the
 activation journal, creates a rollback copy, replaces the allowlisted files, and reboots. The
 stable bootstrap confirms a healthy restart; if startup does not confirm, the next boot restores
-the previous runtime.
+the previous runtime and removes managed files introduced only by the failed release.
 
 ## Safety boundaries
 

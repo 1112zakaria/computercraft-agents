@@ -23,6 +23,15 @@ if not ok then
   return
 end
 local config = config_or_error
+local advertised_capabilities = {}
+for _, capability in ipairs(config.capabilities or {}) do
+  advertised_capabilities[capability] = true
+end
+for _, capability in ipairs({ "mining.gather", "navigate.path", "inventory.deposit", "peripheral.inspect" }) do
+  if not advertised_capabilities[capability] then
+    logging.warn("capability " .. capability .. " is not advertised; related commands will be rejected")
+  end
+end
 local recovered, recovery_error, pending_update, did_rollback = bootstrap.recover(config.update_journal_path)
 if not recovered then
   logging.error(recovery_error)
@@ -36,8 +45,10 @@ local state_module = require("state")
 local cancellation_module = require("cancellation")
 local movement_module = require("movement")
 local observation_module = require("observation")
+local peripherals_module = require("peripherals")
 local inventory_module = require("inventory")
 local fuel_module = require("fuel")
+local excavation_module = require("excavation")
 local cache_module = require("idempotency")
 local client_module
 if config.transport == "direct-http" then
@@ -57,13 +68,15 @@ local function poll_control()
 end
 
 cancellation = cancellation_module.new(poll_control)
-local inventory = inventory_module.new(turtle, config, cancellation)
-local fuel = fuel_module.new(turtle, config, cancellation)
-client = client_module.new(config, state, inventory, fuel, protocol, logging)
 local movement = movement_module.new(state, cancellation, turtle)
 local observation = observation_module.new(turtle, cancellation)
+local peripherals = peripherals_module.new(peripheral, cancellation)
+local inventory = inventory_module.new(turtle, config, cancellation)
+local fuel = fuel_module.new(turtle, config, cancellation)
+local excavation = excavation_module.new(movement, observation, inventory)
+client = client_module.new(config, state, inventory, fuel, protocol, logging)
 local cache = cache_module.new(config.idempotency_path, config.max_cached_commands, logging)
-local executor = executor_module.new(config, client, state, cancellation, movement, observation, inventory, fuel, cache, protocol, id, logging)
+local executor = executor_module.new(config, client, state, cancellation, movement, observation, inventory, fuel, cache, protocol, id, logging, excavation, peripherals)
 local update_manager = require("update_manager").new(config, client, protocol, id, logging, bootstrap)
 
 local connected = false

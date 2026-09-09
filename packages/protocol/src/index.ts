@@ -40,6 +40,18 @@ export const PositionSchema = z
   })
   .strict();
 
+export const NamedLocationApproachSchema = z
+  .object({
+    dimension: z.number().int(),
+    x: z.number().int(),
+    y: z.number().int(),
+    z: z.number().int(),
+    facing: FacingSchema.nullable().optional(),
+  })
+  .strict();
+
+export type NamedLocationApproach = z.infer<typeof NamedLocationApproachSchema>;
+
 export const CapabilityMaturitySchema = z.enum([
   "UNIMPLEMENTED",
   "EXPERIMENTAL",
@@ -213,10 +225,12 @@ export const SkillNameSchema = z.enum([
   "movement.step",
   "navigate.path",
   "observation.block",
+  "peripheral.inspect",
   "inventory.inspect",
   "inventory.deposit",
   "inventory.withdraw",
   "mining.excavate",
+  "mining.gather",
   "fuel.refuel",
 ]);
 
@@ -238,11 +252,20 @@ const ObservationBlockArgumentsSchema = z
   })
   .strict();
 
+export const PeripheralSideSchema = z.enum(["top", "bottom", "front", "back", "left", "right"]);
+
+const PeripheralInspectArgumentsSchema = z
+  .object({
+    side: PeripheralSideSchema.optional(),
+  })
+  .strict();
+
 const EmptyArgumentsSchema = z.object({}).strict();
 
 const InventoryDepositArgumentsSchema = z
   .object({
     containerId: IdentifierSchema.optional(),
+    itemKey: ItemKeySchema.optional(),
     quantity: QuantitySchema.optional(),
     slot: SlotSchema.optional(),
   })
@@ -265,6 +288,14 @@ const MiningExcavateArgumentsSchema = z
   })
   .strict();
 
+const MiningGatherArgumentsSchema = z
+  .object({
+    itemKey: ItemKeySchema,
+    quantity: QuantitySchema,
+    maxDepth: PositiveIntegerSchema.max(64),
+  })
+  .strict();
+
 const FuelRefuelArgumentsSchema = z
   .object({
     maxItems: PositiveIntegerSchema.max(16),
@@ -274,6 +305,7 @@ const FuelRefuelArgumentsSchema = z
 const commandBaseShape = {
   protocolVersion: ProtocolVersionSchema,
   commandId: IdentifierSchema,
+  taskId: IdentifierSchema.optional(),
   workerId: IdentifierSchema,
   issuedAt: TimestampSchema,
   expiresAt: TimestampSchema,
@@ -300,6 +332,13 @@ const CommandUnionSchema = z.discriminatedUnion("skill", [
       ...commandBaseShape,
       skill: z.literal("observation.block"),
       arguments: ObservationBlockArgumentsSchema,
+    })
+    .strict(),
+  z
+    .object({
+      ...commandBaseShape,
+      skill: z.literal("peripheral.inspect"),
+      arguments: PeripheralInspectArgumentsSchema,
     })
     .strict(),
   z
@@ -333,6 +372,13 @@ const CommandUnionSchema = z.discriminatedUnion("skill", [
   z
     .object({
       ...commandBaseShape,
+      skill: z.literal("mining.gather"),
+      arguments: MiningGatherArgumentsSchema,
+    })
+    .strict(),
+  z
+    .object({
+      ...commandBaseShape,
       skill: z.literal("fuel.refuel"),
       arguments: FuelRefuelArgumentsSchema,
     })
@@ -352,6 +398,96 @@ export const CommandSchema = CommandUnionSchema.superRefine((command, context) =
 export type SkillName = z.infer<typeof SkillNameSchema>;
 export type CommandBudget = z.infer<typeof CommandBudgetSchema>;
 export type Command = z.infer<typeof CommandSchema>;
+
+export const GoalCreateRequestSchema = z
+  .object({
+    protocolVersion: ProtocolVersionSchema,
+    goalText: z.string().trim().min(1).max(4096),
+    createdByPrincipal: z.string().trim().min(1).max(128),
+    priority: z.number().int().min(-1000).max(1000).default(0),
+  })
+  .strict();
+
+export const AddressResolutionRequestSchema = z
+  .object({
+    protocolVersion: ProtocolVersionSchema,
+    commandText: z.string().trim().min(1).max(4096),
+  })
+  .strict();
+
+export type AddressResolutionRequest = z.infer<typeof AddressResolutionRequestSchema>;
+
+export type GoalCreateRequest = z.infer<typeof GoalCreateRequestSchema>;
+
+export const TaskStatusSchema = z.enum([
+  "PENDING",
+  "READY",
+  "RUNNING",
+  "PAUSED",
+  "BLOCKED",
+  "DONE",
+  "FAILED",
+  "CANCELLED",
+]);
+
+export const TaskTransitionRequestSchema = z
+  .object({
+    protocolVersion: ProtocolVersionSchema,
+    status: TaskStatusSchema,
+    reason: z.string().trim().min(1).max(512).optional(),
+  })
+  .strict();
+
+export type TaskStatus = z.infer<typeof TaskStatusSchema>;
+export type TaskTransitionRequest = z.infer<typeof TaskTransitionRequestSchema>;
+
+export const TaskDispatchRequestSchema = z
+  .object({
+    protocolVersion: ProtocolVersionSchema,
+    workerId: IdentifierSchema,
+  })
+  .strict();
+
+export type TaskDispatchRequest = z.infer<typeof TaskDispatchRequestSchema>;
+
+export const StoredPositionConfidenceSchema = z.enum([
+  "CONFIRMED_ANCHOR",
+  "DEAD_RECKONED",
+  "SUSPECT",
+  "UNKNOWN",
+]);
+
+export const NamedLocationCreateRequestSchema = z
+  .object({
+    protocolVersion: ProtocolVersionSchema,
+    name: z.string().trim().min(1).max(128),
+    dimension: z.number().int(),
+    x: z.number().int(),
+    y: z.number().int(),
+    z: z.number().int(),
+    facing: FacingSchema.nullable().optional(),
+    approach: NamedLocationApproachSchema.nullable().optional(),
+    source: z.string().trim().min(1).max(128),
+    confidence: StoredPositionConfidenceSchema,
+    metadata: z.record(z.string(), z.unknown()).default({}),
+  })
+  .strict();
+
+export type NamedLocationCreateRequest = z.infer<typeof NamedLocationCreateRequestSchema>;
+
+export const WorkerAnchorRequestSchema = z
+  .object({
+    protocolVersion: ProtocolVersionSchema,
+    dimension: z.number().int(),
+    x: z.number().int(),
+    y: z.number().int(),
+    z: z.number().int(),
+    facing: FacingSchema.nullable().optional(),
+    source: z.string().trim().min(1).max(128).default("operator"),
+  })
+  .strict();
+
+export type WorkerAnchorRequest = z.infer<typeof WorkerAnchorRequestSchema>;
 
 const StopControlBaseShape = {
   protocolVersion: ProtocolVersionSchema,
@@ -612,6 +748,7 @@ export const ProtocolErrorCodeSchema = z.enum([
   "INVALID_PAYLOAD",
   "UNSUPPORTED_PROTOCOL_VERSION",
   "UNKNOWN_WORKER",
+  "UNKNOWN_ADDRESS_TARGET",
   "UNKNOWN_UPDATE",
   "UNKNOWN_SKILL",
   "INVALID_ARGUMENTS",
@@ -764,7 +901,8 @@ const BlockObservedPayloadSchema = z
         metadata: z.number().int().nonnegative().optional(),
       })
       .strict()
-      .nullable(),
+      .nullable()
+      .optional(),
     position: PositionSchema.optional(),
   })
   .strict();
@@ -783,6 +921,15 @@ const ProtocolErrorPayloadSchema = z
     message: z.string().min(1).max(512),
     retryable: z.boolean(),
     details: z.record(z.string(), z.unknown()).optional(),
+  })
+  .strict();
+
+// Older turtle runtimes wrapped protocol errors in an `error` property. Keep
+// accepting that already-buffered shape while current runtimes emit the
+// canonical flat payload above.
+const LegacyProtocolErrorPayloadSchema = z
+  .object({
+    error: ProtocolErrorPayloadSchema,
   })
   .strict();
 
@@ -812,7 +959,7 @@ const EventUnionSchema = z.discriminatedUnion("type", [
   event("inventory.full", InventoryFullPayloadSchema),
   event("block.observed", BlockObservedPayloadSchema),
   event("peripheral.observed", PeripheralObservedPayloadSchema),
-  event("protocol.error", ProtocolErrorPayloadSchema),
+  event("protocol.error", z.union([ProtocolErrorPayloadSchema, LegacyProtocolErrorPayloadSchema])),
   event("worker.update.started", UpdateEventPayloadSchema),
   event("worker.update.staged", UpdateEventPayloadSchema),
   event("worker.update.activated", UpdateEventPayloadSchema),

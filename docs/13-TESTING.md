@@ -17,10 +17,37 @@ Test:
 - stop/cancel transitions;
 - resource reservations;
 - context assembly;
+- planner decision validation and fake reasoning responses;
+- planner trigger classification, bounded provider invocation, and duplicate-trigger suppression;
+- opt-in planner runner claim/release behavior, high-retention decision recording, and safe
+  task-proposal application/idempotency when explicitly enabled;
+- reasoning outage pause, bounded retry, and recovery reset;
+- bounded gather workflow transitions and terminal blocking;
+- item-targeted deposits reject missing or mismatched inventory stacks and workflow completion
+  requires the canonical target item key;
+- blocked navigation contradiction handling and the maximum-three-attempt gather replan boundary;
+- gather navigation completion verifies the turtle-reported position matches the named destination
+  approach coordinate before queuing deposit;
 - reasoning output validation;
 - project-planner escalation;
+- addressed gather-goal dry-run validation and explicit one-tick goal start behavior;
 - protocol schema validation;
 - event deduplication;
+- stale-worker recovery pauses and cancels work before explicit resume;
+- stale-worker reconciliation writes a high-retention recovery audit record;
+- structured request logs carry correlation IDs and redact secret-like fields;
+- protected audit inspection returns bounded recovery/event history;
+- retention cleanup deletes only expired STANDARD/HIGH audit events and preserves IMMUTABLE history;
+- gateway restart recovery cancels uncertain delivery, pauses assigned work, and queues stops;
+- turtle boot changes cancel uncertain delivery for both direct and gateway transports;
+- control-plane startup invalidates online work before reconnect and explicit resume;
+- scheduler selection skips workers whose worker inspection reports an active task;
+- operator pause/cancel stops active delivery atomically and resume returns work to `READY`;
+- agent and project inspection API/CLI responses;
+- bounded CLI inventory inspection command construction and dry-run behavior;
+- environment-backed feature-gate inspection and disabled-skill rejection;
+- read-only first-use goal preflight reports missing capabilities, anchors, destinations, and
+  known routes without creating work;
 - outage transitions.
 
 ### Unit tests — Lua
@@ -100,6 +127,17 @@ direct turtle startup
 This canary requires only ComputerCraft HTTP access and the VPS allowlist; it does not require a
 gateway computer or wireless modem.
 
+The operator position-anchor path is also covered: a protected request stores explicit coordinates
+as `CONFIRMED_ANCHOR` and may include a manually verified facing. It never infers compass
+orientation from the turtle runtime.
+
+Database tests also verify that a same-coordinate telemetry heartbeat retains a verified operator
+anchor while a changed coordinate becomes unconfirmed and requires re-anchoring.
+
+The deployment test also parses the backup-first `enable-gather.lua` migration helper and checks
+that the pinned installer downloads it from the deployment path without changing the runtime
+release allowlist.
+
 ## Gateway-managed update acceptance
 
 Before a live canary, the fake integration must prove:
@@ -112,6 +150,15 @@ Before a live canary, the fake integration must prove:
 6. configuration, state, command cache, logs, and outbox files remain untouched.
 
 ## 4. First useful-agent acceptance
+
+Before creating the goal, run:
+
+```bash
+npm run cli -- goal-preflight "@alice get 64 cobblestone and deposit it in Test Chest"
+```
+
+The preflight is advisory and read-only. A `ready: true` result still requires the operator to
+confirm the local `worker.conf` container-side mapping before dispatching the live canary.
 
 Natural language:
 
@@ -126,8 +173,12 @@ Acceptance:
 - scheduler assigns Alice;
 - Alice moves/mines with bounded logic;
 - inventory fullness is handled;
+- an inventory-full command attempts a bounded return-to-container/deposit/resume loop and falls
+  back to an explicit pause when the position or route evidence is insufficient;
 - Alice reaches deposit location;
-- 64 cobblestone are verified delivered;
+- a blocked route records the contradicted cell and deterministically replans when a known alternate
+  route exists, without retrying indefinitely;
+- 64 cobblestone have a verified moved quantity and post-transfer inventory evidence;
 - project is marked complete;
 - user receives completion report;
 - action lineage is inspectable.
@@ -183,4 +234,6 @@ Implement:
 - fake `ReasoningProvider` fixtures;
 - schema-validation tests;
 - recorded decision fixtures;
+- injected-executor tests for the read-only Codex CLI boundary, including timeout/cancellation and
+  sanitized process handling;
 - optional manual/live Codex integration test suite.

@@ -92,7 +92,7 @@ sequenceDiagram
         V-->>T: acceptedEventIds
     end
 
-    O->>V: update --target worker:alice --version v0.4.0
+    O->>V: update --target worker:alice --version v0.4.1
     V->>V: Persist direct rollout and reject overlap
     T->>I: GET /v1/worker/commands?after=cursor
     V-->>T: Direct update control with immutable GitHub manifest URL

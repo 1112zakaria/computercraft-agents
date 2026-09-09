@@ -26,6 +26,12 @@ npm test
 workspace does not require a live Minecraft server, PostgreSQL instance, or Codex credentials for
 these baseline checks.
 
+The control plane's Codex planner loop is disabled by default. When explicitly enabled, it is
+plan-only unless `PLANNER_APPLY_ENABLED=true` is also set. The apply boundary accepts only
+protocol-validated `create-task`/`plan` proposals within the subject job's worker scope, persists
+them idempotently, and leaves other decision kinds in audit-only mode. See
+[deployment](docs/11-DEPLOYMENT.md) before enabling it.
+
 To package the ComputerCraft programs for friend-side installation, run
 `npm run release:lua`. The resulting `dist/release/computercraft-lua.zip` contains no populated
 configuration or secrets.
@@ -61,14 +67,62 @@ operator CLI, then configure `worker.conf` with `transport = "direct-http"`, the
 identity, Minecraft server ID, and the existing bearer secret:
 
 ```text
-npm run cli -- provision-worker --id alice --server friends-server --computer-id 21 --version v0.4.0
+  npm run cli -- provision-worker --id alice --server friends-server --computer-id 21 --version v0.4.1
 npm run cli -- workers alice
-npm run cli -- update --target worker:alice --version v0.4.0
+npm run cli -- inspect alice
+npm run cli -- peripherals alice
+npm run cli -- peripherals alice front
+npm run cli -- agents
+npm run cli -- agent alice
+npm run cli -- projects
+npm run cli -- resolve-address "@miners inspect"
+npm run cli -- feature-gates
+npm run cli -- audit 50
+npm run cli -- diagnose
+npm run cli -- update --target worker:alice --version v0.4.1
+npm run cli -- excavate alice 1 1 8
+npm run cli -- path alice N N E
+npm run cli -- path-to alice "Test Chest"
+npm run cli -- go-to alice "Test Chest"
+npm run cli -- path-to alice "Test Chest" --dry-run
+npm run cli -- go-to alice "Test Chest" --dry-run
+npm run cli -- observe alice front
+npm run cli -- set-location "Test Chest" 0 10 64 -2 E --approach 0 9 64 -2 N
+npm run cli -- gather alice minecraft:cobblestone 8 12
+npm run cli -- deposit alice 8 --container-id test-chest --item-key cobblestone
+npm run cli -- withdraw alice minecraft:cobblestone 8 --container-id test-chest
+npm run cli -- goal "@alice get 64 cobblestone and deposit it in Test Chest"
+npm run cli -- goal-preflight "@alice get 64 cobblestone and deposit it in Test Chest"
+npm run cli -- goal "@alice get 64 cobblestone and deposit it in Test Chest" --start
+npm run cli -- goal "@alice get 64 cobblestone and deposit it in Test Chest" --dry-run
+npm run cli -- locations
+npm run cli -- location "Test Chest"
+npm run cli -- tasks
+npm run cli -- task <task-id>
+npm run cli -- goal-report <task-id>
+npm run cli -- planner-triggers [limit]
+npm run cli -- planner-status
+npm run cli -- planning-context <task-id>
+npm run cli -- runnable-tasks
+npm run cli -- dispatch-task <task-id> <worker-id>
+npm run cli -- scheduler-tick
+npm run cli -- task-status <task-id> BLOCKED
+npm run cli -- pause-task <task-id> "operator review"
+npm run cli -- resume-task <task-id>
+npm run cli -- cancel-task <task-id> "operator cancelled"
+npm run cli -- move alice N --dry-run
+npm run cli -- set-location "Test Chest" 0 10 64 -2 E
 ```
 
 See [architecture](docs/02-ARCHITECTURE.md), [protocol](docs/05-PROTOCOL.md), and
-[Minecraft-side deployment](deploy/minecraft/README.md) for endpoint and installation details.
+[first-use runbook](docs/23-FIRST-USE-RUNBOOK.md) and [Minecraft-side deployment](deploy/minecraft/README.md)
+for endpoint and installation details.
 The gateway route remains available for modem-equipped fleets.
+
+Run `goal-preflight` before creating the first useful gather goal. It is read-only and reports
+worker capability, online/idle state, confirmed position, named destination, and known-route
+blockers. It cannot verify the physical chest side inside `worker.conf`; that remains an operator
+advisory.
 
 ## Repository layout
 
@@ -97,6 +151,12 @@ docs/                 Requirements, architecture, contracts, backlog, and operat
 - [Implementation backlog](docs/18-CODEX-BACKLOG.md)
 - [Implementation checklist](docs/19-IMPLEMENTATION-CHECKLIST.md)
 - [Coding-agent instructions](docs/AGENTS.md)
+
+For a manually verified turtle position, record an operator anchor before planning a route:
+
+```bash
+npm run cli -- anchor alice 0 10 64 -2 E
+```
 
 ## Safety
 

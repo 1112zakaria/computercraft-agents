@@ -12,6 +12,26 @@ local function required_string(config, key)
   return value
 end
 
+local function container_side(value, key)
+  if value ~= "front" and value ~= "up" and value ~= "down" then
+    fail(key .. " must be front, up, or down")
+  end
+  return value
+end
+
+local function configured_container_sides(value)
+  if value == nil then return {} end
+  if type(value) ~= "table" then fail("container_sides must be a table") end
+  local result = {}
+  for id, side in pairs(value) do
+    if type(id) ~= "string" or string.len(id) == 0 then
+      fail("container_sides keys must be non-empty strings")
+    end
+    result[id] = container_side(side, "container_sides[" .. id .. "]")
+  end
+  return result
+end
+
 local function configured_runtime_version(config, path)
   if fs.exists(path) then
     local handle = fs.open(path, "r")
@@ -74,14 +94,18 @@ function M.load(path)
   result.heartbeat_interval_seconds = value.heartbeat_interval_seconds or 10
   result.receive_timeout_seconds = value.receive_timeout_seconds or 1
   result.fuel_low_threshold = value.fuel_low_threshold or 100
-  result.container_side = value.container_side or "front"
+  result.container_side = container_side(value.container_side or "front", "container_side")
+  result.container_sides = configured_container_sides(value.container_sides)
   result.capabilities = value.capabilities or {
     "movement.step",
     "navigate.path",
     "observation.block",
+    "peripheral.inspect",
     "inventory.inspect",
     "inventory.deposit",
     "inventory.withdraw",
+    "mining.excavate",
+    "mining.gather",
     "fuel.refuel",
   }
   result.acceptable_fuel_items = value.acceptable_fuel_items or {}
