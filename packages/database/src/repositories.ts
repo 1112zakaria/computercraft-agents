@@ -269,6 +269,13 @@ export function transferMeetsQuantity(result: unknown, requestedQuantity: number
   return Number.isSafeInteger(result.moved) && result.moved >= requestedQuantity;
 }
 
+export function workflowStepEventCanAdvance(taskStatus: string, eventType: Event["type"]): boolean {
+  return (
+    (eventType === "command.completed" && taskStatus === "DONE") ||
+    (eventType === "command.failed" && taskStatus === "FAILED")
+  );
+}
+
 function updateStatusForEvent(type: Event["type"]): UpdateStatus | undefined {
   switch (type) {
     case "worker.update.started":
@@ -1588,11 +1595,12 @@ export class GatewayRuntimeRepository {
       task_id: string;
       parent_task_id: string | null;
       workflow_phase: string | null;
+      status: string;
       job_id: string;
     }>(
       `
         SELECT t.id::text AS task_id, t.parent_task_id::text AS parent_task_id,
-               t.workflow_phase, t.job_id::text AS job_id
+               t.workflow_phase, t.status, t.job_id::text AS job_id
         FROM gateway_commands command
         JOIN tasks t ON t.id = command.task_id
         WHERE command.command_id = $1
@@ -1600,7 +1608,7 @@ export class GatewayRuntimeRepository {
       [event.commandId],
     );
     const task = taskResult.rows[0];
-    if (!task?.parent_task_id) return;
+    if (!task?.parent_task_id || !workflowStepEventCanAdvance(task.status, event.type)) return;
 
     const parentResult = await client.query<{ arguments_json: unknown }>(
       `SELECT arguments_json FROM tasks WHERE id = $1`,
@@ -1706,6 +1714,11 @@ export class GatewayRuntimeRepository {
       await client.query(`UPDATE tasks SET status = 'RUNNING' WHERE id = $1 AND status = 'READY'`, [
         task.parent_task_id,
       ]);
+      const nextStep = await client.query(
+        `SELECT 1 FROM tasks WHERE parent_task_id = $1 AND workflow_phase = $2 LIMIT 1`,
+        [task.parent_task_id, path.directions.length > 0 ? "NAVIGATE" : "DEPOSIT"],
+      );
+      if (nextStep.rowCount) return;
       if (path.directions.length > 0) {
         await client.query(
           `
@@ -1748,6 +1761,11 @@ export class GatewayRuntimeRepository {
       await client.query(`UPDATE tasks SET status = 'RUNNING' WHERE id = $1 AND status = 'READY'`, [
         task.parent_task_id,
       ]);
+      const nextStep = await client.query(
+        `SELECT 1 FROM tasks WHERE parent_task_id = $1 AND workflow_phase = 'DEPOSIT' LIMIT 1`,
+        [task.parent_task_id],
+      );
+      if (nextStep.rowCount) return;
       await client.query(
         `
           INSERT INTO tasks (

@@ -10,6 +10,7 @@ import {
   runMigrations,
   taskStatusForCommandEvent,
   transferMeetsQuantity,
+  workflowStepEventCanAdvance,
 } from "../packages/database/src/index";
 
 const migrationDirectory = join(__dirname, "../packages/database/migrations");
@@ -99,6 +100,14 @@ test("workflow deposit requires the complete transfer quantity", () => {
   assert.equal(transferMeetsQuantity({ moved: 8 }, 8), true);
   assert.equal(transferMeetsQuantity({ moved: 7 }, 8), false);
   assert.equal(transferMeetsQuantity({ status: "OK" }, 8), false);
+});
+
+test("workflow advancement ignores late or duplicate step events", () => {
+  assert.equal(workflowStepEventCanAdvance("DONE", "command.completed"), true);
+  assert.equal(workflowStepEventCanAdvance("FAILED", "command.failed"), true);
+  assert.equal(workflowStepEventCanAdvance("PAUSED", "command.completed"), false);
+  assert.equal(workflowStepEventCanAdvance("RUNNING", "command.completed"), false);
+  assert.equal(workflowStepEventCanAdvance("DONE", "command.failed"), false);
 });
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;

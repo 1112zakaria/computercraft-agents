@@ -214,7 +214,8 @@ Implement agents, workers, gateways, projects, jobs, tasks, dependencies, conver
 **Dependencies:** CC-020
 **Status:** PARTIAL — project/job/task creation, goal persistence, task inspection (including
 single-task detail), restart-safe database claims, explicit command-task dispatch, and the first
-bounded multi-step workflow are implemented; broader dependency and recovery semantics remain.
+bounded multi-step workflow are implemented; workflow event advancement is duplicate/late-event
+safe, while broader dependency and recovery semantics remain.
 
 Implement state transitions and task dependencies.
 
@@ -884,8 +885,8 @@ Start with simple tunnel/box patterns; every operation bounded.
 **Status:** PARTIAL — a pure bounded gather workflow contract and persistent parent/step linkage
 now model targeted gather, known-cell destination navigation, allowlisted deposit, completion, and
 safe blocking. The scheduler can dispatch the first protocol step and command events advance the
-workflow; runtime inventory-full handling and resumable step state remain. Deposit completion now
-requires the reported moved quantity to meet the requested quantity.
+workflow idempotently; runtime inventory-full handling and resumable step state remain. Deposit
+completion now requires the reported moved quantity to meet the requested quantity.
 
 ### CC-103 — Implement known-container deposit skill
 
