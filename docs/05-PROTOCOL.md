@@ -162,7 +162,9 @@ creation records `goal.created`; task-correlated command completion/failure reco
 trigger; and `movement.blocked` records `worker.blocked`. Trigger IDs are deterministic for the
 originating goal or event, so retries and duplicate transport events do not create duplicate
 planner work. v1 persists these triggers as `PENDING`; consuming them and applying a validated
-planner decision remains a separate, explicitly bounded control-plane loop.
+planner decision remains a separate, explicitly bounded control-plane loop. The repository claim
+boundary uses `FOR UPDATE SKIP LOCKED`, increments attempts, and accepts completion only from
+`PROCESSING`, so a future worker can safely run more than one control-plane instance.
 
 The reasoning package now exposes a provider-neutral planner-trigger service. It accepts only the
 bounded causes `goal.created`, `command.completed`, `command.failed`, `worker.blocked`,

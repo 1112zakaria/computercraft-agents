@@ -93,6 +93,12 @@ test("database migration set is ordered and contains the core relational model",
   const plannerSql = readFileSync(join(migrationDirectory, "009_planner_triggers.sql"), "utf8");
   assert.match(plannerSql, /CREATE TABLE planner_triggers/);
   assert.match(plannerSql, /planner_triggers_pending_idx/);
+  const repositorySql = readFileSync(
+    join(__dirname, "../packages/database/src/repositories.ts"),
+    "utf8",
+  );
+  assert.match(repositorySql, /FOR UPDATE SKIP LOCKED/);
+  assert.match(repositorySql, /status = 'PROCESSING'/);
 });
 
 test("urgent command cancellation pauses the logical task", () => {

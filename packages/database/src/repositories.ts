@@ -82,6 +82,8 @@ export interface PlannerTriggerRecord {
   readonly processedAt?: Date | string | null;
 }
 
+export type PlannerTriggerStatus = "PENDING" | "PROCESSING" | "SUCCEEDED" | "FAILED";
+
 export interface CreateGoalInput {
   readonly projectName: string;
   readonly createdByPrincipal: string;
@@ -550,6 +552,48 @@ export class GatewayRuntimeRepository {
       [limit],
     );
     return result.rows;
+  }
+
+  public async claimPlannerTriggers(limit = 1): Promise<readonly PlannerTriggerRecord[]> {
+    const result = await this.pool.query(
+      `
+        WITH eligible AS (
+          SELECT trigger_id
+          FROM planner_triggers
+          WHERE status = 'PENDING'
+          ORDER BY priority DESC, occurred_at, trigger_id
+          FOR UPDATE SKIP LOCKED
+          LIMIT $1
+        )
+        UPDATE planner_triggers trigger
+        SET status = 'PROCESSING', attempts = trigger.attempts + 1
+        FROM eligible
+        WHERE trigger.trigger_id = eligible.trigger_id
+        RETURNING trigger.trigger_id AS "triggerId", trigger.cause,
+                  trigger.subject_id AS "subjectId", trigger.occurred_at AS "occurredAt",
+                  trigger.priority, trigger.status, trigger.attempts,
+                  trigger.last_error_json AS "lastError", trigger.created_at AS "createdAt",
+                  trigger.processed_at AS "processedAt"
+      `,
+      [limit],
+    );
+    return result.rows;
+  }
+
+  public async completePlannerTrigger(
+    triggerId: string,
+    status: Extract<PlannerTriggerStatus, "SUCCEEDED" | "FAILED">,
+    lastError?: unknown,
+  ): Promise<boolean> {
+    const result = await this.pool.query(
+      `
+        UPDATE planner_triggers
+        SET status = $2, last_error_json = $3, processed_at = NOW()
+        WHERE trigger_id = $1 AND status = 'PROCESSING'
+      `,
+      [triggerId, status, lastError === undefined ? null : asJson(lastError)],
+    );
+    return (result.rowCount ?? 0) > 0;
   }
 
   private async recordPlannerTrigger(client: PoolClient, event: Event): Promise<void> {
