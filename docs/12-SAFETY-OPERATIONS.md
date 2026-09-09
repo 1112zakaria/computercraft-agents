@@ -60,6 +60,14 @@ Disabled skills are rejected with `CAPABILITY_NOT_ENABLED`; the gate does not by
 capability checks, command budgets, stop controls, or audit/event handling. Persistent per-worker
 gates and canary quotas remain future hardening.
 
+## 4a. Position anchoring
+
+After a manual relocation, an operator may record a verified worker coordinate with
+`npm run cli -- anchor <worker-id> <dimension> <x> <y> <z> [N|E|S|W]`. This creates a
+`CONFIRMED_ANCHOR` observation for future bounded planning. The command does not move the turtle,
+and an omitted facing is intentional: the runtime cannot universally determine compass direction.
+Treat the supplied coordinate as an assertion that must be checked in-game before use.
+
 ## 5. Budgets
 
 Every physical command SHOULD support limits such as:

@@ -73,6 +73,56 @@ test("CLI constructs an authenticated immutable update request", async () => {
   }
 });
 
+test("CLI constructs an operator worker position anchor request", async () => {
+  const previousFetch = globalThis.fetch;
+  const previousUrl = process.env.CONTROL_PLANE_URL;
+  const previousSecret = process.env.CONTROL_PLANE_ADMIN_SECRET;
+  let capturedUrl = "";
+  let capturedInit: RequestInit | undefined;
+  process.env.CONTROL_PLANE_URL = "http://control-plane.test";
+  process.env.CONTROL_PLANE_ADMIN_SECRET = "test-admin-secret";
+  globalThis.fetch = async (input, init) => {
+    capturedUrl = String(input);
+    capturedInit = init;
+    return new Response(
+      JSON.stringify({
+        workerId: "alice",
+        position: { confidence: "CONFIRMED_ANCHOR" },
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  };
+  try {
+    await runCli(["anchor", "alice", "0", "10", "64", "-2", "E"]);
+    assert.equal(capturedUrl, "http://control-plane.test/v1/workers/alice/anchor");
+    assert.equal(capturedInit?.method, "POST");
+    const body = JSON.parse(String(capturedInit?.body)) as {
+      protocolVersion: number;
+      dimension: number;
+      x: number;
+      y: number;
+      z: number;
+      facing: string;
+      source: string;
+    };
+    assert.deepEqual(body, {
+      protocolVersion: 1,
+      dimension: 0,
+      x: 10,
+      y: 64,
+      z: -2,
+      facing: "E",
+      source: "operator",
+    });
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousUrl === undefined) delete process.env.CONTROL_PLANE_URL;
+    else process.env.CONTROL_PLANE_URL = previousUrl;
+    if (previousSecret === undefined) delete process.env.CONTROL_PLANE_ADMIN_SECRET;
+    else process.env.CONTROL_PLANE_ADMIN_SECRET = previousSecret;
+  }
+});
+
 test("CLI constructs a direct worker provisioning request", async () => {
   const previousFetch = globalThis.fetch;
   const previousUrl = process.env.CONTROL_PLANE_URL;

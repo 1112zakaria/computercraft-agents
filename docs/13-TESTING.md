@@ -109,6 +109,10 @@ direct turtle startup
 This canary requires only ComputerCraft HTTP access and the VPS allowlist; it does not require a
 gateway computer or wireless modem.
 
+The operator position-anchor path is also covered: a protected request stores explicit coordinates
+as `CONFIRMED_ANCHOR` and may include a manually verified facing. It never infers compass
+orientation from the turtle runtime.
+
 ## Gateway-managed update acceptance
 
 Before a live canary, the fake integration must prove:

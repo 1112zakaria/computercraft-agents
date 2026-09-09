@@ -15,6 +15,7 @@ import type {
   UpdateControl,
   UpdateRequest,
   UpdateStatus,
+  WorkerAnchorRequest,
   WorkerTransport,
 } from "@computercraft-agents/protocol";
 import { CommandSchema } from "@computercraft-agents/protocol";
@@ -1577,6 +1578,63 @@ export class GatewayRuntimeRepository {
           }
         : null,
     };
+  }
+
+  public async anchorWorker(
+    workerId: string,
+    input: WorkerAnchorRequest,
+  ): Promise<Record<string, unknown>> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const worker = await client.query<{ id: string; online: boolean }>(
+        `SELECT id::text, online FROM workers WHERE worker_key = $1 FOR UPDATE`,
+        [workerId],
+      );
+      const row = worker.rows[0];
+      if (!row) {
+        throw new RepositoryError("UNKNOWN_WORKER", "worker was not found", 404);
+      }
+      const observedAt = new Date();
+      await client.query(
+        `
+          INSERT INTO worker_observations (
+            worker_id, observed_at, dimension, x, y, z, facing,
+            position_confidence, fuel_level, current_command_id, status
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, 'CONFIRMED_ANCHOR', NULL, NULL, $8)
+        `,
+        [
+          row.id,
+          observedAt,
+          input.dimension,
+          input.x,
+          input.y,
+          input.z,
+          input.facing ?? null,
+          row.online ? "ONLINE" : "OFFLINE",
+        ],
+      );
+      await client.query("COMMIT");
+      return {
+        workerId,
+        observedAt: observedAt.toISOString(),
+        position: {
+          dimension: input.dimension,
+          x: input.x,
+          y: input.y,
+          z: input.z,
+          facing: input.facing ?? null,
+          confidence: "CONFIRMED_ANCHOR",
+          source: input.source,
+        },
+      };
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   public async listGateways(): Promise<readonly Record<string, unknown>[]> {

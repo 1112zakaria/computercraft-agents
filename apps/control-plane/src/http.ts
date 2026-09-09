@@ -47,6 +47,7 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
       const method = requestMethod(request);
       const workerPathMatch = url.pathname.match(/^\/v1\/workers(?:\/([^/]+))?$/);
       const workerPathPlanMatch = url.pathname.match(/^\/v1\/workers\/([^/]+)\/path-to\/([^/]+)$/);
+      const workerAnchorPathMatch = url.pathname.match(/^\/v1\/workers\/([^/]+)\/anchor$/);
       const workerProvisionPath = url.pathname === "/v1/workers/provision";
       const updatePathMatch = url.pathname.match(/^\/v1\/updates(?:\/([^/]+))?$/);
       const agentPathMatch = url.pathname.match(/^\/v1\/agents(?:\/([^/]+))?$/);
@@ -73,6 +74,7 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
       if (
         workerPathMatch ||
         workerPathPlanMatch ||
+        workerAnchorPathMatch ||
         workerProvisionPath ||
         updatePathMatch ||
         agentPathMatch ||
@@ -103,6 +105,19 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
             throw new HttpError(400, "INVALID_PAYLOAD", "path target is not valid URL encoding");
           }
           sendJson(response, 200, await options.service.planPathToLocation(workerId, locationName));
+          return;
+        }
+        if (method === "POST" && workerAnchorPathMatch) {
+          let workerId: string;
+          try {
+            workerId = decodeURIComponent(workerAnchorPathMatch[1]!);
+          } catch {
+            throw new HttpError(400, "INVALID_PAYLOAD", "worker id is not valid URL encoding");
+          }
+          const anchorBody = options.service.parseBody(
+            await readBody(request, options.maxBodyBytes),
+          );
+          sendJson(response, 200, await options.service.anchorWorker(workerId, anchorBody));
           return;
         }
         if (method === "GET" && workerPathMatch && !workerProvisionPath) {

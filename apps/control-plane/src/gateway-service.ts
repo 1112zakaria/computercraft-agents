@@ -23,6 +23,7 @@ import {
   TaskDispatchRequestSchema,
   TaskTransitionRequestSchema,
   UpdateRequestSchema,
+  WorkerAnchorRequestSchema,
 } from "@computercraft-agents/protocol";
 import { selectDispatchableTasks } from "@computercraft-agents/scheduler";
 import { findKnownPath, SparseWorldModel, type Coordinate } from "@computercraft-agents/navigation";
@@ -42,6 +43,7 @@ import type {
   StopControl,
   SkillName,
   UpdateRequest,
+  WorkerAnchorRequest,
 } from "@computercraft-agents/protocol";
 import { RepositoryError } from "@computercraft-agents/database";
 import type {
@@ -75,6 +77,7 @@ export interface GatewayServiceStore {
   getUpdate(updateId: string): Promise<UpdateRolloutRecord | undefined>;
   listWorkers(): Promise<readonly Record<string, unknown>[]>;
   getWorker(workerId: string): Promise<Record<string, unknown> | undefined>;
+  anchorWorker(workerId: string, input: WorkerAnchorRequest): Promise<Record<string, unknown>>;
   listGateways(): Promise<readonly Record<string, unknown>[]>;
   provisionDirectWorker(payload: DirectWorkerProvision): Promise<Record<string, unknown>>;
   registerDirectWorker(payload: DirectWorkerRegistration): Promise<{
@@ -398,6 +401,14 @@ export class GatewayService {
       throw new HttpError(404, "UNKNOWN_WORKER", "worker was not found");
     }
     return worker;
+  }
+
+  public async anchorWorker(workerId: string, input: unknown): Promise<Record<string, unknown>> {
+    if (!IdentifierSchema.safeParse(workerId).success) {
+      throw new HttpError(400, "INVALID_PAYLOAD", "worker id is invalid");
+    }
+    const request = this.parsePayload(WorkerAnchorRequestSchema, input);
+    return this.store.anchorWorker(workerId, { ...request, source: request.source ?? "operator" });
   }
 
   public async diagnostics(): Promise<object> {

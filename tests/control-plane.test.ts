@@ -14,6 +14,7 @@ import type {
   GatewayRegistration,
   StopControl,
   UpdateRequest,
+  WorkerAnchorRequest,
   type SkillName,
 } from "@computercraft-agents/protocol";
 
@@ -151,6 +152,25 @@ class FakeGatewayStore implements GatewayServiceStore {
     return workerId === "worker-test"
       ? { workerId, computerId: 7, online: true, observation: null }
       : undefined;
+  }
+
+  public async anchorWorker(
+    workerId: string,
+    input: WorkerAnchorRequest,
+  ): Promise<Record<string, unknown>> {
+    return {
+      workerId,
+      observedAt: "2026-09-09T00:00:00.000Z",
+      position: {
+        dimension: input.dimension,
+        x: input.x,
+        y: input.y,
+        z: input.z,
+        facing: input.facing ?? null,
+        confidence: "CONFIRMED_ANCHOR",
+        source: input.source,
+      },
+    };
   }
 
   public async listGateways(): Promise<readonly Record<string, unknown>[]> {
@@ -600,6 +620,35 @@ test("operator location API upserts a named anchor", async () => {
     const body = (await response.json()) as { name: string; confidence: string };
     assert.equal(body.name, "Test Chest");
     assert.equal(body.confidence, "CONFIRMED_ANCHOR");
+  } finally {
+    await server.close();
+  }
+});
+
+test("operator worker API records a confirmed position anchor", async () => {
+  const store = new FakeGatewayStore();
+  const server = await startServer(store);
+  try {
+    const response = await fetch(`${server.baseUrl}/v1/workers/worker-test/anchor`, {
+      method: "POST",
+      headers: adminHeaders(),
+      body: JSON.stringify({
+        protocolVersion: 1,
+        dimension: 0,
+        x: 10,
+        y: 64,
+        z: -2,
+        facing: "E",
+        source: "operator",
+      }),
+    });
+    assert.equal(response.status, 200);
+    const body = (await response.json()) as {
+      position: { confidence: string; x: number; facing: string | null };
+    };
+    assert.equal(body.position.confidence, "CONFIRMED_ANCHOR");
+    assert.equal(body.position.x, 10);
+    assert.equal(body.position.facing, "E");
   } finally {
     await server.close();
   }

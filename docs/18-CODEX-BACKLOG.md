@@ -610,6 +610,10 @@ through the protected API and CLI; navigation resolution and route execution rem
 **Priority:** P0  
 **Dependencies:** CC-041
 
+**Status:** DONE — a protected operator anchor endpoint and CLI command persist a
+`CONFIRMED_ANCHOR` observation; facing remains optional and is not treated as automatically
+detected.
+
 Evaluate GPS/manual docking/other available approaches and implement the simplest reliable anchor mechanism.
 
 **Acceptance criteria**

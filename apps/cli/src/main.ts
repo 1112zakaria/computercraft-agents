@@ -8,6 +8,7 @@ import {
   ReleaseVersionSchema,
   UpdateRequestSchema,
   UpdateTargetSchema,
+  WorkerAnchorRequestSchema,
 } from "@computercraft-agents/protocol";
 
 export const cliName = "computercraft-agents" as const;
@@ -37,6 +38,7 @@ export function usage(): string {
     `${cliName} locations`,
     `${cliName} location <name>`,
     `${cliName} world-cells`,
+    `${cliName} anchor <worker-id> <dimension> <x> <y> <z> [N|E|S|W]`,
     `${cliName} move <worker-id> <N|E|S|W|UP|DOWN> [--dry-run]`,
     `${cliName} path <worker-id> <N|E|S|W|UP|DOWN>... [--dry-run]`,
     `${cliName} path-to <worker-id> <location-name>`,
@@ -334,6 +336,40 @@ export async function runCli(args: readonly string[]): Promise<void> {
   if (command === "world-cells") {
     if (first) throw new Error(`usage: ${cliName} world-cells`);
     console.log(JSON.stringify(await request("/v1/world/cells"), null, 2));
+    return;
+  }
+  if (command === "anchor") {
+    const dimension = Number(positionalArgs[2]);
+    const x = Number(positionalArgs[3]);
+    const y = Number(positionalArgs[4]);
+    const z = Number(positionalArgs[5]);
+    const facing = positionalArgs[6];
+    if (
+      !first ||
+      ![dimension, x, y, z].every((value) => Number.isInteger(value)) ||
+      (facing !== undefined && !["N", "E", "S", "W"].includes(facing))
+    ) {
+      throw new Error(`usage: ${cliName} anchor <worker-id> <dimension> <x> <y> <z> [N|E|S|W]`);
+    }
+    const anchorRequest = WorkerAnchorRequestSchema.parse({
+      protocolVersion: 1,
+      dimension,
+      x,
+      y,
+      z,
+      ...(facing === undefined ? {} : { facing }),
+      source: "operator",
+    });
+    console.log(
+      JSON.stringify(
+        await request(`/v1/workers/${encodeURIComponent(first)}/anchor`, {
+          method: "POST",
+          body: JSON.stringify(anchorRequest),
+        }),
+        null,
+        2,
+      ),
+    );
     return;
   }
   if (command === "move") {

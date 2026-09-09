@@ -122,6 +122,12 @@ docs/                 Requirements, architecture, contracts, backlog, and operat
 - [Implementation checklist](docs/19-IMPLEMENTATION-CHECKLIST.md)
 - [Coding-agent instructions](docs/AGENTS.md)
 
+For a manually verified turtle position, record an operator anchor before planning a route:
+
+```bash
+npm run cli -- anchor alice 0 10 64 -2 E
+```
+
 ## Safety
 
 Never commit `.env`, gateway bearer secrets, database passwords, TLS private keys, or

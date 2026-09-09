@@ -436,6 +436,20 @@ export const NamedLocationCreateRequestSchema = z
 
 export type NamedLocationCreateRequest = z.infer<typeof NamedLocationCreateRequestSchema>;
 
+export const WorkerAnchorRequestSchema = z
+  .object({
+    protocolVersion: ProtocolVersionSchema,
+    dimension: z.number().int(),
+    x: z.number().int(),
+    y: z.number().int(),
+    z: z.number().int(),
+    facing: FacingSchema.nullable().optional(),
+    source: z.string().trim().min(1).max(128).default("operator"),
+  })
+  .strict();
+
+export type WorkerAnchorRequest = z.infer<typeof WorkerAnchorRequestSchema>;
+
 const StopControlBaseShape = {
   protocolVersion: ProtocolVersionSchema,
   controlId: IdentifierSchema,
