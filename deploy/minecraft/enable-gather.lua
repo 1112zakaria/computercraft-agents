@@ -61,7 +61,10 @@ if not textutils or type(textutils.serialize) ~= "function" then
 end
 
 local backup = backup_path()
-fs.copy(config_path, backup)
+local backed_up, backup_error = pcall(fs.copy, config_path, backup)
+if not backed_up then
+  fail("could not back up worker.conf: " .. tostring(backup_error))
+end
 local serialized = textutils.serialize(config)
 if not serialized then
   fail("could not serialize worker.conf; original is preserved at " .. backup)
@@ -72,7 +75,13 @@ if not handle then fail("could not create temporary worker.conf") end
 handle.write("return " .. serialized .. "\n")
 handle.close()
 if fs.exists(config_path) then fs.delete(config_path) end
-fs.move(temporary_path, config_path)
+local activated, activation_error = pcall(fs.move, temporary_path, config_path)
+if not activated then
+  if fs.exists(config_path) then fs.delete(config_path) end
+  fs.copy(backup, config_path)
+  if fs.exists(temporary_path) then fs.delete(temporary_path) end
+  fail("could not activate worker.conf; original was restored: " .. tostring(activation_error))
+end
 
 print("Added: " .. table.concat(added, ", "))
 print("Backup: " .. backup)

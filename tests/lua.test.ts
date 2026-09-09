@@ -107,6 +107,7 @@ test("gather capability migration preserves configuration with a backup", () => 
   assert.match(source, /navigate\.path/);
   assert.match(source, /inventory\.deposit/);
   assert.match(source, /serialized = textutils\.serialize\(config\)/);
+  assert.match(source, /original was restored/);
 });
 
 test("stable update bootstraps remove newly introduced files during rollback", () => {
