@@ -71,6 +71,7 @@ export interface CreateGoalInput {
   readonly priority: number;
   readonly skillName: string;
   readonly arguments: unknown;
+  readonly requiredCapabilities?: readonly string[];
 }
 
 export interface NamedLocationInput {
@@ -208,11 +209,11 @@ export class GatewayRuntimeRepository {
 
       const job = await client.query<IdRow>(
         `
-          INSERT INTO jobs (project_id, status, priority)
-          VALUES ($1, 'READY', $2)
+          INSERT INTO jobs (project_id, status, priority, required_capabilities_json)
+          VALUES ($1, 'READY', $2, $3)
           RETURNING id::text
         `,
-        [projectId, input.priority],
+        [projectId, input.priority, asJson(input.requiredCapabilities ?? [])],
       );
       const jobId = job.rows[0]?.id;
       if (!jobId) throw new Error("job insert did not return an id");

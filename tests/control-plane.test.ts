@@ -181,6 +181,7 @@ class FakeGatewayStore implements GatewayServiceStore {
     readonly priority: number;
     readonly skillName: string;
     readonly arguments: unknown;
+    readonly requiredCapabilities?: readonly string[];
   }) {
     return {
       projectId: "project-test",
@@ -190,6 +191,7 @@ class FakeGatewayStore implements GatewayServiceStore {
       status: "READY",
       skillName: input.skillName,
       arguments: input.arguments,
+      requiredCapabilities: input.requiredCapabilities,
     };
   }
 

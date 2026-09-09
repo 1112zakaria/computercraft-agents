@@ -87,6 +87,7 @@ export interface GatewayServiceStore {
     readonly priority: number;
     readonly skillName: string;
     readonly arguments: unknown;
+    readonly requiredCapabilities?: readonly string[];
   }): Promise<GoalTaskRecord>;
   listGoals(): Promise<readonly Record<string, unknown>[]>;
   listTasks(): Promise<readonly Record<string, unknown>[]>;
@@ -374,6 +375,7 @@ export class GatewayService {
       priority: request.priority ?? 0,
       skillName: "resource.gather",
       arguments: parsed.goal,
+      requiredCapabilities: ["mining.gather", "navigate.path", "inventory.deposit"],
     });
   }
 

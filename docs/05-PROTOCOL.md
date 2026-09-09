@@ -91,6 +91,8 @@ The request contains `protocolVersion`, `goalText`, `createdByPrincipal`, and an
 priority. In v1, `goalText` must match the deterministic form
 `@worker get <quantity> <item> and deposit it in <location>`. The control plane validates the
 sentence and persists a project, ready job, and ready task with the normalized resource arguments.
+The job advertises the required `mining.gather`, `navigate.path`, and `inventory.deposit`
+capabilities so future scheduler assignment can reject incompatible workers.
 It does not yet dispatch the task to a worker; persistent scheduler claiming is a later step.
 
 Named locations are managed through the protected operator API:
