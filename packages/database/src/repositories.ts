@@ -2272,24 +2272,28 @@ export class GatewayRuntimeRepository {
   }
 
   public async enqueueStopControl(control: StopControl): Promise<void> {
+    let transport: WorkerTransport | null = null;
+    if (control.type === "worker.stop") {
+      const worker = await this.pool.query<{ transport_type: WorkerTransport }>(
+        `SELECT transport_type FROM workers WHERE worker_key = $1`,
+        [control.workerId],
+      );
+      if (!worker.rows[0]) {
+        throw new RepositoryError("UNKNOWN_WORKER", "worker is not registered", 404);
+      }
+      transport = worker.rows[0].transport_type;
+    }
     await this.pool.query(
       `
         INSERT INTO gateway_stop_controls (control_id, worker_key, payload_json, transport_type)
-        VALUES (
-          $1,
-          $2,
-          $3,
-          CASE
-            WHEN $2 IS NULL THEN NULL
-            ELSE (SELECT transport_type FROM workers WHERE worker_key = $2)
-          END
-        )
+        VALUES ($1, $2, $3, $4)
         ON CONFLICT (control_id) DO NOTHING
       `,
       [
         control.controlId,
         control.type === "worker.stop" ? control.workerId : null,
         asJson(control),
+        transport,
       ],
     );
   }

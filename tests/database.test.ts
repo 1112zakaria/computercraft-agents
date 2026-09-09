@@ -135,6 +135,9 @@ test("database migration set is ordered and contains the core relational model",
   assert.match(repositorySql, /inventorySlotsFromCommandEvent/);
   assert.match(repositorySql, /recordInventorySnapshot/);
   assert.match(repositorySql, /gatherResultMeetsTarget\(eventPayload\.result, itemKey, quantity\)/);
+  assert.match(repositorySql, /SELECT transport_type FROM workers WHERE worker_key = \$1/);
+  assert.match(repositorySql, /worker is not registered/);
+  assert.match(repositorySql, /VALUES \(\$1, \$2, \$3, \$4\)/);
 });
 
 test("migration checksum variants accept newline-only deployment differences", () => {
