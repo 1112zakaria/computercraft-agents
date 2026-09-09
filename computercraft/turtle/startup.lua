@@ -27,7 +27,7 @@ local advertised_capabilities = {}
 for _, capability in ipairs(config.capabilities or {}) do
   advertised_capabilities[capability] = true
 end
-for _, capability in ipairs({ "mining.gather", "navigate.path", "inventory.deposit" }) do
+for _, capability in ipairs({ "mining.gather", "navigate.path", "inventory.deposit", "peripheral.inspect" }) do
   if not advertised_capabilities[capability] then
     logging.warn("capability " .. capability .. " is not advertised; related commands will be rejected")
   end

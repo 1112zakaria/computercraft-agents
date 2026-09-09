@@ -208,6 +208,7 @@ test("turtle startup warns when first-use capabilities are omitted", () => {
   assert.match(startup, /mining\.gather/);
   assert.match(startup, /navigate\.path/);
   assert.match(startup, /inventory\.deposit/);
+  assert.match(startup, /peripheral\.inspect/);
   assert.match(startup, /related commands will be rejected/);
 });
 
