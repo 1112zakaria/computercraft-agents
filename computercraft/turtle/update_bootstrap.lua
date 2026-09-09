@@ -3,15 +3,43 @@ local M = {}
 local compat = assert(loadfile("compat.lua"))()
 local startup_hook = 'shell.run("startup.lua")\n'
 
+local function startup_hook_is_valid()
+  if not fs.exists("startup") or fs.isDir("startup") then return false end
+  local handle = fs.open("startup", "r")
+  if not handle then return false end
+  local content = handle.readAll()
+  handle.close()
+  return content == startup_hook
+end
+
+local function preserve_invalid_startup_hook()
+  if not fs.exists("startup") then return true end
+  local backup = "startup.previous"
+  for index = 1, 99 do
+    if not fs.exists(backup) then break end
+    backup = "startup.previous." .. tostring(index)
+  end
+  if fs.exists(backup) then return false, "cannot preserve invalid CraftOS startup hook" end
+  local ok, move_error = pcall(fs.move, "startup", backup)
+  if not ok then return false, tostring(move_error) end
+  return true
+end
+
 local function ensure_startup_hook()
-  if fs.exists("startup") then return true end
+  if startup_hook_is_valid() then return true end
+  local preserved, preserve_error = preserve_invalid_startup_hook()
+  if not preserved then return false, preserve_error end
   local temporary = "startup.bootstrap.tmp"
   if fs.exists(temporary) then fs.delete(temporary) end
   local handle = fs.open(temporary, "w")
   if not handle then return false, "cannot create CraftOS startup hook" end
   handle.write(startup_hook)
   handle.close()
-  fs.move(temporary, "startup")
+  local moved, move_error = pcall(fs.move, temporary, "startup")
+  if not moved then
+    if fs.exists(temporary) then fs.delete(temporary) end
+    return false, tostring(move_error)
+  end
   return true
 end
 

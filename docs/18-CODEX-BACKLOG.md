@@ -955,6 +955,17 @@ optional peripheral-specific hardening.
 with an optional allowlisted container ID; higher-level workflow use and postcondition checks
 remain.
 
+### CC-007 — Automatic CraftOS startup hook
+
+**Priority:** P0
+**Dependencies:** CC-030, CC-040
+
+**Status:** PARTIAL — the installer and stable gateway/turtle recovery bootstraps now validate and
+repair a missing, malformed, or directory-valued extensionless `startup` hook while preserving the
+previous hook for inspection. Live post-reboot validation on both transports remains outstanding.
+
+The runtime must start automatically after installation, reboot, and successful OTA activation.
+
 ### CC-105 — First useful natural-language acceptance
 
 **Priority:** P0  

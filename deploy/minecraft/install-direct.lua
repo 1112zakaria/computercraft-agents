@@ -24,10 +24,26 @@ for _,name in ipairs(fs.list("")) do
   end
 end
 for _,name in ipairs(files) do
-  if fs.exists(name) then fs.delete(name) end
-  fs.copy(fs.combine(stage,name),name)
+  -- Preserve a valid CraftOS boot hook. A malformed hook is replaced below,
+  -- after the existing copy has already been retained in the backup folder.
+  if name~="startup" then
+    if fs.exists(name) then fs.delete(name) end
+    fs.copy(fs.combine(stage,name),name)
+  end
 end
-if not fs.exists("startup") then
+local function valid_startup_hook()
+  if not fs.exists("startup") or fs.isDir("startup") then return false end
+  local handle=fs.open("startup","r")
+  if not handle then return false end
+  local content=handle.readAll();handle.close()
+  return content=='shell.run("startup.lua")\n'
+end
+if not valid_startup_hook() then
+  if fs.exists("startup") then
+    local preserved=fs.combine(backup,"startup.previous")
+    if fs.exists(preserved) then fs.delete(preserved) end
+    fs.move("startup",preserved)
+  end
   local hook=assert(fs.open("startup","w"));hook.write('shell.run("startup.lua")\n');hook.close()
 end
 print("Installed runtime. Original files: "..backup)

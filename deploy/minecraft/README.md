@@ -70,9 +70,11 @@ over ComputerCraft's outbound HTTPS API, so no gateway computer or modem is requ
 Do not set `modem_side`, `gateway_rednet_id`, or `rednet_protocol` for this transport. Verify the
 worker with `npm run cli -- workers alice` after its registration and heartbeat arrive.
 
-The stable bootstrap checks for the extensionless CraftOS `startup` hook during recovery and
-recreates it if it is missing. The pinned `install-direct.lua` installer also creates the hook
-when absent. Neither path overwrites an existing hook or any configuration/state file.
+The stable bootstrap checks the extensionless CraftOS `startup` hook during recovery and repairs
+it if it is missing, a directory, or malformed. The pinned `install-direct.lua` installer does the
+same on initial installation. A valid existing hook is preserved; a malformed existing hook is
+retained as `startup.previous*` inside the install backup before repair. Neither path overwrites
+configuration or runtime state files.
 
 For a bounded target-aware mining canary, use the operator CLI only after the worker is online:
 
