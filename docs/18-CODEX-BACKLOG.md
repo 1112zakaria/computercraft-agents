@@ -1267,8 +1267,10 @@ restarts. A broader recovery sweep, operator controls, and richer retry policy r
 **Dependencies:** CC-024
 
 **Status:** PARTIAL — an environment-backed skill allowlist, protected inspection endpoint, and
-`feature-gates` CLI command now gate operator command/task dispatch. Persistent per-worker gates,
-canary limits, and audit-history integration remain.
+`feature-gates` CLI command now gate operator command/task dispatch. Operator physical commands
+and named-location path execution also fail closed when the target worker is unknown or does not
+advertise the requested capability. Persistent per-worker gates, canary limits, and audit-history
+integration remain.
 
 ### CC-171 — Implement dry-run/plan-only mode
 

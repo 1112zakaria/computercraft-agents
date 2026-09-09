@@ -145,13 +145,20 @@ class FakeGatewayStore implements GatewayServiceStore {
         workerId,
         computerId: 8,
         online: true,
+        capabilities: ["navigate.path"],
         observation: {
           position: { dimension: 0, x: 0, y: 0, z: 0, confidence: "CONFIRMED" },
         },
       };
     }
     return workerId === "worker-test"
-      ? { workerId, computerId: 7, online: true, observation: null }
+      ? {
+          workerId,
+          computerId: 7,
+          online: true,
+          capabilities: ["movement.step"],
+          observation: null,
+        }
       : undefined;
   }
 
@@ -1196,6 +1203,36 @@ test("operator API supports inspection and deterministic command/stop enqueueing
     });
     assert.equal(enqueue.status, 200);
     assert.equal(store.commands[0]?.commandId, "command-test");
+
+    const missingCapability = await fetch(`${server.baseUrl}/v1/commands`, {
+      method: "POST",
+      headers: adminHeaders(),
+      body: JSON.stringify({
+        ...command(),
+        commandId: "unsupported-command",
+        skill: "peripheral.inspect",
+        arguments: {},
+      }),
+    });
+    assert.equal(missingCapability.status, 409);
+    const missingCapabilityBody = await responseJson<{
+      error: { code: string; details?: { missingCapabilities?: string[] } };
+    }>(missingCapability);
+    assert.equal(missingCapabilityBody.error.code, "CAPABILITY_NOT_ENABLED");
+    assert.deepEqual(missingCapabilityBody.error.details?.missingCapabilities, [
+      "peripheral.inspect",
+    ]);
+
+    const unknownWorker = await fetch(`${server.baseUrl}/v1/commands`, {
+      method: "POST",
+      headers: adminHeaders(),
+      body: JSON.stringify({
+        ...command(),
+        commandId: "unknown-worker-command",
+        workerId: "missing-worker",
+      }),
+    });
+    assert.equal(unknownWorker.status, 404);
 
     const stop = await fetch(`${server.baseUrl}/v1/stop-controls`, {
       method: "POST",

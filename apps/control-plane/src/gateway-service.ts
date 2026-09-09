@@ -532,8 +532,26 @@ export class GatewayService {
     if (!(this.config.enabledSkills ?? SkillNameSchema.options).includes(command.skill)) {
       throw new HttpError(403, "CAPABILITY_NOT_ENABLED", `skill is disabled: ${command.skill}`);
     }
+    await this.assertWorkerCapability(command.workerId, command.skill);
     await this.store.enqueueCommand(command);
     return { accepted: true, commandId: command.commandId };
+  }
+
+  private async assertWorkerCapability(workerId: string, skillName: string): Promise<void> {
+    const worker = await this.store.getWorker(workerId);
+    if (!worker) {
+      throw new HttpError(404, "UNKNOWN_WORKER", "worker was not found");
+    }
+    const capabilities = stringList(worker.capabilities);
+    if (!capabilities.includes(skillName)) {
+      throw new HttpError(
+        409,
+        "CAPABILITY_NOT_ENABLED",
+        `worker does not advertise capability: ${skillName}`,
+        false,
+        { workerId, missingCapabilities: [skillName] },
+      );
+    }
   }
 
   public async createGoal(input: unknown): Promise<GoalTaskRecord> {
@@ -1135,6 +1153,7 @@ export class GatewayService {
       skill: "navigate.path",
       arguments: { steps: directions },
     });
+    await this.assertWorkerCapability(workerId, command.skill);
     await this.store.enqueueCommand(command);
     return { accepted: true, status: "QUEUED", command, plan };
   }
