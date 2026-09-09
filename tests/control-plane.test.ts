@@ -1160,6 +1160,21 @@ test("operator API supports inspection and deterministic command/stop enqueueing
     assert.equal(stop.status, 200);
     assert.equal(store.stopControls[0]?.controlId, "stop-admin-test");
 
+    const workerStop = await fetch(`${server.baseUrl}/v1/stop-controls`, {
+      method: "POST",
+      headers: adminHeaders(),
+      body: JSON.stringify({
+        protocolVersion: 1,
+        controlId: "stop-worker-admin-test",
+        issuedAt: "2026-09-07T12:00:01.000Z",
+        type: "worker.stop",
+        workerId: "worker-test",
+        reason: "bounded live-canary contract",
+      }),
+    });
+    assert.equal(workerStop.status, 200);
+    assert.equal(store.stopControls[1]?.workerId, "worker-test");
+
     const update = await fetch(`${server.baseUrl}/v1/updates`, {
       method: "POST",
       headers: adminHeaders(),
