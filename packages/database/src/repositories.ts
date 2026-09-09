@@ -1586,6 +1586,40 @@ export class GatewayRuntimeRepository {
       );
     }
 
+    if (event.type === "inventory.changed" && event.workerId) {
+      const worker = await client.query<{ id: string }>(
+        `SELECT id::text FROM workers WHERE worker_key = $1`,
+        [event.workerId],
+      );
+      const workerId = worker.rows[0]?.id;
+      if (workerId) {
+        const payload = event.payload as { readonly slots: unknown[] };
+        const updated = await client.query(
+          `
+            UPDATE worker_observations
+            SET inventory_json = $2, observed_at = $3
+            WHERE id = (
+              SELECT id FROM worker_observations
+              WHERE worker_id = $1
+              ORDER BY observed_at DESC, id DESC
+              LIMIT 1
+            )
+            RETURNING id
+          `,
+          [workerId, asJson(payload.slots), new Date(event.occurredAt)],
+        );
+        if (!updated.rowCount) {
+          await client.query(
+            `
+              INSERT INTO worker_observations (worker_id, observed_at, inventory_json, status)
+              VALUES ($1, $2, $3, 'ONLINE')
+            `,
+            [workerId, new Date(event.occurredAt), asJson(payload.slots)],
+          );
+        }
+      }
+    }
+
     if (event.type === "block.observed" && event.workerId) {
       const payload = event.payload as {
         readonly direction: "front" | "up" | "down";

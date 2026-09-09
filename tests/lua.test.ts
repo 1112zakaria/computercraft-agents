@@ -96,3 +96,10 @@ test("turtle runtime supports allowlisted named container sides", () => {
   assert.match(executor, /function executor:container_direction\(container_id\)/);
   assert.match(executor, /container is not configured/);
 });
+
+test("turtle transfer commands emit post-transfer inventory changes", () => {
+  const executor = readFileSync(join(runtimeRoot, "turtle/executor.lua"), "utf8");
+  assert.match(executor, /result\.inventory = self\.inventory:snapshot\(\)/);
+  assert.match(executor, /"inventory\.changed"/);
+  assert.match(executor, /slots = result\.inventory\.slots/);
+});

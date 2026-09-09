@@ -268,6 +268,11 @@ peripheral.observed
 protocol.error
 ```
 
+`inventory.changed` events contain a bounded post-transfer inventory snapshot. The control plane
+stores it on the latest worker observation, preserving the previously observed position when one
+exists; this is observation data for later postcondition verification, not proof that a named
+destination has been reached.
+
 ## 8. Idempotency
 
 The VPS may retry HTTP requests; events/commands therefore require deduplication.

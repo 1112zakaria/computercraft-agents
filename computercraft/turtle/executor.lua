@@ -66,13 +66,17 @@ function M.new(config, client, state, cancellation, movement, observation, inven
       if not direction then
         return { status = "UNKNOWN_CONTAINER", containerId = args.containerId, error = direction_error }
       end
-      return self.inventory:deposit(direction, args.quantity, args.slot)
+      local result = self.inventory:deposit(direction, args.quantity, args.slot)
+      if result.status == "OK" then result.inventory = self.inventory:snapshot() end
+      return result
     elseif skill == "inventory.withdraw" then
       local direction, direction_error = self:container_direction(args.containerId)
       if not direction then
         return { status = "UNKNOWN_CONTAINER", containerId = args.containerId, error = direction_error }
       end
-      return self.inventory:withdraw(direction, args.itemKey, args.quantity, args.slot)
+      local result = self.inventory:withdraw(direction, args.itemKey, args.quantity, args.slot)
+      if result.status == "OK" then result.inventory = self.inventory:snapshot() end
+      return result
     elseif skill == "fuel.refuel" then
       return self.fuel:refuel(args.maxItems)
     elseif skill == "mining.excavate" then
@@ -121,6 +125,10 @@ function M.new(config, client, state, cancellation, movement, observation, inven
         block = result.block,
         position = self.state:position(),
       })
+    end
+    if (command.skill == "inventory.deposit" or command.skill == "inventory.withdraw")
+      and result.status == "OK" and result.inventory and result.inventory.slots then
+      self:emit(command.commandId, "inventory.changed", { slots = result.inventory.slots })
     end
     local event_type = "command.completed"
     local payload = { result = result, position = self.state:position() }
