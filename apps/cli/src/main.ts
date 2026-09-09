@@ -19,6 +19,7 @@ export function usage(): string {
     `${cliName} goal <@worker get ... and deposit it in ...>`,
     `${cliName} tasks`,
     `${cliName} claim-task <task-id> <worker-id>`,
+    `${cliName} task-status <task-id> <PENDING|READY|RUNNING|PAUSED|BLOCKED|DONE|FAILED|CANCELLED>`,
     `${cliName} locations`,
     `${cliName} world-cells`,
     `${cliName} move <worker-id> <N|E|S|W|UP|DOWN>`,
@@ -157,6 +158,34 @@ export async function runCli(args: readonly string[]): Promise<void> {
         await request(`/v1/tasks/${encodeURIComponent(first)}`, {
           method: "POST",
           body: JSON.stringify({ workerId: second }),
+        }),
+        null,
+        2,
+      ),
+    );
+    return;
+  }
+  if (command === "task-status") {
+    const allowed = new Set([
+      "PENDING",
+      "READY",
+      "RUNNING",
+      "PAUSED",
+      "BLOCKED",
+      "DONE",
+      "FAILED",
+      "CANCELLED",
+    ]);
+    if (!first || !second || !allowed.has(second)) {
+      throw new Error(
+        `usage: ${cliName} task-status <task-id> <PENDING|READY|RUNNING|PAUSED|BLOCKED|DONE|FAILED|CANCELLED>`,
+      );
+    }
+    console.log(
+      JSON.stringify(
+        await request(`/v1/tasks/${encodeURIComponent(first)}/transition`, {
+          method: "POST",
+          body: JSON.stringify({ protocolVersion: 1, status: second }),
         }),
         null,
         2,

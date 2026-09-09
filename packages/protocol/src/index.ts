@@ -380,6 +380,28 @@ export const GoalCreateRequestSchema = z
 
 export type GoalCreateRequest = z.infer<typeof GoalCreateRequestSchema>;
 
+export const TaskStatusSchema = z.enum([
+  "PENDING",
+  "READY",
+  "RUNNING",
+  "PAUSED",
+  "BLOCKED",
+  "DONE",
+  "FAILED",
+  "CANCELLED",
+]);
+
+export const TaskTransitionRequestSchema = z
+  .object({
+    protocolVersion: ProtocolVersionSchema,
+    status: TaskStatusSchema,
+    reason: z.string().trim().min(1).max(512).optional(),
+  })
+  .strict();
+
+export type TaskStatus = z.infer<typeof TaskStatusSchema>;
+export type TaskTransitionRequest = z.infer<typeof TaskTransitionRequestSchema>;
+
 export const StoredPositionConfidenceSchema = z.enum([
   "CONFIRMED_ANCHOR",
   "DEAD_RECKONED",

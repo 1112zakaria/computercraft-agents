@@ -205,6 +205,12 @@ class FakeGatewayStore implements GatewayServiceStore {
     return { taskId, workerKey, status: "RUNNING" };
   }
 
+  public async transitionTask(taskId: string, nextState: string): Promise<void> {
+    this.transitionedTask = { taskId, nextState };
+  }
+
+  public transitionedTask: { taskId: string; nextState: string } | undefined;
+
   public async upsertNamedLocation(input: {
     readonly name: string;
     readonly dimension: number;
@@ -334,6 +340,27 @@ test("operator task API lists and claims tasks", async () => {
       workerKey: "alice",
       status: "RUNNING",
     });
+  } finally {
+    await server.close();
+  }
+});
+
+test("operator task API validates and applies explicit task transitions", async () => {
+  const store = new FakeGatewayStore();
+  const server = await startServer(store);
+  try {
+    const response = await fetch(`${server.baseUrl}/v1/tasks/task-test/transition`, {
+      method: "POST",
+      headers: adminHeaders(),
+      body: JSON.stringify({ protocolVersion: 1, status: "BLOCKED" }),
+    });
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), {
+      accepted: true,
+      taskId: "task-test",
+      status: "BLOCKED",
+    });
+    assert.deepEqual(store.transitionedTask, { taskId: "task-test", nextState: "BLOCKED" });
   } finally {
     await server.close();
   }

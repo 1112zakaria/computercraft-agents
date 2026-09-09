@@ -50,6 +50,7 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
       const updatePathMatch = url.pathname.match(/^\/v1\/updates(?:\/([^/]+))?$/);
       const goalsPath = url.pathname === "/v1/goals";
       const taskPathMatch = url.pathname.match(/^\/v1\/tasks(?:\/([^/]+))?$/);
+      const taskTransitionPathMatch = url.pathname.match(/^\/v1\/tasks\/([^/]+)\/transition$/);
       const locationsPath = url.pathname === "/v1/locations";
       const worldCellsPath = url.pathname === "/v1/world/cells";
 
@@ -64,6 +65,7 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
         updatePathMatch ||
         goalsPath ||
         taskPathMatch ||
+        taskTransitionPathMatch ||
         locationsPath ||
         worldCellsPath ||
         url.pathname === "/v1/diagnostics" ||
@@ -143,6 +145,22 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
             sendJson(response, 200, await options.service.claimTask(taskId, taskBody));
             return;
           }
+        }
+        if (taskTransitionPathMatch) {
+          if (method !== "POST") {
+            throw new HttpError(405, "INVALID_PAYLOAD", "method is not supported");
+          }
+          let taskId: string;
+          try {
+            taskId = decodeURIComponent(taskTransitionPathMatch[1]!);
+          } catch {
+            throw new HttpError(400, "INVALID_PAYLOAD", "task id is not valid URL encoding");
+          }
+          const transitionBody = options.service.parseBody(
+            await readBody(request, options.maxBodyBytes),
+          );
+          sendJson(response, 200, await options.service.transitionTask(taskId, transitionBody));
+          return;
         }
         if (locationsPath) {
           if (method === "GET") {

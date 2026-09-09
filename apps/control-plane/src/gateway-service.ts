@@ -19,6 +19,7 @@ import {
   GatewayRegistrationSchema,
   IdentifierSchema,
   StopControlSchema,
+  TaskTransitionRequestSchema,
   UpdateRequestSchema,
 } from "@computercraft-agents/protocol";
 import { parseAddressedGatherGoal } from "@computercraft-agents/domain";
@@ -90,6 +91,7 @@ export interface GatewayServiceStore {
   listGoals(): Promise<readonly Record<string, unknown>[]>;
   listTasks(): Promise<readonly Record<string, unknown>[]>;
   claimTask(taskId: string, workerKey: string): Promise<Record<string, unknown>>;
+  transitionTask(taskId: string, nextState: string): Promise<void>;
   upsertNamedLocation(input: {
     readonly name: string;
     readonly dimension: number;
@@ -394,6 +396,15 @@ export class GatewayService {
       throw new HttpError(400, "INVALID_PAYLOAD", "workerId is invalid");
     }
     return this.store.claimTask(taskId, workerId);
+  }
+
+  public async transitionTask(taskId: string, input: unknown): Promise<object> {
+    if (!IdentifierSchema.safeParse(taskId).success) {
+      throw new HttpError(400, "INVALID_PAYLOAD", "task id is invalid");
+    }
+    const request = this.parsePayload(TaskTransitionRequestSchema, input);
+    await this.store.transitionTask(taskId, request.status);
+    return { accepted: true, taskId, status: request.status };
   }
 
   public async createNamedLocation(input: unknown): Promise<Record<string, unknown>> {

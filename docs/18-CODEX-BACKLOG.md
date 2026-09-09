@@ -646,6 +646,10 @@ and restart-safe enforcement remains.
 **Priority:** P0  
 **Dependencies:** CC-015, CC-023, CC-071
 
+**Status:** PARTIAL — the control plane now exposes validated explicit task transitions, but
+stop-to-pause mapping, resumable execution, resource release, and cancel semantics are not yet
+connected to worker command lifecycles.
+
 **Acceptance criteria**
 
 - stop maps current work to PAUSED;

@@ -106,10 +106,14 @@ confidence, and metadata. Ready tasks can be inspected and claimed with:
 ```text
 GET  /v1/tasks
 POST /v1/tasks/:taskId
+POST /v1/tasks/:taskId/transition
 ```
 
 The claim request contains `workerId`. The database rejects claims for offline workers, unmet
 dependencies, already-claimed tasks, and workers with another active task.
+The transition request contains `{ "protocolVersion": 1, "status": "..." }` and is checked
+against the persisted task transition graph. It is an explicit operator control path; it does
+not itself dispatch a command or mark a physical action successful.
 
 After a successful `observation.block` command, the turtle emits a `block.observed` event. The
 control plane derives the inspected cell from the worker position/facing and persists it in the

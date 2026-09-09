@@ -268,6 +268,10 @@ export class GatewayRuntimeRepository {
     return new TaskRepository(this.pool).claimReadyTask(taskId, workerKey);
   }
 
+  public async transitionTask(taskId: string, nextState: string): Promise<void> {
+    return new TaskRepository(this.pool).transitionTask(taskId, nextState);
+  }
+
   public async upsertNamedLocation(input: NamedLocationInput): Promise<Record<string, unknown>> {
     const result = await this.pool.query(
       `
