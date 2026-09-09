@@ -93,7 +93,8 @@ priority. In v1, `goalText` must match the deterministic form
 sentence and persists a project, ready job, and ready task with the normalized resource arguments.
 The job advertises the required `mining.gather`, `navigate.path`, and `inventory.deposit`
 capabilities so scheduler assignment can reject incompatible workers. Goal tasks still require the
-multi-step gather workflow; they are not auto-dispatched by the bounded command-task endpoint.
+multi-step gather workflow. Goal creation persists a parent `resource.gather` task and a targeted
+`mining.gather` workflow step; the bounded scheduler can dispatch that protocol-level child.
 The normalized `targetWorkerId` is retained in task arguments and scheduler/database dispatch
 checks enforce it, so an addressed goal cannot be silently assigned to another worker.
 
@@ -130,9 +131,10 @@ atomically checks worker availability, task dependencies, required capabilities,
 one-active-task constraint, then creates a bounded command containing `taskId`. Completion and
 failure events correlate back to the task; a worker command cancellation caused by an urgent stop
 maps the task to `PAUSED` and releases its worker claim so it can be resumed explicitly.
-Only tasks whose `skillName` is already a protocol command skill are dispatchable through this
-path; the multi-step `resource.gather` workflow remains planner-owned until its orchestration is
-implemented.
+Only tasks whose `skillName` is already a protocol command skill are dispatched directly. When a
+gather step completes, the repository advances the linked workflow to a known-cell navigation
+step and then an allowlisted `inventory.deposit` step. Missing destination anchors, incomplete
+positions, or unknown paths set the parent workflow to `BLOCKED`; the system never guesses a route.
 The scheduler tick is an explicit bounded operator action that selects compatible online workers
 for those same protocol-level tasks and invokes the atomic dispatch path once per selected worker.
 It does not auto-dispatch multi-step goal workflows.

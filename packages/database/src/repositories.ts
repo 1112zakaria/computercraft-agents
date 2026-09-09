@@ -16,6 +16,7 @@ import type {
   WorkerTransport,
 } from "@computercraft-agents/protocol";
 import { CommandSchema } from "@computercraft-agents/protocol";
+import { findKnownPath, SparseWorldModel, type Coordinate } from "@computercraft-agents/navigation";
 import type { Pool, PoolClient, QueryResultRow } from "pg";
 import { storedPositionConfidence } from "./position-confidence";
 
@@ -142,6 +143,46 @@ function parseJson<T>(value: unknown): T {
     return JSON.parse(value) as T;
   }
   return value as T;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function coordinateFromUnknown(value: unknown): Coordinate | undefined {
+  if (!isRecord(value)) return undefined;
+  const dimension = value.dimension;
+  const x = value.x;
+  const y = value.y;
+  const z = value.z;
+  if (
+    typeof dimension !== "number" ||
+    !Number.isInteger(dimension) ||
+    typeof x !== "number" ||
+    !Number.isInteger(x) ||
+    typeof y !== "number" ||
+    !Number.isInteger(y) ||
+    typeof z !== "number" ||
+    !Number.isInteger(z)
+  ) {
+    return undefined;
+  }
+  return { dimension, x, y, z };
+}
+
+function normalizeContainerId(value: string): string | undefined {
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 128);
+  return normalized || undefined;
+}
+
+function commandArguments(value: Record<string, unknown>): Record<string, unknown> {
+  const { targetWorkerId: _targetWorkerId, ...argumentsWithoutRouting } = value;
+  return argumentsWithoutRouting;
 }
 
 function capabilityNames(value: unknown): string[] {
@@ -291,6 +332,38 @@ export class GatewayRuntimeRepository {
       );
       const taskId = task.rows[0]?.id;
       if (!taskId) throw new Error("task insert did not return an id");
+
+      if (input.skillName === "resource.gather" && isRecord(input.arguments)) {
+        const targetWorkerId = input.arguments.targetWorkerId;
+        const itemKey = input.arguments.itemKey;
+        const quantity = input.arguments.quantity;
+        if (
+          typeof targetWorkerId === "string" &&
+          typeof itemKey === "string" &&
+          typeof quantity === "number" &&
+          Number.isSafeInteger(quantity) &&
+          quantity > 0
+        ) {
+          await client.query(
+            `
+              INSERT INTO tasks (
+                job_id, kind, status, skill_name, arguments_json, parent_task_id, workflow_phase
+              )
+              VALUES ($1, 'workflow-step', 'READY', 'mining.gather', $2, $3, 'GATHER')
+            `,
+            [
+              jobId,
+              asJson({
+                targetWorkerId,
+                itemKey,
+                quantity,
+                maxDepth: 64,
+              }),
+              taskId,
+            ],
+          );
+        }
+      }
       await client.query("COMMIT");
       return {
         projectId,
@@ -1494,6 +1567,215 @@ export class GatewayRuntimeRepository {
     return row;
   }
 
+  private async advanceGatherWorkflow(client: PoolClient, event: Event): Promise<void> {
+    if (
+      !event.commandId ||
+      (event.type !== "command.completed" && event.type !== "command.failed")
+    ) {
+      return;
+    }
+
+    const taskResult = await client.query<{
+      task_id: string;
+      parent_task_id: string | null;
+      workflow_phase: string | null;
+      job_id: string;
+    }>(
+      `
+        SELECT t.id::text AS task_id, t.parent_task_id::text AS parent_task_id,
+               t.workflow_phase, t.job_id::text AS job_id
+        FROM gateway_commands command
+        JOIN tasks t ON t.id = command.task_id
+        WHERE command.command_id = $1
+      `,
+      [event.commandId],
+    );
+    const task = taskResult.rows[0];
+    if (!task?.parent_task_id) return;
+
+    const parentResult = await client.query<{ arguments_json: unknown }>(
+      `SELECT arguments_json FROM tasks WHERE id = $1`,
+      [task.parent_task_id],
+    );
+    const parentArguments = parseJson<Record<string, unknown>>(
+      parentResult.rows[0]?.arguments_json ?? {},
+    );
+    const block = async (reason: string): Promise<void> => {
+      await client.query(
+        `
+          UPDATE tasks
+          SET status = 'BLOCKED', assigned_worker_id = NULL, last_error_json = $2
+          WHERE id = $1 AND status IN ('READY', 'RUNNING')
+        `,
+        [task.parent_task_id, asJson({ reason })],
+      );
+      await client.query(
+        `UPDATE jobs SET status = 'BLOCKED' WHERE id = $1 AND status IN ('READY', 'RUNNING')`,
+        [task.job_id],
+      );
+    };
+
+    if (event.type === "command.failed") {
+      await block(`workflow step failed: ${task.workflow_phase ?? "unknown"}`);
+      return;
+    }
+    if (task.workflow_phase === "GATHER") {
+      const targetWorkerId = parentArguments.targetWorkerId;
+      const destination = parentArguments.destination;
+      const itemKey = parentArguments.itemKey;
+      const quantity = parentArguments.quantity;
+      const eventPayload = isRecord(event.payload)
+        ? (event.payload as Record<string, unknown>)
+        : {};
+      const position = coordinateFromUnknown(eventPayload.position);
+      if (
+        typeof targetWorkerId !== "string" ||
+        typeof destination !== "string" ||
+        typeof itemKey !== "string" ||
+        typeof quantity !== "number" ||
+        !Number.isSafeInteger(quantity) ||
+        !position
+      ) {
+        await block("gather workflow lacks a complete worker or goal position");
+        return;
+      }
+
+      const locationResult = await client.query<{
+        name: string;
+        dimension: number;
+        x: number;
+        y: number;
+        z: number;
+      }>(
+        `SELECT name, dimension, x, y, z FROM named_locations WHERE LOWER(name) = LOWER($1) LIMIT 1`,
+        [destination.trim()],
+      );
+      const location = locationResult.rows[0];
+      const target = coordinateFromUnknown(location);
+      if (!target || target.dimension !== position.dimension) {
+        await block("gather destination is not a known location in the worker dimension");
+        return;
+      }
+
+      const world = new SparseWorldModel();
+      const worldResult = await client.query<{
+        dimension: number;
+        x: number;
+        y: number;
+        z: number;
+        walkable: boolean;
+        observed_at: Date;
+        source_worker_id: string | null;
+      }>(
+        `
+          SELECT dimension, x, y, z, walkable, observed_at, source_worker_id::text
+          FROM world_cells
+          LIMIT 10000
+        `,
+      );
+      for (const cell of worldResult.rows) {
+        world.setCell({
+          dimension: cell.dimension,
+          x: cell.x,
+          y: cell.y,
+          z: cell.z,
+          walkable: cell.walkable,
+          observedAt: cell.observed_at.toISOString(),
+          source: cell.source_worker_id ?? "unknown",
+        });
+      }
+      const path = findKnownPath(world, position, target, { maxNodes: 10_000 });
+      if (!path) {
+        await block("gather destination has no safe path through known walkable cells");
+        return;
+      }
+      const containerId = normalizeContainerId(destination);
+      if (!containerId) {
+        await block("gather destination cannot be converted to a safe container ID");
+        return;
+      }
+      await client.query(`UPDATE tasks SET status = 'RUNNING' WHERE id = $1 AND status = 'READY'`, [
+        task.parent_task_id,
+      ]);
+      if (path.directions.length > 0) {
+        await client.query(
+          `
+            INSERT INTO tasks (
+              job_id, kind, status, skill_name, arguments_json, parent_task_id, workflow_phase
+            )
+            VALUES ($1, 'workflow-step', 'READY', 'navigate.path', $2, $3, 'NAVIGATE')
+          `,
+          [task.job_id, asJson({ targetWorkerId, steps: path.directions }), task.parent_task_id],
+        );
+      } else {
+        await client.query(
+          `
+            INSERT INTO tasks (
+              job_id, kind, status, skill_name, arguments_json, parent_task_id, workflow_phase
+            )
+            VALUES ($1, 'workflow-step', 'READY', 'inventory.deposit', $2, $3, 'DEPOSIT')
+          `,
+          [task.job_id, asJson({ targetWorkerId, containerId, quantity }), task.parent_task_id],
+        );
+      }
+      return;
+    }
+
+    if (task.workflow_phase === "NAVIGATE") {
+      const targetWorkerId = parentArguments.targetWorkerId;
+      const destination = parentArguments.destination;
+      const quantity = parentArguments.quantity;
+      const containerId =
+        typeof destination === "string" ? normalizeContainerId(destination) : undefined;
+      if (
+        typeof targetWorkerId !== "string" ||
+        typeof quantity !== "number" ||
+        !Number.isSafeInteger(quantity) ||
+        !containerId
+      ) {
+        await block("gather destination container configuration is invalid");
+        return;
+      }
+      await client.query(`UPDATE tasks SET status = 'RUNNING' WHERE id = $1 AND status = 'READY'`, [
+        task.parent_task_id,
+      ]);
+      await client.query(
+        `
+          INSERT INTO tasks (
+            job_id, kind, status, skill_name, arguments_json, parent_task_id, workflow_phase
+          )
+          VALUES ($1, 'workflow-step', 'READY', 'inventory.deposit', $2, $3, 'DEPOSIT')
+        `,
+        [task.job_id, asJson({ targetWorkerId, containerId, quantity }), task.parent_task_id],
+      );
+      return;
+    }
+
+    if (task.workflow_phase === "DEPOSIT") {
+      await client.query(
+        `
+          UPDATE tasks
+          SET status = 'DONE', assigned_worker_id = NULL, last_error_json = NULL
+          WHERE id = $1
+        `,
+        [task.parent_task_id],
+      );
+      await client.query(
+        `UPDATE jobs SET status = 'DONE' WHERE id = $1 AND status IN ('READY', 'RUNNING')`,
+        [task.job_id],
+      );
+      await client.query(
+        `
+          UPDATE projects
+          SET status = 'COMPLETED'
+          WHERE id = (SELECT project_id FROM jobs WHERE id = $1)
+            AND status IN ('ACTIVE', 'PLANNING')
+        `,
+        [task.job_id],
+      );
+    }
+  }
+
   private async applyEvent(
     client: PoolClient,
     gatewayId: string | null,
@@ -1716,6 +1998,7 @@ export class GatewayRuntimeRepository {
             taskStatus === "DONE" ? null : asJson({ reason: event.type }),
           ],
         );
+        await this.advanceGatherWorkflow(client, event);
       }
     }
 
@@ -1875,6 +2158,7 @@ export class TaskRepository {
     const result = await this.pool.query(
       `
         SELECT t.id::text AS "taskId", t.job_id::text AS "jobId",
+               t.parent_task_id::text AS "parentTaskId", t.workflow_phase AS "workflowPhase",
                t.kind, t.status, t.skill_name AS "skillName", t.arguments_json AS arguments,
                t.assigned_worker_id::text AS "assignedWorkerId", t.claimed_at AS "claimedAt",
                t.started_at AS "startedAt", t.attempt_count AS "attemptCount",
@@ -2067,6 +2351,7 @@ export class TaskRepository {
           409,
         );
       }
+      const protocolArguments = commandArguments(argumentsJson);
       const issuedAt = new Date();
       const expiresAt = new Date(issuedAt.getTime() + 10 * 60_000);
       const command = CommandSchema.parse({
@@ -2076,9 +2361,9 @@ export class TaskRepository {
         workerId: workerKey,
         issuedAt: issuedAt.toISOString(),
         expiresAt: expiresAt.toISOString(),
-        budget: commandBudget(taskRow.skill_name, argumentsJson),
+        budget: commandBudget(taskRow.skill_name, protocolArguments),
         skill: taskRow.skill_name,
-        arguments: argumentsJson,
+        arguments: protocolArguments,
       });
 
       await client.query(
@@ -2152,8 +2437,10 @@ export class TaskRepository {
   public async listRunnableTasks(): Promise<readonly Record<string, unknown>[]> {
     const result = await this.pool.query(
       `
-        SELECT t.id::text AS "taskId", t.job_id::text AS "jobId", t.skill_name AS "skillName",
-               t.arguments_json AS arguments, t.status, t.attempt_count AS "attemptCount",
+        SELECT t.id::text AS "taskId", t.job_id::text AS "jobId",
+               t.parent_task_id::text AS "parentTaskId", t.workflow_phase AS "workflowPhase",
+               t.skill_name AS "skillName", t.arguments_json AS arguments, t.status,
+               t.attempt_count AS "attemptCount",
                j.priority, j.required_capabilities_json AS "requiredCapabilities",
                p.goal_text AS "goalText"
         FROM tasks t

@@ -876,10 +876,11 @@ Start with simple tunnel/box patterns; every operation bounded.
 **Priority:** P0  
 **Dependencies:** CC-101, CC-045, CC-064
 
-**Status:** PARTIAL — a pure bounded gather workflow contract now models inventory check, gather,
-destination navigation, deposit, verification, completion, and safe blocking. Persistent task
-linkage, source/destination resolution, inventory-full handling, and scheduler dispatch still
-need to consume it.
+**Status:** PARTIAL — a pure bounded gather workflow contract and persistent parent/step linkage
+now model targeted gather, known-cell destination navigation, allowlisted deposit, completion, and
+safe blocking. The scheduler can dispatch the first protocol step and command events advance the
+workflow; inventory-first checks, inventory-full handling, resumable step state, and final quantity
+verification remain.
 
 ### CC-103 — Implement known-container deposit skill
 

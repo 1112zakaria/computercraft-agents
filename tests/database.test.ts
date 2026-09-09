@@ -17,7 +17,7 @@ test("database migration set is ordered and contains the core relational model",
   const migrations = readMigrationFiles(migrationDirectory);
   assert.deepEqual(
     migrations.map((migration) => migration.version),
-    ["001", "002", "003", "004", "005", "006", "007"],
+    ["001", "002", "003", "004", "005", "006", "007", "008"],
   );
   const migrationsReadAgain = readMigrationFiles(migrationDirectory);
   assert.equal(migrationChecksum(migrations[0]!), migrationChecksum(migrationsReadAgain[0]!));
@@ -81,6 +81,10 @@ test("database migration set is ordered and contains the core relational model",
   const dispatchSql = readFileSync(join(migrationDirectory, "007_task_dispatch.sql"), "utf8");
   assert.match(dispatchSql, /ADD COLUMN task_id BIGINT REFERENCES tasks\(id\)/);
   assert.match(dispatchSql, /gateway_commands_active_task_idx/);
+
+  const workflowSql = readFileSync(join(migrationDirectory, "008_task_workflows.sql"), "utf8");
+  assert.match(workflowSql, /ADD COLUMN parent_task_id BIGINT REFERENCES tasks\(id\)/);
+  assert.match(workflowSql, /tasks_parent_workflow_idx/);
 });
 
 test("urgent command cancellation pauses the logical task", () => {
