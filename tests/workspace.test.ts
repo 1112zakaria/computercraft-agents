@@ -22,6 +22,7 @@ import {
   plannerTriggerFromEvent,
   PlannerDecisionSchema,
   ReasoningConcurrencyLimiter,
+  ReasoningOutageStateMachine,
 } from "../packages/reasoning/src/index";
 
 test("workspace exposes protocol version one", () => {
@@ -372,6 +373,21 @@ test("planner trigger service classifies and deduplicates event-driven requests"
   assert.equal(duplicate, undefined);
   assert.equal(provider.requests.length, 1);
   assert.match(provider.requests[0]?.prompt ?? "", /goal\.created/);
+});
+
+test("reasoning outage pauses provider work without coupling deterministic execution", () => {
+  const outage = new ReasoningOutageStateMachine({ failureThreshold: 2, retryAfterMs: 1000 });
+  const firstFailure = outage.recordFailure(new Date("2026-09-09T00:00:00.000Z"));
+  assert.equal(firstFailure.state, "DEGRADED");
+  assert.equal(outage.canAttempt(new Date("2026-09-09T00:00:00.500Z")), true);
+
+  const paused = outage.recordFailure(new Date("2026-09-09T00:00:01.000Z"));
+  assert.equal(paused.state, "PAUSED");
+  assert.equal(outage.canAttempt(new Date("2026-09-09T00:00:01.500Z")), false);
+  assert.equal(outage.canAttempt(new Date("2026-09-09T00:00:02.000Z")), true);
+
+  assert.equal(outage.recordSuccess().state, "AVAILABLE");
+  assert.equal(outage.snapshot().consecutiveFailures, 0);
 });
 
 test("Codex CLI provider validates structured output without executing it", async () => {

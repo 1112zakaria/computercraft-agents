@@ -19,6 +19,7 @@ Test:
 - context assembly;
 - planner decision validation and fake reasoning responses;
 - planner trigger classification, bounded provider invocation, and duplicate-trigger suppression;
+- reasoning outage pause, bounded retry, and recovery reset;
 - bounded gather workflow transitions and terminal blocking;
 - reasoning output validation;
 - project-planner escalation;

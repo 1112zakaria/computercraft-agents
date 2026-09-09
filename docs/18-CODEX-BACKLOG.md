@@ -792,6 +792,10 @@ Implement complexity heuristic and structured project plan output.
 **Priority:** P0  
 **Dependencies:** CC-082, CC-087
 
+**Status:** PARTIAL — the reasoning package now provides an explicit available/degraded/paused
+state machine with bounded retry timing and recovery reset. Control-plane persistence, operator
+visibility, and automatic resume of pending planner triggers remain.
+
 **Acceptance criteria**
 
 - provider failure pauses goal-level reasoning;

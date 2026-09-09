@@ -265,6 +265,78 @@ export class PlannerTriggerService {
   }
 }
 
+export type ReasoningOutageState = "AVAILABLE" | "DEGRADED" | "PAUSED";
+
+export interface ReasoningOutageSnapshot {
+  readonly state: ReasoningOutageState;
+  readonly consecutiveFailures: number;
+  readonly lastFailureAt: string | null;
+  readonly retryAfter: string | null;
+}
+
+export interface ReasoningOutageStateMachineOptions {
+  readonly failureThreshold?: number;
+  readonly retryAfterMs?: number;
+}
+
+/**
+ * Keeps provider outages isolated from deterministic execution. A paused reasoning layer does
+ * not imply that already-validated bounded worker commands must stop.
+ */
+export class ReasoningOutageStateMachine {
+  private readonly failureThreshold: number;
+  private readonly retryAfterMs: number;
+  private current: ReasoningOutageSnapshot = {
+    state: "AVAILABLE",
+    consecutiveFailures: 0,
+    lastFailureAt: null,
+    retryAfter: null,
+  };
+
+  public constructor(options: ReasoningOutageStateMachineOptions = {}) {
+    this.failureThreshold = options.failureThreshold ?? 1;
+    this.retryAfterMs = options.retryAfterMs ?? 30_000;
+    if (!Number.isSafeInteger(this.failureThreshold) || this.failureThreshold < 1) {
+      throw new Error("failureThreshold must be a positive integer");
+    }
+    if (!Number.isSafeInteger(this.retryAfterMs) || this.retryAfterMs < 1) {
+      throw new Error("retryAfterMs must be a positive integer");
+    }
+  }
+
+  public snapshot(): ReasoningOutageSnapshot {
+    return { ...this.current };
+  }
+
+  public canAttempt(now = new Date()): boolean {
+    if (this.current.state !== "PAUSED") return true;
+    return this.current.retryAfter !== null && Date.parse(this.current.retryAfter) <= now.getTime();
+  }
+
+  public recordFailure(now = new Date()): ReasoningOutageSnapshot {
+    const failures = this.current.consecutiveFailures + 1;
+    const paused = failures >= this.failureThreshold;
+    const retryAfter = paused ? new Date(now.getTime() + this.retryAfterMs).toISOString() : null;
+    this.current = {
+      state: paused ? "PAUSED" : "DEGRADED",
+      consecutiveFailures: failures,
+      lastFailureAt: now.toISOString(),
+      retryAfter,
+    };
+    return this.snapshot();
+  }
+
+  public recordSuccess(): ReasoningOutageSnapshot {
+    this.current = {
+      state: "AVAILABLE",
+      consecutiveFailures: 0,
+      lastFailureAt: null,
+      retryAfter: null,
+    };
+    return this.snapshot();
+  }
+}
+
 /** Deterministic provider for tests and offline planner development. */
 export class FakeReasoningProvider implements ReasoningProvider {
   public readonly requests: ReasoningRequest[] = [];
