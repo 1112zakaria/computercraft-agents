@@ -274,6 +274,19 @@ Physical command, stop-control, and update CLI requests also accept `--dry-run`.
 the same validated payload and prints the intended POST path without requiring the admin secret or
 contacting the control plane.
 
+The protected operator inspection commands are:
+
+```bash
+npm run cli -- agents
+npm run cli -- agent alice
+npm run cli -- projects
+npm run cli -- feature-gates
+```
+
+Use `pause-task`, `resume-task`, and `cancel-task` for explicit lifecycle control. Pausing or
+cancelling a running task cancels its active command delivery, releases the worker claim, and
+queues a transport-aware stop control before the task can be resumed or permanently cancelled.
+
 ## 10. Releases
 
 GitHub Actions SHOULD eventually build/test TypeScript and package:

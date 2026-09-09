@@ -63,6 +63,10 @@ identity, Minecraft server ID, and the existing bearer secret:
 ```text
 npm run cli -- provision-worker --id alice --server friends-server --computer-id 21 --version v0.4.0
 npm run cli -- workers alice
+npm run cli -- agents
+npm run cli -- agent alice
+npm run cli -- projects
+npm run cli -- feature-gates
 npm run cli -- update --target worker:alice --version v0.4.0
 npm run cli -- excavate alice 1 1 8
 npm run cli -- path alice N N E
@@ -80,6 +84,9 @@ npm run cli -- runnable-tasks
 npm run cli -- dispatch-task <task-id> <worker-id>
 npm run cli -- scheduler-tick
 npm run cli -- task-status <task-id> BLOCKED
+npm run cli -- pause-task <task-id> "operator review"
+npm run cli -- resume-task <task-id>
+npm run cli -- cancel-task <task-id> "operator cancelled"
 npm run cli -- move alice N --dry-run
 ```
 
