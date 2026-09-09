@@ -22,6 +22,7 @@ export function usage(): string {
     `${cliName} locations`,
     `${cliName} world-cells`,
     `${cliName} move <worker-id> <N|E|S|W|UP|DOWN>`,
+    `${cliName} path <worker-id> <N|E|S|W|UP|DOWN>...`,
     `${cliName} excavate <worker-id> <width> <height> <depth>`,
     `${cliName} gather <worker-id> <item-key> <quantity> <max-depth>`,
     `${cliName} deposit <worker-id> [quantity] [slot]`,
@@ -186,6 +187,31 @@ export async function runCli(args: readonly string[]): Promise<void> {
       budget: { maxPrimitives: 1, maxBlockChanges: 0 },
       skill: "movement.step",
       arguments: { direction: second },
+    };
+    console.log(
+      JSON.stringify(await request("/v1/commands", { method: "POST", body: JSON.stringify(body) })),
+    );
+    return;
+  }
+  if (command === "path") {
+    const steps = args.slice(2);
+    if (
+      !first ||
+      steps.length < 1 ||
+      steps.length > 64 ||
+      steps.some((step) => !DirectionSchema.safeParse(step).success)
+    ) {
+      throw new Error(`usage: ${cliName} path <worker-id> <N|E|S|W|UP|DOWN>...`);
+    }
+    const body = {
+      protocolVersion: 1,
+      commandId: `cli-${randomUUID()}`,
+      workerId: first,
+      issuedAt: new Date().toISOString(),
+      expiresAt: timestampAfterMinutes(10),
+      budget: { maxPrimitives: steps.length, maxBlockChanges: 0 },
+      skill: "navigate.path" as const,
+      arguments: { steps },
     };
     console.log(
       JSON.stringify(await request("/v1/commands", { method: "POST", body: JSON.stringify(body) })),

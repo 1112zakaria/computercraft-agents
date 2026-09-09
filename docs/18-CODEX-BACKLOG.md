@@ -566,6 +566,10 @@ remains.
 **Priority:** P0  
 **Dependencies:** CC-042, CC-043, CC-061
 
+**Status:** PARTIAL — the turtle executor already performs bounded `navigate.path` execution with
+per-step cancellation and blocked-step reporting, and the operator CLI now exposes a bounded
+`path` command; loading persistent paths and replanning around newly observed cells remain.
+
 **Acceptance criteria**
 
 - turtle follows path;

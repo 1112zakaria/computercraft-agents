@@ -155,6 +155,36 @@ test("CLI constructs a bounded target-aware gather command", async () => {
   }
 });
 
+test("CLI constructs a bounded path command", async () => {
+  const previousFetch = globalThis.fetch;
+  const previousUrl = process.env.CONTROL_PLANE_URL;
+  const previousSecret = process.env.CONTROL_PLANE_ADMIN_SECRET;
+  let capturedInit: RequestInit | undefined;
+  process.env.CONTROL_PLANE_URL = "http://control-plane.test";
+  process.env.CONTROL_PLANE_ADMIN_SECRET = "test-admin-secret";
+  globalThis.fetch = async (_input, init) => {
+    capturedInit = init;
+    return new Response(JSON.stringify({ accepted: true }), { status: 200 });
+  };
+  try {
+    await runCli(["path", "alice", "N", "N", "E"]);
+    const body = JSON.parse(String(capturedInit?.body)) as {
+      skill: string;
+      arguments: { steps: string[] };
+      budget: { maxPrimitives: number; maxBlockChanges: number };
+    };
+    assert.equal(body.skill, "navigate.path");
+    assert.deepEqual(body.arguments, { steps: ["N", "N", "E"] });
+    assert.deepEqual(body.budget, { maxPrimitives: 3, maxBlockChanges: 0 });
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousUrl === undefined) delete process.env.CONTROL_PLANE_URL;
+    else process.env.CONTROL_PLANE_URL = previousUrl;
+    if (previousSecret === undefined) delete process.env.CONTROL_PLANE_ADMIN_SECRET;
+    else process.env.CONTROL_PLANE_ADMIN_SECRET = previousSecret;
+  }
+});
+
 test("CLI submits the first addressed gather goal", async () => {
   const previousFetch = globalThis.fetch;
   const previousUrl = process.env.CONTROL_PLANE_URL;
