@@ -3758,7 +3758,7 @@ export class GatewayRuntimeRepository {
     if (event.type === "block.observed" && event.workerId) {
       const payload = event.payload as {
         readonly direction: "front" | "up" | "down";
-        readonly block: { readonly name: string; readonly metadata?: number } | null;
+        readonly block?: { readonly name: string; readonly metadata?: number } | null;
         readonly position?: {
           readonly dimension: number;
           readonly x: number;
@@ -3802,7 +3802,7 @@ export class GatewayRuntimeRepository {
             payload.position.z + zOffset,
             payload.block?.name ?? null,
             payload.block?.metadata ?? null,
-            payload.block === null,
+            payload.block === null || payload.block === undefined,
             new Date(event.occurredAt),
             worker.rows[0]?.id ?? null,
           ],

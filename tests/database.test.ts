@@ -179,6 +179,7 @@ test("position persistence seeds only the observed world cell as walkable", () =
     repositorySql,
     /walkable, observed_at, source_worker_id\s*\)\s*VALUES \(\$1, \$2, \$3, \$4, NULL, NULL, FALSE/s,
   );
+  assert.match(repositorySql, /payload\.block === null \|\| payload\.block === undefined/);
   assert.match(repositorySql, /replanGatherNavigation/);
   assert.match(repositorySql, /navigationReplanCount/);
   assert.match(repositorySql, /position_confidence = 'CONFIRMED_ANCHOR'/);
