@@ -49,6 +49,8 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
       const workerPathPlanMatch = url.pathname.match(/^\/v1\/workers\/([^/]+)\/path-to\/([^/]+)$/);
       const workerProvisionPath = url.pathname === "/v1/workers/provision";
       const updatePathMatch = url.pathname.match(/^\/v1\/updates(?:\/([^/]+))?$/);
+      const agentPathMatch = url.pathname.match(/^\/v1\/agents(?:\/([^/]+))?$/);
+      const projectsPath = url.pathname === "/v1/projects";
       const goalsPath = url.pathname === "/v1/goals";
       const taskPathMatch = url.pathname.match(/^\/v1\/tasks(?:\/([^/]+))?$/);
       const taskPlanningContextPathMatch = url.pathname.match(
@@ -72,6 +74,8 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
         workerPathPlanMatch ||
         workerProvisionPath ||
         updatePathMatch ||
+        agentPathMatch ||
+        projectsPath ||
         goalsPath ||
         taskPathMatch ||
         taskPlanningContextPathMatch ||
@@ -138,6 +142,25 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
           } else {
             sendJson(response, 200, { updates: await options.service.listUpdates() });
           }
+          return;
+        }
+        if (method === "GET" && agentPathMatch) {
+          const encodedAgentName = agentPathMatch[1];
+          if (encodedAgentName) {
+            let agentName: string;
+            try {
+              agentName = decodeURIComponent(encodedAgentName);
+            } catch {
+              throw new HttpError(400, "INVALID_PAYLOAD", "agent name is not valid URL encoding");
+            }
+            sendJson(response, 200, await options.service.getAgent(agentName));
+          } else {
+            sendJson(response, 200, { agents: await options.service.listAgents() });
+          }
+          return;
+        }
+        if (method === "GET" && projectsPath) {
+          sendJson(response, 200, { projects: await options.service.listProjects() });
           return;
         }
         if (goalsPath) {

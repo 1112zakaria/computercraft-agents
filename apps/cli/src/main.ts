@@ -18,6 +18,9 @@ export function usage(): string {
     `${cliName} workers <worker-id>`,
     `${cliName} provision-worker --id <worker-id> --server <server-id> --computer-id <number> --version <version>`,
     `${cliName} diagnose`,
+    `${cliName} agents`,
+    `${cliName} agent <name>`,
+    `${cliName} projects`,
     `${cliName} goal <@worker get ... and deposit it in ...>`,
     `${cliName} tasks`,
     `${cliName} task <task-id>`,
@@ -151,6 +154,21 @@ export async function runCli(args: readonly string[]): Promise<void> {
   }
   if (command === "diagnose") {
     console.log(JSON.stringify(await request("/v1/diagnostics"), null, 2));
+    return;
+  }
+  if (command === "agents") {
+    if (first) throw new Error(`usage: ${cliName} agents`);
+    console.log(JSON.stringify(await request("/v1/agents"), null, 2));
+    return;
+  }
+  if (command === "agent") {
+    if (!first || second) throw new Error(`usage: ${cliName} agent <name>`);
+    console.log(JSON.stringify(await request(`/v1/agents/${encodeURIComponent(first)}`), null, 2));
+    return;
+  }
+  if (command === "projects") {
+    if (first) throw new Error(`usage: ${cliName} projects`);
+    console.log(JSON.stringify(await request("/v1/projects"), null, 2));
     return;
   }
   if (command === "goal") {

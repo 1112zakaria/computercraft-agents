@@ -95,6 +95,9 @@ export interface GatewayServiceStore {
     readonly requiredCapabilities?: readonly string[];
   }): Promise<GoalTaskRecord>;
   listGoals(): Promise<readonly Record<string, unknown>[]>;
+  listProjects(): Promise<readonly Record<string, unknown>[]>;
+  listAgents(): Promise<readonly Record<string, unknown>[]>;
+  getAgent(name: string): Promise<Record<string, unknown> | undefined>;
   listTasks(): Promise<readonly Record<string, unknown>[]>;
   getTask(taskId: string): Promise<Record<string, unknown> | undefined>;
   listRunnableTasks(): Promise<readonly Record<string, unknown>[]>;
@@ -434,6 +437,26 @@ export class GatewayService {
 
   public async listGoals(): Promise<readonly Record<string, unknown>[]> {
     return this.store.listGoals();
+  }
+
+  public async listProjects(): Promise<readonly Record<string, unknown>[]> {
+    return this.store.listProjects();
+  }
+
+  public async listAgents(): Promise<readonly Record<string, unknown>[]> {
+    return this.store.listAgents();
+  }
+
+  public async getAgent(name: string): Promise<Record<string, unknown>> {
+    const normalized = name.trim();
+    if (!IdentifierSchema.safeParse(normalized).success) {
+      throw new HttpError(400, "INVALID_PAYLOAD", "agent name is invalid");
+    }
+    const agent = await this.store.getAgent(normalized);
+    if (!agent) {
+      throw new HttpError(404, "UNKNOWN_AGENT", "agent was not found");
+    }
+    return agent;
   }
 
   public async listTasks(): Promise<readonly Record<string, unknown>[]> {

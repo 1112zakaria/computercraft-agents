@@ -411,6 +411,54 @@ export class GatewayRuntimeRepository {
     return result.rows;
   }
 
+  public async listProjects(): Promise<readonly Record<string, unknown>[]> {
+    const result = await this.pool.query(
+      `
+        SELECT p.id::text AS "projectId", p.name, p.created_by_principal AS "createdByPrincipal",
+               p.status, p.goal_text AS "goalText", p.created_at AS "createdAt",
+               p.updated_at AS "updatedAt", COUNT(DISTINCT j.id)::int AS "jobCount",
+               COUNT(t.id)::int AS "taskCount"
+        FROM projects p
+        LEFT JOIN jobs j ON j.project_id = p.id
+        LEFT JOIN tasks t ON t.job_id = j.id
+        GROUP BY p.id
+        ORDER BY p.created_at DESC, p.id DESC
+      `,
+    );
+    return result.rows;
+  }
+
+  public async listAgents(): Promise<readonly Record<string, unknown>[]> {
+    const result = await this.pool.query(
+      `
+        SELECT a.id::text AS "agentId", a.name, a.backend_type AS "backendType",
+               a.enabled, a.worker_binding_id::text AS "workerBindingId",
+               w.worker_key AS "workerId", a.capability_policy_id AS "capabilityPolicyId",
+               a.created_at AS "createdAt", a.updated_at AS "updatedAt"
+        FROM agents a
+        LEFT JOIN workers w ON w.id = a.worker_binding_id
+        ORDER BY a.name
+      `,
+    );
+    return result.rows;
+  }
+
+  public async getAgent(name: string): Promise<Record<string, unknown> | undefined> {
+    const result = await this.pool.query(
+      `
+        SELECT a.id::text AS "agentId", a.name, a.backend_type AS "backendType",
+               a.enabled, a.worker_binding_id::text AS "workerBindingId",
+               w.worker_key AS "workerId", a.capability_policy_id AS "capabilityPolicyId",
+               a.created_at AS "createdAt", a.updated_at AS "updatedAt"
+        FROM agents a
+        LEFT JOIN workers w ON w.id = a.worker_binding_id
+        WHERE LOWER(a.name) = LOWER($1)
+      `,
+      [name],
+    );
+    return result.rows[0];
+  }
+
   public async listTasks(): Promise<readonly Record<string, unknown>[]> {
     return new TaskRepository(this.pool).listTasks();
   }

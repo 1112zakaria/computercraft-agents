@@ -65,6 +65,13 @@ class FakeGatewayStore implements GatewayServiceStore {
   public readonly worldCells: Record<string, unknown>[] = [];
   public readonly tasks: Record<string, unknown>[] = [];
 
+  public readonly agents: Record<string, unknown>[] = [
+    { agentId: "agent-test", name: "alice", enabled: true, workerId: "worker-test" },
+  ];
+  public readonly projects: Record<string, unknown>[] = [
+    { projectId: "project-test", name: "Test project", status: "ACTIVE", taskCount: 1 },
+  ];
+
   public async register(payload: GatewayRegistration): Promise<void> {
     this.registrations.push(payload);
   }
@@ -213,6 +220,18 @@ class FakeGatewayStore implements GatewayServiceStore {
 
   public async listGoals(): Promise<readonly Record<string, unknown>[]> {
     return [];
+  }
+
+  public async listProjects(): Promise<readonly Record<string, unknown>[]> {
+    return this.projects;
+  }
+
+  public async listAgents(): Promise<readonly Record<string, unknown>[]> {
+    return this.agents;
+  }
+
+  public async getAgent(name: string): Promise<Record<string, unknown> | undefined> {
+    return this.agents.find((agent) => agent.name === name);
   }
 
   public async listTasks(): Promise<readonly Record<string, unknown>[]> {
@@ -782,6 +801,26 @@ test("operator API supports inspection and deterministic command/stop enqueueing
       headers: adminHeaders(),
     });
     assert.equal(updateStatus.status, 200);
+  } finally {
+    await server.close();
+  }
+});
+
+test("operator inspection API exposes agents and project summaries", async () => {
+  const store = new FakeGatewayStore();
+  const server = await startServer(store);
+  try {
+    const agents = await fetch(`${server.baseUrl}/v1/agents`, { headers: adminHeaders() });
+    assert.equal(agents.status, 200);
+    assert.deepEqual(await agents.json(), { agents: store.agents });
+
+    const agent = await fetch(`${server.baseUrl}/v1/agents/alice`, { headers: adminHeaders() });
+    assert.equal(agent.status, 200);
+    assert.deepEqual(await agent.json(), store.agents[0]);
+
+    const projects = await fetch(`${server.baseUrl}/v1/projects`, { headers: adminHeaders() });
+    assert.equal(projects.status, 200);
+    assert.deepEqual(await projects.json(), { projects: store.projects });
   } finally {
     await server.close();
   }

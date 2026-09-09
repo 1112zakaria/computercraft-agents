@@ -1186,6 +1186,9 @@ Goal/task planning previews and feature-gate integration remain.
 **Priority:** P0  
 **Dependencies:** CC-023
 
+**Status:** DONE — protected agent and project inspection endpoints are exposed through the CLI as
+`agents`, `agent <name>`, and `projects`; project summaries include job and task counts.
+
 ### CC-173 — Implement structured logging with lineage fields
 
 **Priority:** P0  

@@ -27,6 +27,7 @@ Test:
 - event deduplication;
 - stale-worker recovery pauses and cancels work before explicit resume;
 - operator pause/cancel stops active delivery atomically and resume returns work to `READY`;
+- agent and project inspection API/CLI responses;
 - outage transitions.
 
 ### Unit tests — Lua

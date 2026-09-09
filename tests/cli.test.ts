@@ -3,6 +3,35 @@ import test from "node:test";
 
 import { runCli } from "../apps/cli/src/main";
 
+test("CLI exposes agent and project inspection endpoints", async () => {
+  const previousFetch = globalThis.fetch;
+  const previousUrl = process.env.CONTROL_PLANE_URL;
+  const previousSecret = process.env.CONTROL_PLANE_ADMIN_SECRET;
+  const capturedUrls: string[] = [];
+  process.env.CONTROL_PLANE_URL = "http://control-plane.test";
+  process.env.CONTROL_PLANE_ADMIN_SECRET = "test-admin-secret";
+  globalThis.fetch = async (input) => {
+    capturedUrls.push(String(input));
+    return new Response(JSON.stringify({ ok: true }), { status: 200 });
+  };
+  try {
+    await runCli(["agents"]);
+    await runCli(["agent", "alice"]);
+    await runCli(["projects"]);
+    assert.deepEqual(capturedUrls, [
+      "http://control-plane.test/v1/agents",
+      "http://control-plane.test/v1/agents/alice",
+      "http://control-plane.test/v1/projects",
+    ]);
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousUrl === undefined) delete process.env.CONTROL_PLANE_URL;
+    else process.env.CONTROL_PLANE_URL = previousUrl;
+    if (previousSecret === undefined) delete process.env.CONTROL_PLANE_ADMIN_SECRET;
+    else process.env.CONTROL_PLANE_ADMIN_SECRET = previousSecret;
+  }
+});
+
 test("CLI constructs an authenticated immutable update request", async () => {
   const previousFetch = globalThis.fetch;
   const previousUrl = process.env.CONTROL_PLANE_URL;
