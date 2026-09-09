@@ -23,6 +23,8 @@ Test:
   task-proposal application/idempotency when explicitly enabled;
 - reasoning outage pause, bounded retry, and recovery reset;
 - bounded gather workflow transitions and terminal blocking;
+- item-targeted deposits reject missing or mismatched inventory stacks and workflow completion
+  requires the canonical target item key;
 - blocked navigation contradiction handling and the maximum-three-attempt gather replan boundary;
 - reasoning output validation;
 - project-planner escalation;
