@@ -853,8 +853,9 @@ pause window, and exposes protected `planner-status` inspection. Richer outage p
 **Status:** PARTIAL — explicit syntax for one or more named targets and `@all` is parsed before
 reasoning, with duplicate and mixed-`@all` targets rejected. The domain layer now canonicalizes
 case-insensitive worker names and provides pure registry-backed worker/group/`@all` scope
-expansion with unknown-target rejection. Persistent registry integration, authorization, and
-multi-worker task creation remain.
+expansion with unknown-target rejection. A protected read-only `addressing/resolve` API and CLI
+preview now use the persisted worker/group registry. Authorization and multi-worker task creation
+remain.
 
 Parse agents/groups/`@all` before reasoning.
 

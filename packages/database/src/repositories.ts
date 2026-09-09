@@ -1146,6 +1146,36 @@ export class GatewayRuntimeRepository {
     return result.rows;
   }
 
+  public async getAddressResolutionRegistry(): Promise<{
+    readonly workers: readonly string[];
+    readonly groups: Readonly<Record<string, readonly string[]>>;
+  }> {
+    const [workersResult, groupsResult] = await Promise.all([
+      this.pool.query<{ workerId: string }>(
+        `SELECT worker_key AS "workerId" FROM workers ORDER BY worker_key`,
+      ),
+      this.pool.query<{ groupName: string; workerId: string | null }>(
+        `
+          SELECT g.name AS "groupName", w.worker_key AS "workerId"
+          FROM groups g
+          LEFT JOIN group_members gm ON gm.group_id = g.id
+          LEFT JOIN agents a ON a.id = gm.agent_id AND a.enabled = TRUE
+          LEFT JOIN workers w ON w.id = a.worker_binding_id
+          ORDER BY g.name, w.worker_key
+        `,
+      ),
+    ]);
+    const groups: Record<string, string[]> = {};
+    for (const row of groupsResult.rows) {
+      const members = (groups[row.groupName] ??= []);
+      if (row.workerId && !members.includes(row.workerId)) members.push(row.workerId);
+    }
+    return {
+      workers: workersResult.rows.map((row) => row.workerId),
+      groups,
+    };
+  }
+
   public async getAgent(name: string): Promise<Record<string, unknown> | undefined> {
     const result = await this.pool.query(
       `

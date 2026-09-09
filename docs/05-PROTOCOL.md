@@ -80,6 +80,20 @@ control plane, so a durable turtle outbox can retry after an HTTP failure.
 
 ## 2b. Operator goal entry point
 
+The protected operator API also exposes a read-only address preview:
+
+```text
+POST /v1/addressing/resolve
+```
+
+It accepts `{ "protocolVersion": 1, "commandText": "@miners inspect" }`, canonicalizes the
+explicit targets, resolves worker and persistent group membership, expands `@all`, and rejects
+unknown targets. It creates no command or task. The CLI equivalent is:
+
+```bash
+npm run cli -- resolve-address "@miners inspect"
+```
+
 The protected operator API accepts the first narrow addressed gather goal:
 
 ```text

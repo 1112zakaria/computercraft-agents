@@ -4,6 +4,7 @@ import type { IncomingHttpHeaders } from "node:http";
 import {
   CommandPollResponseSchema,
   CommandSchema,
+  AddressResolutionRequestSchema,
   DirectWorkerEventBatchSchema,
   DirectWorkerHeartbeatSchema,
   DirectWorkerPollResponseSchema,
@@ -27,7 +28,12 @@ import {
 } from "@computercraft-agents/protocol";
 import { selectDispatchableTasks } from "@computercraft-agents/scheduler";
 import { findKnownPath, SparseWorldModel, type Coordinate } from "@computercraft-agents/navigation";
-import { parseAddressedGatherGoal } from "@computercraft-agents/domain";
+import {
+  parseAddressedCommand,
+  parseAddressedGatherGoal,
+  resolveAddressedTargets,
+} from "@computercraft-agents/domain";
+import type { AddressResolutionRegistry } from "@computercraft-agents/domain";
 import { assemblePlanningContext } from "@computercraft-agents/reasoning";
 import type {
   CommandPollResponse,
@@ -79,6 +85,7 @@ export interface GatewayServiceStore {
   listUpdates(): Promise<readonly UpdateRolloutRecord[]>;
   getUpdate(updateId: string): Promise<UpdateRolloutRecord | undefined>;
   listWorkers(): Promise<readonly Record<string, unknown>[]>;
+  getAddressResolutionRegistry(): Promise<AddressResolutionRegistry>;
   getWorker(workerId: string): Promise<Record<string, unknown> | undefined>;
   anchorWorker(workerId: string, input: WorkerAnchorRequest): Promise<Record<string, unknown>>;
   listGateways(): Promise<readonly Record<string, unknown>[]>;
@@ -775,6 +782,25 @@ export class GatewayService {
 
   public async listAgents(): Promise<readonly Record<string, unknown>[]> {
     return this.store.listAgents();
+  }
+
+  public async resolveAddress(input: unknown): Promise<Record<string, unknown>> {
+    const request = this.parsePayload(AddressResolutionRequestSchema, input);
+    const parsed = parseAddressedCommand(request.commandText);
+    if (!parsed.ok) {
+      throw new HttpError(400, "INVALID_PAYLOAD", parsed.error);
+    }
+    const registry = await this.store.getAddressResolutionRegistry();
+    const resolution = resolveAddressedTargets(parsed.command, registry);
+    if (!resolution.ok) {
+      throw new HttpError(404, "UNKNOWN_ADDRESS_TARGET", resolution.error);
+    }
+    return {
+      protocolVersion: 1,
+      commandText: request.commandText,
+      command: parsed.command,
+      resolution: resolution.resolution,
+    };
   }
 
   public async getAgent(name: string): Promise<Record<string, unknown>> {

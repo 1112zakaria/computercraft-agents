@@ -4,6 +4,7 @@ import { join } from "node:path";
 import test from "node:test";
 
 import {
+  AddressResolutionRequestSchema,
   CommandSchema,
   DirectWorkerEventBatchSchema,
   DirectWorkerPollResponseSchema,
@@ -353,5 +354,21 @@ test("clear-space block observations accept explicit or legacy omitted null", ()
       events: [{ ...baseEvent, payload: { ...baseEvent.payload, block: null } }],
     }).success,
     true,
+  );
+});
+
+test("address resolution requests require a bounded protocol-versioned command", () => {
+  assert.deepEqual(
+    AddressResolutionRequestSchema.parse({ protocolVersion: 1, commandText: "@miners inspect" }),
+    { protocolVersion: 1, commandText: "@miners inspect" },
+  );
+  assert.equal(
+    AddressResolutionRequestSchema.safeParse({ protocolVersion: 1, commandText: "" }).success,
+    false,
+  );
+  assert.equal(
+    AddressResolutionRequestSchema.safeParse({ protocolVersion: 2, commandText: "@miners inspect" })
+      .success,
+    false,
   );
 });

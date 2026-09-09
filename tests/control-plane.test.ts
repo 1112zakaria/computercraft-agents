@@ -273,6 +273,13 @@ class FakeGatewayStore implements GatewayServiceStore {
     return this.agents;
   }
 
+  public async getAddressResolutionRegistry() {
+    return {
+      workers: ["worker-test", "alice", "bob"],
+      groups: { miners: ["alice", "bob"] },
+    };
+  }
+
   public async getAgent(name: string): Promise<Record<string, unknown> | undefined> {
     return this.agents.find((agent) => agent.name === name);
   }
@@ -1338,6 +1345,46 @@ test("operator inspection API exposes agents and project summaries", async () =>
     const projects = await fetch(`${server.baseUrl}/v1/projects`, { headers: adminHeaders() });
     assert.equal(projects.status, 200);
     assert.deepEqual(await projects.json(), { projects: store.projects });
+  } finally {
+    await server.close();
+  }
+});
+
+test("operator addressing API resolves workers, groups, and all with fail-closed lookup", async () => {
+  const store = new FakeGatewayStore();
+  const server = await startServer(store);
+  try {
+    const response = await fetch(`${server.baseUrl}/v1/addressing/resolve`, {
+      method: "POST",
+      headers: adminHeaders(),
+      body: JSON.stringify({ protocolVersion: 1, commandText: "@MINERS,@ALICE inspect" }),
+    });
+    assert.equal(response.status, 200);
+    const resolvedBody = (await response.json()) as {
+      command: { targets: Array<{ name: string }>; commandText: string };
+      resolution: { workerIds: string[]; groups: string[]; allWorkers: boolean };
+    };
+    const expectedTargets = JSON.stringify([
+      { kind: "named", name: "miners" },
+      { kind: "named", name: "alice" },
+    ]);
+    assert.equal(JSON.stringify(resolvedBody.command.targets), expectedTargets);
+    assert.equal(resolvedBody.command.commandText, "inspect");
+    const expectedResolution = JSON.stringify({
+      workerIds: ["alice", "bob"],
+      groups: ["miners"],
+      allWorkers: false,
+    });
+    assert.equal(JSON.stringify(resolvedBody.resolution), expectedResolution);
+
+    const unknown = await fetch(`${server.baseUrl}/v1/addressing/resolve`, {
+      method: "POST",
+      headers: adminHeaders(),
+      body: JSON.stringify({ protocolVersion: 1, commandText: "@missing inspect" }),
+    });
+    const unknownBody = await unknown.json();
+    assert.equal(unknown.status, 404);
+    assert.equal((unknownBody as { error: { code: string } }).error.code, "UNKNOWN_ADDRESS_TARGET");
   } finally {
     await server.close();
   }

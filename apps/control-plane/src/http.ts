@@ -60,6 +60,7 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
       const workerProvisionPath = url.pathname === "/v1/workers/provision";
       const updatePathMatch = url.pathname.match(/^\/v1\/updates(?:\/([^/]+))?$/);
       const agentPathMatch = url.pathname.match(/^\/v1\/agents(?:\/([^/]+))?$/);
+      const addressResolvePath = url.pathname === "/v1/addressing/resolve";
       const projectsPath = url.pathname === "/v1/projects";
       const featureGatesPath = url.pathname === "/v1/feature-gates";
       const auditPath = url.pathname === "/v1/audit";
@@ -92,6 +93,7 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
         workerProvisionPath ||
         updatePathMatch ||
         agentPathMatch ||
+        addressResolvePath ||
         projectsPath ||
         featureGatesPath ||
         auditPath ||
@@ -209,6 +211,16 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
           } else {
             sendJson(response, 200, { agents: await options.service.listAgents() });
           }
+          return;
+        }
+        if (addressResolvePath) {
+          if (method !== "POST") {
+            throw new HttpError(405, "INVALID_PAYLOAD", "method is not supported");
+          }
+          const addressBody = options.service.parseBody(
+            await readBody(request, options.maxBodyBytes),
+          );
+          sendJson(response, 200, await options.service.resolveAddress(addressBody));
           return;
         }
         if (method === "GET" && projectsPath) {

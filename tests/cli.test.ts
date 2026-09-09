@@ -42,6 +42,39 @@ test("CLI exposes agent and project inspection endpoints", async () => {
   }
 });
 
+test("CLI previews resolved addressing scopes through the operator API", async () => {
+  const previousFetch = globalThis.fetch;
+  const previousUrl = process.env.CONTROL_PLANE_URL;
+  const previousSecret = process.env.CONTROL_PLANE_ADMIN_SECRET;
+  let capturedUrl = "";
+  let capturedInit: RequestInit | undefined;
+  process.env.CONTROL_PLANE_URL = "http://control-plane.test";
+  process.env.CONTROL_PLANE_ADMIN_SECRET = "test-admin-secret";
+  globalThis.fetch = async (input, init) => {
+    capturedUrl = String(input);
+    capturedInit = init;
+    return new Response(JSON.stringify({ resolution: { workerIds: ["alice"] } }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  };
+  try {
+    await runCli(["resolve-address", "@miners", "inspect"]);
+    assert.equal(capturedUrl, "http://control-plane.test/v1/addressing/resolve");
+    assert.equal(capturedInit?.method, "POST");
+    assert.deepEqual(JSON.parse(String(capturedInit?.body)), {
+      protocolVersion: 1,
+      commandText: "@miners inspect",
+    });
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousUrl === undefined) delete process.env.CONTROL_PLANE_URL;
+    else process.env.CONTROL_PLANE_URL = previousUrl;
+    if (previousSecret === undefined) delete process.env.CONTROL_PLANE_ADMIN_SECRET;
+    else process.env.CONTROL_PLANE_ADMIN_SECRET = previousSecret;
+  }
+});
+
 test("CLI constructs a read-only goal preflight request", async () => {
   const previousFetch = globalThis.fetch;
   const previousUrl = process.env.CONTROL_PLANE_URL;

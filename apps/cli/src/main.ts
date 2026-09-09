@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { normalizeItemKey, parseAddressedGatherGoal } from "@computercraft-agents/domain";
 import {
+  AddressResolutionRequestSchema,
   DirectionSchema,
   DirectWorkerProvisionSchema,
   GoalCreateRequestSchema,
@@ -26,6 +27,7 @@ export function usage(): string {
     `${cliName} agents`,
     `${cliName} agent <name>`,
     `${cliName} projects`,
+    `${cliName} resolve-address <@worker|@group|@all command>`,
     `${cliName} feature-gates`,
     `${cliName} audit [limit]`,
     `${cliName} goal <@worker get ... and deposit it in ...> [--start] [--dry-run]`,
@@ -205,6 +207,27 @@ export async function runCli(args: readonly string[]): Promise<void> {
   if (command === "projects") {
     if (first) throw new Error(`usage: ${cliName} projects`);
     console.log(JSON.stringify(await request("/v1/projects"), null, 2));
+    return;
+  }
+  if (command === "resolve-address") {
+    const commandText = positionalArgs.slice(1).join(" ").trim();
+    if (!commandText) {
+      throw new Error(`usage: ${cliName} resolve-address <@worker|@group|@all command>`);
+    }
+    const body = AddressResolutionRequestSchema.parse({
+      protocolVersion: 1,
+      commandText,
+    });
+    console.log(
+      JSON.stringify(
+        await request("/v1/addressing/resolve", {
+          method: "POST",
+          body: JSON.stringify(body),
+        }),
+        null,
+        2,
+      ),
+    );
     return;
   }
   if (command === "feature-gates") {

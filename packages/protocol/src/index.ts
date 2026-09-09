@@ -408,6 +408,15 @@ export const GoalCreateRequestSchema = z
   })
   .strict();
 
+export const AddressResolutionRequestSchema = z
+  .object({
+    protocolVersion: ProtocolVersionSchema,
+    commandText: z.string().trim().min(1).max(4096),
+  })
+  .strict();
+
+export type AddressResolutionRequest = z.infer<typeof AddressResolutionRequestSchema>;
+
 export type GoalCreateRequest = z.infer<typeof GoalCreateRequestSchema>;
 
 export const TaskStatusSchema = z.enum([
@@ -739,6 +748,7 @@ export const ProtocolErrorCodeSchema = z.enum([
   "INVALID_PAYLOAD",
   "UNSUPPORTED_PROTOCOL_VERSION",
   "UNKNOWN_WORKER",
+  "UNKNOWN_ADDRESS_TARGET",
   "UNKNOWN_UPDATE",
   "UNKNOWN_SKILL",
   "INVALID_ARGUMENTS",

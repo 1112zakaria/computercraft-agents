@@ -75,6 +75,7 @@ npm run cli -- peripherals alice front
 npm run cli -- agents
 npm run cli -- agent alice
 npm run cli -- projects
+npm run cli -- resolve-address "@miners inspect"
 npm run cli -- feature-gates
 npm run cli -- audit 50
 npm run cli -- diagnose
