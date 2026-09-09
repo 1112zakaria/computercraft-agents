@@ -29,6 +29,22 @@ The application must not log bearer secrets, database URLs, request authorizatio
 certificate private keys. `Restart=on-failure` covers crashes; an operator restart is still
 required after updates or configuration changes.
 
+## Safe control-plane rollout
+
+From a clean checkout, check out the reviewed commit and run:
+
+```bash
+cd /opt/computercraft-agents
+git fetch origin
+git checkout --detach <reviewed-commit>
+deploy/vps/update-control-plane.sh /opt/computercraft-agents
+```
+
+The helper validates the complete repository before restarting systemd and waits for the private
+`/healthz` endpoint. It never sources or prints `/etc/computercraft-agents/control-plane.env`.
+For rollback, check out the previous deployed commit and run the helper again. Do not use a dirty
+working tree for either operation.
+
 ## Install PostgreSQL backups
 
 The backup job uses the existing root-owned environment file, writes a PostgreSQL custom-format

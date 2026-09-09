@@ -77,10 +77,24 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now computercraft-agents-control-plane
 ```
 
-For routine updates, pull the desired commit, run `npm ci`, `npm run build`, run the migration
-command, and restart the service. Migrations are checksum-protected and run under a PostgreSQL
-advisory lock. The verifier permits only LF/CRLF newline differences for an already-applied
-migration; semantic changes remain a hard failure and require a new migration file.
+For routine updates, check out the desired reviewed commit in a clean working tree and run
+`deploy/vps/update-control-plane.sh`. The helper runs `npm ci` and the complete `npm run check`
+before restarting systemd, then waits for `/healthz` to succeed. It does not read, print, or
+replace the private environment file. Migrations are checksum-protected and run under a
+PostgreSQL advisory lock. The verifier permits only LF/CRLF newline differences for an
+already-applied migration; semantic changes remain a hard failure and require a new migration
+file.
+
+Example:
+
+```bash
+cd /opt/computercraft-agents
+git fetch origin
+git checkout --detach <reviewed-commit>
+deploy/vps/update-control-plane.sh /opt/computercraft-agents
+```
+
+If a rollback is required, check out the previously deployed commit and run the same helper.
 
 The service lifecycle, journald policy, and PostgreSQL backup timer are documented in
 [OPERATIONS.md](OPERATIONS.md). The backup job is intentionally a template: install it on the
@@ -89,7 +103,7 @@ VPS only after confirming the local backup retention and off-host recovery polic
 ## Checks
 
 ```bash
-curl --fail http://127.0.0.1:8787/healthz
+curl --fail http://172.18.0.1:8787/healthz
 systemctl status computercraft-agents-control-plane
 journalctl -u computercraft-agents-control-plane -n 100 --no-pager
 ```
