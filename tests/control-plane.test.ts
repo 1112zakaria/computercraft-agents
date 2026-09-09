@@ -247,6 +247,20 @@ class FakeGatewayStore implements GatewayServiceStore {
     return [];
   }
 
+  public async resolveNamedLocation(name: string): Promise<Record<string, unknown> | undefined> {
+    return name.trim().toLocaleLowerCase() === "test chest"
+      ? {
+          locationId: "location-test",
+          name: "Test Chest",
+          dimension: 0,
+          x: 1,
+          y: 2,
+          z: 3,
+          confidence: "CONFIRMED_ANCHOR",
+        }
+      : undefined;
+  }
+
   public async listWorldCells(): Promise<readonly Record<string, unknown>[]> {
     return [];
   }
@@ -495,6 +509,24 @@ test("operator location API upserts a named anchor", async () => {
     const body = (await response.json()) as { name: string; confidence: string };
     assert.equal(body.name, "Test Chest");
     assert.equal(body.confidence, "CONFIRMED_ANCHOR");
+  } finally {
+    await server.close();
+  }
+});
+
+test("operator location API resolves names case-insensitively", async () => {
+  const store = new FakeGatewayStore();
+  const server = await startServer(store);
+  try {
+    const response = await fetch(
+      `${server.baseUrl}/v1/locations/${encodeURIComponent("test chest")}`,
+      { headers: adminHeaders() },
+    );
+    const responseBody = await response.text();
+    assert.equal(response.status, 200);
+    const body = JSON.parse(responseBody) as { name: string; x: number; y: number; z: number };
+    assert.equal(body.name, "Test Chest");
+    assert.deepEqual([body.x, body.y, body.z], [1, 2, 3]);
   } finally {
     await server.close();
   }

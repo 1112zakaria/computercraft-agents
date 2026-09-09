@@ -55,6 +55,7 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
       const runnableTasksPath = url.pathname === "/v1/tasks/runnable";
       const schedulerTickPath = url.pathname === "/v1/scheduler/tick";
       const locationsPath = url.pathname === "/v1/locations";
+      const locationPathMatch = url.pathname.match(/^\/v1\/locations\/([^/]+)$/);
       const worldCellsPath = url.pathname === "/v1/world/cells";
 
       if (method === "GET" && url.pathname === "/healthz") {
@@ -73,6 +74,7 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
         runnableTasksPath ||
         schedulerTickPath ||
         locationsPath ||
+        locationPathMatch ||
         worldCellsPath ||
         url.pathname === "/v1/diagnostics" ||
         url.pathname === "/v1/commands" ||
@@ -210,6 +212,19 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
             sendJson(response, 200, await options.service.createNamedLocation(locationBody));
             return;
           }
+        }
+        if (locationPathMatch) {
+          if (method !== "GET") {
+            throw new HttpError(405, "INVALID_PAYLOAD", "method is not supported");
+          }
+          let locationName: string;
+          try {
+            locationName = decodeURIComponent(locationPathMatch[1]!);
+          } catch {
+            throw new HttpError(400, "INVALID_PAYLOAD", "location name is not valid URL encoding");
+          }
+          sendJson(response, 200, await options.service.resolveNamedLocation(locationName));
+          return;
         }
         if (worldCellsPath) {
           if (method !== "GET") {

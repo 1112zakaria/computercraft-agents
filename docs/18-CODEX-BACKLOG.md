@@ -594,8 +594,8 @@ per-step cancellation and blocked-step reporting, and the operator CLI now expos
 **Priority:** P0  
 **Dependencies:** CC-020
 
-**Status:** PARTIAL — named locations can be upserted/listed through the protected API and an
-in-memory planner index exists; navigation resolution and route execution remain.
+**Status:** PARTIAL — named locations can be upserted, listed, and case-insensitively resolved
+through the protected API and CLI; navigation resolution and route execution remain.
 
 **Acceptance criteria**
 

@@ -110,6 +110,7 @@ export interface GatewayServiceStore {
     readonly metadata: unknown;
   }): Promise<Record<string, unknown>>;
   listNamedLocations(): Promise<readonly Record<string, unknown>[]>;
+  resolveNamedLocation(name: string): Promise<Record<string, unknown> | undefined>;
   listWorldCells(): Promise<readonly Record<string, unknown>[]>;
 }
 
@@ -505,6 +506,21 @@ export class GatewayService {
 
   public async listNamedLocations(): Promise<readonly Record<string, unknown>[]> {
     return this.store.listNamedLocations();
+  }
+
+  public async resolveNamedLocation(name: string): Promise<Record<string, unknown>> {
+    const normalized = name.trim();
+    if (!normalized) {
+      throw new HttpError(400, "INVALID_PAYLOAD", "location name must not be empty");
+    }
+    if (normalized.length > 256) {
+      throw new HttpError(400, "INVALID_PAYLOAD", "location name is too long");
+    }
+    const location = await this.store.resolveNamedLocation(normalized);
+    if (!location) {
+      throw new HttpError(404, "UNKNOWN_LOCATION", "named location was not found");
+    }
+    return location;
   }
 
   public async listWorldCells(): Promise<readonly Record<string, unknown>[]> {

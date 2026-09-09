@@ -380,6 +380,20 @@ export class GatewayRuntimeRepository {
     return result.rows;
   }
 
+  public async resolveNamedLocation(name: string): Promise<Record<string, unknown> | undefined> {
+    const result = await this.pool.query(
+      `
+        SELECT id::text AS "locationId", name, dimension, x, y, z, facing, source, confidence,
+               observed_at AS "observedAt", metadata_json AS metadata
+        FROM named_locations
+        WHERE LOWER(name) = LOWER($1)
+        LIMIT 1
+      `,
+      [name.trim()],
+    );
+    return result.rows[0];
+  }
+
   public async listWorldCells(): Promise<readonly Record<string, unknown>[]> {
     const result = await this.pool.query(
       `

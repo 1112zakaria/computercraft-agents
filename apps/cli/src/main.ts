@@ -25,6 +25,7 @@ export function usage(): string {
     `${cliName} dispatch-task <task-id> <worker-id>`,
     `${cliName} task-status <task-id> <PENDING|READY|RUNNING|PAUSED|BLOCKED|DONE|FAILED|CANCELLED>`,
     `${cliName} locations`,
+    `${cliName} location <name>`,
     `${cliName} world-cells`,
     `${cliName} move <worker-id> <N|E|S|W|UP|DOWN>`,
     `${cliName} path <worker-id> <N|E|S|W|UP|DOWN>...`,
@@ -228,6 +229,13 @@ export async function runCli(args: readonly string[]): Promise<void> {
   if (command === "locations") {
     if (first) throw new Error(`usage: ${cliName} locations`);
     console.log(JSON.stringify(await request("/v1/locations"), null, 2));
+    return;
+  }
+  if (command === "location") {
+    if (!first || second) throw new Error(`usage: ${cliName} location <name>`);
+    console.log(
+      JSON.stringify(await request(`/v1/locations/${encodeURIComponent(first)}`), null, 2),
+    );
     return;
   }
   if (command === "world-cells") {
