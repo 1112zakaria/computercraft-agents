@@ -375,6 +375,50 @@ test("planner trigger service classifies and deduplicates event-driven requests"
   assert.match(provider.requests[0]?.prompt ?? "", /goal\.created/);
 });
 
+test("planner trigger failures remain retryable behind the outage gate", async () => {
+  const trigger = plannerTriggerFromEvent({
+    triggerId: "retry-trigger",
+    cause: "replan.required",
+    subjectId: "task-retry",
+    occurredAt: "2026-09-09T00:00:00.000Z",
+  });
+  assert.ok(trigger);
+  let attempts = 0;
+  const outage = new ReasoningOutageStateMachine({ failureThreshold: 1, retryAfterMs: 60_000 });
+  const service = new PlannerTriggerService({
+    provider: {
+      async decide(request) {
+        attempts += 1;
+        if (attempts === 1) throw new Error("provider unavailable");
+        return {
+          requestId: request.requestId,
+          provider: "test",
+          decision: { kind: "replan", reason: "retry succeeded" },
+          startedAt: "2026-09-09T00:00:00.000Z",
+          completedAt: "2026-09-09T00:00:00.000Z",
+        };
+      },
+    },
+    outage,
+    tier: "fast",
+    timeoutMs: 1000,
+    assembleContext: async () => ({
+      goalText: "retry",
+      skills: [],
+      worldKnowledge: [],
+      memories: [],
+      recentConversation: [],
+    }),
+  });
+  await assert.rejects(service.handle(trigger), /provider unavailable/);
+  assert.equal(await service.handle(trigger), undefined);
+  outage.recordSuccess();
+  const retry = await service.handle(trigger);
+  assert.equal(retry?.decision.kind, "replan");
+  assert.equal(attempts, 2);
+  assert.equal(await service.handle(trigger), undefined);
+});
+
 test("reasoning outage pauses provider work without coupling deterministic execution", () => {
   const outage = new ReasoningOutageStateMachine({ failureThreshold: 2, retryAfterMs: 1000 });
   const firstFailure = outage.recordFailure(new Date("2026-09-09T00:00:00.000Z"));

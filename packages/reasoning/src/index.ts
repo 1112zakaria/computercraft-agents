@@ -223,6 +223,7 @@ export interface PlannerTriggerServiceOptions {
   readonly tier: ReasoningTier;
   readonly timeoutMs: number;
   readonly maxRememberedTriggers?: number;
+  readonly outage?: ReasoningOutageStateMachine;
   readonly assembleContext: (trigger: PlannerTrigger) => Promise<PlanningContextInput>;
 }
 
@@ -232,6 +233,7 @@ export interface PlannerTriggerServiceOptions {
  */
 export class PlannerTriggerService {
   private readonly seen = new Set<string>();
+  private readonly inFlight = new Set<string>();
   private readonly maxRememberedTriggers: number;
 
   public constructor(private readonly options: PlannerTriggerServiceOptions) {
@@ -246,22 +248,32 @@ export class PlannerTriggerService {
 
   public async handle(triggerInput: unknown): Promise<ReasoningResult | undefined> {
     const trigger = PlannerTriggerSchema.parse(triggerInput);
-    if (this.seen.has(trigger.triggerId)) return undefined;
-    this.seen.add(trigger.triggerId);
-    while (this.seen.size > this.maxRememberedTriggers) {
-      const oldest = this.seen.values().next().value as string | undefined;
-      if (oldest === undefined) break;
-      this.seen.delete(oldest);
+    if (this.seen.has(trigger.triggerId) || this.inFlight.has(trigger.triggerId)) return undefined;
+    if (this.options.outage && !this.options.outage.canAttempt()) return undefined;
+    this.inFlight.add(trigger.triggerId);
+    try {
+      const context = await this.options.assembleContext(trigger);
+      const assembled = assemblePlanningContext(context);
+      const result = await this.options.provider.decide({
+        requestId: `planner-${trigger.triggerId}`,
+        prompt: `${assembled.prompt}\nTrigger: ${JSON.stringify(trigger)}`,
+        tier: this.options.tier,
+        timeoutMs: this.options.timeoutMs,
+      });
+      this.options.outage?.recordSuccess();
+      this.seen.add(trigger.triggerId);
+      while (this.seen.size > this.maxRememberedTriggers) {
+        const oldest = this.seen.values().next().value as string | undefined;
+        if (oldest === undefined) break;
+        this.seen.delete(oldest);
+      }
+      return result;
+    } catch (error) {
+      this.options.outage?.recordFailure();
+      throw error;
+    } finally {
+      this.inFlight.delete(trigger.triggerId);
     }
-
-    const context = await this.options.assembleContext(trigger);
-    const assembled = assemblePlanningContext(context);
-    return this.options.provider.decide({
-      requestId: `planner-${trigger.triggerId}`,
-      prompt: `${assembled.prompt}\nTrigger: ${JSON.stringify(trigger)}`,
-      tier: this.options.tier,
-      timeoutMs: this.options.timeoutMs,
-    });
   }
 }
 
