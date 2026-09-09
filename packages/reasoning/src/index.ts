@@ -308,3 +308,74 @@ export class CodexCliProvider implements ReasoningProvider {
     }
   }
 }
+
+interface PendingReasoningRequest {
+  readonly request: ReasoningRequest;
+  readonly resolve: (result: ReasoningResult) => void;
+  readonly reject: (error: unknown) => void;
+  readonly cleanup: () => void;
+}
+
+/** Limits concurrent provider calls without coupling the scheduler to a particular provider. */
+export class ReasoningConcurrencyLimiter implements ReasoningProvider {
+  private readonly queue: PendingReasoningRequest[] = [];
+  private active = 0;
+
+  public constructor(
+    private readonly provider: ReasoningProvider,
+    private readonly maxConcurrent: number,
+  ) {
+    if (!Number.isSafeInteger(maxConcurrent) || maxConcurrent < 1) {
+      throw new Error("maxConcurrent must be a positive integer");
+    }
+  }
+
+  public decide(request: ReasoningRequest): Promise<ReasoningResult> {
+    if (request.signal?.aborted) {
+      return Promise.reject(new Error("reasoning request was cancelled"));
+    }
+    return new Promise<ReasoningResult>((resolve, reject) => {
+      const queue = this.queue;
+      const pending: PendingReasoningRequest = {
+        request,
+        resolve,
+        reject,
+        cleanup: () => request.signal?.removeEventListener("abort", onAbort),
+      };
+      function onAbort(): void {
+        const index = queue.indexOf(pending);
+        if (index < 0) return;
+        queue.splice(index, 1);
+        pending.cleanup();
+        reject(new Error("reasoning request was cancelled"));
+      }
+      request.signal?.addEventListener("abort", onAbort, { once: true });
+      this.queue.push(pending);
+      this.drain();
+    });
+  }
+
+  private drain(): void {
+    while (this.active < this.maxConcurrent && this.queue.length > 0) {
+      const pending = this.queue.shift()!;
+      pending.cleanup();
+      if (pending.request.signal?.aborted) {
+        pending.reject(new Error("reasoning request was cancelled"));
+        continue;
+      }
+      this.active += 1;
+      void this.run(pending);
+    }
+  }
+
+  private async run(pending: PendingReasoningRequest): Promise<void> {
+    try {
+      pending.resolve(await this.provider.decide(pending.request));
+    } catch (error) {
+      pending.reject(error);
+    } finally {
+      this.active -= 1;
+      this.drain();
+    }
+  }
+}

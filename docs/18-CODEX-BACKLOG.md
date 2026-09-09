@@ -734,6 +734,9 @@ Implement `fast`, `standard`, `strong` logical tiers mapped by configuration.
 **Priority:** P0  
 **Dependencies:** CC-082
 
+**Status:** DONE — provider calls are bounded by a configurable concurrency limit and queued
+requests can be cancelled before execution.
+
 **Acceptance criteria**
 
 - configurable max concurrent calls;

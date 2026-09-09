@@ -18,6 +18,7 @@ import {
   CodexCliProvider,
   FakeReasoningProvider,
   PlannerDecisionSchema,
+  ReasoningConcurrencyLimiter,
 } from "../packages/reasoning/src/index";
 
 test("workspace exposes protocol version one", () => {
@@ -306,4 +307,76 @@ test("Codex CLI provider validates structured output without executing it", asyn
       timeoutMs: 1000,
     }),
   );
+});
+
+test("reasoning concurrency limiter bounds active calls and cancels queued work", async () => {
+  let active = 0;
+  let maximumActive = 0;
+  const provider = new ReasoningConcurrencyLimiter(
+    {
+      decide: async (request) => {
+        active += 1;
+        maximumActive = Math.max(maximumActive, active);
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        active -= 1;
+        return {
+          requestId: request.requestId,
+          provider: "test",
+          decision: { kind: "report", status: "PROGRESS", summary: "ok" },
+          startedAt: new Date().toISOString(),
+          completedAt: new Date().toISOString(),
+        };
+      },
+    },
+    2,
+  );
+  await Promise.all(
+    Array.from({ length: 5 }, (_, index) =>
+      provider.decide({
+        requestId: `limit-${index}`,
+        prompt: "test",
+        tier: "fast",
+        timeoutMs: 1000,
+      }),
+    ),
+  );
+  assert.equal(maximumActive, 2);
+
+  let release!: () => void;
+  const started = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const blockingProvider = new ReasoningConcurrencyLimiter(
+    {
+      decide: async (request) => {
+        await started;
+        return {
+          requestId: request.requestId,
+          provider: "test",
+          decision: { kind: "report", status: "PROGRESS", summary: "ok" },
+          startedAt: new Date().toISOString(),
+          completedAt: new Date().toISOString(),
+        };
+      },
+    },
+    1,
+  );
+  const first = blockingProvider.decide({
+    requestId: "blocking-1",
+    prompt: "test",
+    tier: "fast",
+    timeoutMs: 1000,
+  });
+  const controller = new AbortController();
+  const second = blockingProvider.decide({
+    requestId: "blocking-2",
+    prompt: "test",
+    tier: "fast",
+    timeoutMs: 1000,
+    signal: controller.signal,
+  });
+  controller.abort();
+  await assert.rejects(second, /cancelled/);
+  release();
+  await first;
 });

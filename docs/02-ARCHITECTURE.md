@@ -193,6 +193,9 @@ world mutations or bypass the control plane. The CLI provider invokes `codex exe
 ephemeral read-only sandbox, sends only a structured planning prompt, passes a sanitized child
 environment, and validates the returned JSON again locally. Its output is still inert until a
 planner service persists and dispatches the resulting semantic tasks.
+Provider calls pass through a concurrency limiter before production planner integration so queued
+requests can be cancelled and the control plane does not create an unbounded number of Codex
+processes.
 
 Bad planner interface:
 
