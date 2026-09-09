@@ -1,5 +1,12 @@
 local M = {}
 
+local function normalize_item_key(item_key)
+  if string.find(item_key, ":", 1, true) then
+    return item_key
+  end
+  return "minecraft:" .. string.lower(item_key)
+end
+
 function M.new(movement, observation, inventory)
   local excavation = {
     movement = movement,
@@ -57,6 +64,7 @@ function M.new(movement, observation, inventory)
   end
 
   function excavation:gather(item_key, quantity, max_depth)
+    item_key = normalize_item_key(item_key)
     local initial_count = self.inventory:count(item_key)
     if initial_count >= quantity then
       return {

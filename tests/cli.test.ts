@@ -133,7 +133,7 @@ test("CLI constructs a bounded target-aware gather command", async () => {
     return new Response(JSON.stringify({ accepted: true }), { status: 200 });
   };
   try {
-    await runCli(["gather", "alice", "minecraft:cobblestone", "8", "12"]);
+    await runCli(["gather", "alice", "cobblestone", "8", "12"]);
     const body = JSON.parse(String(capturedInit?.body)) as {
       skill: string;
       arguments: { itemKey: string; quantity: number; maxDepth: number };

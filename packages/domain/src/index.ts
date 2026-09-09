@@ -253,6 +253,7 @@ export function parseAddressedGatherGoal(input: string): AddressedGoalParseResul
   };
 }
 
-function normalizeItemKey(value: string): string {
+/** Convert a user-facing bare item name to the canonical Minecraft ID. */
+export function normalizeItemKey(value: string): string {
   return value.includes(":") ? value : `minecraft:${value.toLowerCase()}`;
 }

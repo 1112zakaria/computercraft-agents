@@ -108,7 +108,8 @@ FAILED
 The current deterministic runtime slice exposes the narrower `mining.gather` command for a
 target item, quantity, and explicit maximum tunnel depth. It checks the existing inventory,
 inspects and digs one block ahead at a time, and stops with `TARGET_NOT_REACHED` when the depth
-bound is exhausted. It is intentionally not yet the full location-aware gather state machine
+bound is exhausted. Bare item names are canonicalized to the `minecraft:` namespace at both the
+CLI and turtle runtime boundaries. It is intentionally not yet the full location-aware gather state machine
 described above.
 
 The domain package now contains a pure gather workflow contract with the phases

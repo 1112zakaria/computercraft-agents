@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 
+import { normalizeItemKey } from "@computercraft-agents/domain";
 import {
   DirectionSchema,
   DirectWorkerProvisionSchema,
@@ -450,7 +451,7 @@ export async function runCli(args: readonly string[]): Promise<void> {
       expiresAt: timestampAfterMinutes(10),
       budget: { maxPrimitives: maxDepth * 4, maxBlockChanges: maxDepth },
       skill: "mining.gather" as const,
-      arguments: { itemKey: second, quantity, maxDepth },
+      arguments: { itemKey: normalizeItemKey(second), quantity, maxDepth },
     };
     console.log(
       JSON.stringify(await request("/v1/commands", { method: "POST", body: JSON.stringify(body) })),

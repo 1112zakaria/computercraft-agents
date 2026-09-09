@@ -81,6 +81,7 @@ test("turtle runtime exposes bounded target-aware gathering", () => {
   assert.match(protocol, /\["mining\.gather"\] = true/);
   assert.match(protocol, /maxDepth/);
   assert.match(excavation, /function excavation:gather\(item_key, quantity, max_depth\)/);
+  assert.match(excavation, /minecraft:" \.\. string\.lower\(item_key\)/);
   assert.match(excavation, /TARGET_NOT_REACHED/);
   assert.match(
     executor,
