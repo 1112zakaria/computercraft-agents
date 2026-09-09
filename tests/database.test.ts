@@ -9,6 +9,7 @@ import {
   inventoryFullRecoveryPlan,
   isInventoryFullFailure,
   migrationChecksum,
+  migrationChecksumVariants,
   readMigrationFiles,
   runMigrations,
   taskStatusForCommandEvent,
@@ -27,6 +28,7 @@ test("database migration set is ordered and contains the core relational model",
   );
   const migrationsReadAgain = readMigrationFiles(migrationDirectory);
   assert.equal(migrationChecksum(migrations[0]!), migrationChecksum(migrationsReadAgain[0]!));
+  assert.equal(migrationChecksumVariants(migrations[0]!).length, 2);
 
   const sql = readFileSync(join(migrationDirectory, "001_initial_schema.sql"), "utf8");
   for (const table of [
@@ -123,6 +125,22 @@ test("database migration set is ordered and contains the core relational model",
   assert.match(repositorySql, /_plannerTriggerId/);
   assert.match(repositorySql, /PLANNER_SCOPE_VIOLATION/);
   assert.match(repositorySql, /event_type = 'inventory\.changed'/);
+});
+
+test("migration checksum variants accept newline-only deployment differences", () => {
+  const migration = {
+    version: "001",
+    name: "initial_schema",
+    filename: "001_initial_schema.sql",
+    sql: "CREATE TABLE example (id INTEGER);\nCREATE INDEX example_id_idx ON example(id);\n",
+  };
+  const crlfMigration = { ...migration, sql: migration.sql.replace(/\n/g, "\r\n") };
+  assert.deepEqual(
+    new Set(migrationChecksumVariants(migration)),
+    new Set(migrationChecksumVariants(crlfMigration)),
+  );
+  assert.equal(migrationChecksum(migration), migrationChecksumVariants(migration)[0]);
+  assert.notEqual(migrationChecksum(migration), migrationChecksum(crlfMigration));
 });
 
 test("position persistence seeds only the observed world cell as walkable", () => {

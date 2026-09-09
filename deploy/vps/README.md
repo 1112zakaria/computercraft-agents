@@ -79,7 +79,8 @@ sudo systemctl enable --now computercraft-agents-control-plane
 
 For routine updates, pull the desired commit, run `npm ci`, `npm run build`, run the migration
 command, and restart the service. Migrations are checksum-protected and run under a PostgreSQL
-advisory lock.
+advisory lock. The verifier permits only LF/CRLF newline differences for an already-applied
+migration; semantic changes remain a hard failure and require a new migration file.
 
 The service lifecycle, journald policy, and PostgreSQL backup timer are documented in
 [OPERATIONS.md](OPERATIONS.md). The backup job is intentionally a template: install it on the
