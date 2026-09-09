@@ -1,5 +1,18 @@
 -- Stable recovery layer. Keep this file and startup.lua outside the managed runtime set.
 local M = {}
+local startup_hook = 'shell.run("startup.lua")\n'
+
+local function ensure_startup_hook()
+  if fs.exists("startup") then return true end
+  local temporary = "startup.bootstrap.tmp"
+  if fs.exists(temporary) then fs.delete(temporary) end
+  local handle = fs.open(temporary, "w")
+  if not handle then return false, "cannot create CraftOS startup hook" end
+  handle.write(startup_hook)
+  handle.close()
+  fs.move(temporary, "startup")
+  return true
+end
 
 local function write_json(path, value)
   local handle = fs.open(path .. ".tmp", "w")
@@ -46,6 +59,8 @@ local function restore(journal)
 end
 
 function M.recover(journal_path)
+  local hook_ok, hook_error = ensure_startup_hook()
+  if not hook_ok then return false, hook_error end
   local journal, read_error = read_json(journal_path)
   if not journal then return true, read_error end
   if journal.phase == "activated" then

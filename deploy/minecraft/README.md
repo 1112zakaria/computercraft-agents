@@ -71,6 +71,10 @@ over ComputerCraft's outbound HTTPS API, so no gateway computer or modem is requ
 Do not set `modem_side`, `gateway_rednet_id`, or `rednet_protocol` for this transport. Verify the
 worker with `npm run cli -- workers alice` after its registration and heartbeat arrive.
 
+The stable bootstrap checks for the extensionless CraftOS `startup` hook during recovery and
+recreates it if it is missing. It does not overwrite an existing hook or any configuration/state
+file.
+
 For a bounded target-aware mining canary, use the operator CLI only after the worker is online:
 
 ```bash

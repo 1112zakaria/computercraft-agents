@@ -68,6 +68,20 @@ test("gateway and turtle include extensionless CraftOS startup hooks", () => {
   }
 });
 
+test("stable update bootstraps repair a missing CraftOS startup hook", () => {
+  for (const relativePath of ["gateway/update_bootstrap.lua", "turtle/update_bootstrap.lua"]) {
+    const source = readFileSync(join(runtimeRoot, relativePath), "utf8");
+    assert.match(source, /function ensure_startup_hook\(\)/, relativePath);
+    assert.match(source, /fs\.move\(temporary, "startup"\)/, relativePath);
+    assert.match(source, /shell\.run\("startup\.lua"\)/, relativePath);
+  }
+  const installer = readFileSync(
+    join(runtimeRoot, "../deploy/minecraft/install-direct.lua"),
+    "utf8",
+  );
+  assert.match(installer, /if not fs\.exists\("startup"\)/);
+});
+
 test("turtle executor emits a world observation event after block inspection", () => {
   const source = readFileSync(join(runtimeRoot, "turtle/executor.lua"), "utf8");
   assert.match(source, /command\.skill == "observation\.block"/);

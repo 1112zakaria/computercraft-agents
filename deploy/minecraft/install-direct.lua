@@ -27,5 +27,8 @@ for _,name in ipairs(files) do
   if fs.exists(name) then fs.delete(name) end
   fs.copy(fs.combine(stage,name),name)
 end
+if not fs.exists("startup") then
+  local hook=assert(fs.open("startup","w"));hook.write('shell.run("startup.lua")\n');hook.close()
+end
 print("Installed runtime. Original files: "..backup)
 print("Configure worker.conf, then run startup.")
