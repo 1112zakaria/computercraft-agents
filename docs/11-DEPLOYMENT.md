@@ -210,7 +210,8 @@ configuration or secret.
 For a reviewed development build, download `deploy/minecraft/install-direct.lua` from a pinned
 40-character Git commit, then run `install-direct <same-commit>`. It downloads and parses all
 runtime files before replacing them, and retains root files (including configuration/state)
-in a unique `manual-install-backup-*` directory. Configure `worker.conf` locally and run `startup`.
+in a unique `manual-install-backup-*` directory. It also installs the safe
+`worker.conf.example` template; copy it to `worker.conf`, configure it locally, and run `startup`.
 This manual bootstrap is separate from tagged-release OTA; it does not create a release.
 
 Legacy ComputerCraft 1.75 lacks `os.date`, `os.epoch`, and `textutils.unserializeJSON`.

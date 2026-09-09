@@ -88,6 +88,7 @@ test("stable update bootstraps repair a missing CraftOS startup hook", () => {
     "utf8",
   );
   assert.match(installer, /if not fs\.exists\("startup"\)/);
+  assert.match(installer, /worker\.conf\.example/);
 });
 
 test("stable update bootstraps remove newly introduced files during rollback", () => {
