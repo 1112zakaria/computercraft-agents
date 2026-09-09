@@ -289,6 +289,10 @@ class FakeGatewayStore implements GatewayServiceStore {
       : undefined;
   }
 
+  public async listPlannerTriggers(): Promise<readonly Record<string, unknown>[]> {
+    return [{ triggerId: "goal-task-report", cause: "goal.created", subjectId: "task-report" }];
+  }
+
   public async listRunnableTasks(): Promise<readonly Record<string, unknown>[]> {
     return this.runnableTasks;
   }
@@ -500,6 +504,24 @@ test("operator goal report API returns workflow state and task details", async (
       jobStatus: "RUNNING",
       taskStatus: "RUNNING",
       tasks: [{ taskId: "task-report", status: "RUNNING", workflowPhase: "GATHER" }],
+    });
+  } finally {
+    await server.close();
+  }
+});
+
+test("operator planner trigger API returns bounded trigger history", async () => {
+  const store = new FakeGatewayStore();
+  const server = await startServer(store);
+  try {
+    const response = await fetch(`${server.baseUrl}/v1/planner/triggers?limit=25`, {
+      headers: adminHeaders(),
+    });
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), {
+      triggers: [
+        { triggerId: "goal-task-report", cause: "goal.created", subjectId: "task-report" },
+      ],
     });
   } finally {
     await server.close();

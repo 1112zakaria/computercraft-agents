@@ -65,6 +65,7 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
       const auditPath = url.pathname === "/v1/audit";
       const goalsPath = url.pathname === "/v1/goals";
       const goalReportPathMatch = url.pathname.match(/^\/v1\/goals\/([^/]+)\/report$/);
+      const plannerTriggersPath = url.pathname === "/v1/planner/triggers";
       const taskPathMatch = url.pathname.match(/^\/v1\/tasks(?:\/([^/]+))?$/);
       const taskPlanningContextPathMatch = url.pathname.match(
         /^\/v1\/tasks\/([^/]+)\/planning-context$/,
@@ -94,6 +95,7 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
         auditPath ||
         goalsPath ||
         goalReportPathMatch ||
+        plannerTriggersPath ||
         taskPathMatch ||
         taskPlanningContextPathMatch ||
         taskTransitionPathMatch ||
@@ -234,6 +236,17 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
             throw new HttpError(400, "INVALID_PAYLOAD", "task id is not valid URL encoding");
           }
           sendJson(response, 200, await options.service.goalReport(taskId));
+          return;
+        }
+        if (plannerTriggersPath) {
+          if (method !== "GET") {
+            throw new HttpError(405, "INVALID_PAYLOAD", "method is not supported");
+          }
+          const limitValue = url.searchParams.get("limit");
+          const limit = limitValue === null ? 100 : Number(limitValue);
+          sendJson(response, 200, {
+            triggers: await options.service.listPlannerTriggers(limit),
+          });
           return;
         }
         if (schedulerTickPath) {

@@ -51,6 +51,7 @@ import type {
   GatewayPollResult,
   GatewayRuntimeRepository,
   GoalTaskRecord,
+  PlannerTriggerRecord,
   UpdateRolloutRecord,
 } from "@computercraft-agents/database";
 import type { z } from "zod";
@@ -107,6 +108,7 @@ export interface GatewayServiceStore {
   listTasks(): Promise<readonly Record<string, unknown>[]>;
   getTask(taskId: string): Promise<Record<string, unknown> | undefined>;
   getGoalReport(taskId: string): Promise<Record<string, unknown> | undefined>;
+  listPlannerTriggers(limit: number): Promise<readonly PlannerTriggerRecord[]>;
   listRunnableTasks(): Promise<readonly Record<string, unknown>[]>;
   claimTask(taskId: string, workerKey: string): Promise<Record<string, unknown>>;
   dispatchTask(taskId: string, workerKey: string, commandId: string): Promise<Command>;
@@ -518,6 +520,17 @@ export class GatewayService {
       throw new HttpError(404, "UNKNOWN_TASK", "task was not found");
     }
     return report;
+  }
+
+  public async listPlannerTriggers(limit: number): Promise<readonly PlannerTriggerRecord[]> {
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 200) {
+      throw new HttpError(
+        400,
+        "INVALID_PAYLOAD",
+        "planner trigger limit must be an integer between 1 and 200",
+      );
+    }
+    return this.store.listPlannerTriggers(limit);
   }
 
   public async planningContext(taskId: string): Promise<Record<string, unknown>> {

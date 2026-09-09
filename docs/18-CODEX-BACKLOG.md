@@ -780,9 +780,10 @@ Assemble goal, current job/task, relevant worker observation, skills, world know
 **Dependencies:** CC-085, CC-086
 
 **Status:** PARTIAL — the reasoning package now validates the supported trigger causes, assembles
-bounded context, invokes the configured provider, and suppresses duplicate trigger IDs. Control
-plane event subscriptions, durable trigger history, decision application, and outage transitions
-remain.
+bounded context, invokes the configured provider, and suppresses duplicate trigger IDs. The
+control plane now persists idempotent `goal.created`, task-correlated command completion/failure,
+and `worker.blocked` triggers and exposes bounded operator inspection; consuming triggers,
+decision application, and outage transitions remain.
 
 Trigger on new goal, meaningful completion/failure, unexpected state, delegation need, replan.
 

@@ -86,6 +86,7 @@ The protected operator API accepts the first narrow addressed gather goal:
 POST /v1/goals
 GET  /v1/goals
 GET  /v1/goals/:taskId/report
+GET  /v1/planner/triggers?limit=<1..200>
 ```
 
 The request contains `protocolVersion`, `goalText`, `createdByPrincipal`, and an optional bounded
@@ -155,6 +156,13 @@ does not itself dispatch a command or mark a physical action successful.
 The planning-context endpoint assembles a bounded, read-only context from the persisted task,
 target worker observation, advertised capabilities, and known world cells. It explicitly labels
 the resulting prompt as untrusted data and does not invoke a reasoning provider.
+
+The planner trigger history endpoint is a bounded operator view of durable reasoning work. Goal
+creation records `goal.created`; task-correlated command completion/failure records the matching
+trigger; and `movement.blocked` records `worker.blocked`. Trigger IDs are deterministic for the
+originating goal or event, so retries and duplicate transport events do not create duplicate
+planner work. v1 persists these triggers as `PENDING`; consuming them and applying a validated
+planner decision remains a separate, explicitly bounded control-plane loop.
 
 The reasoning package now exposes a provider-neutral planner-trigger service. It accepts only the
 bounded causes `goal.created`, `command.completed`, `command.failed`, `worker.blocked`,

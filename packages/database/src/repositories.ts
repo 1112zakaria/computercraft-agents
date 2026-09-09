@@ -69,6 +69,19 @@ export interface GoalTaskRecord {
   readonly arguments: unknown;
 }
 
+export interface PlannerTriggerRecord {
+  readonly triggerId: string;
+  readonly cause: string;
+  readonly subjectId: string;
+  readonly occurredAt: Date | string;
+  readonly priority: number;
+  readonly status: string;
+  readonly attempts: number;
+  readonly lastError?: unknown;
+  readonly createdAt: Date | string;
+  readonly processedAt?: Date | string | null;
+}
+
 export interface CreateGoalInput {
   readonly projectName: string;
   readonly createdByPrincipal: string;
@@ -391,6 +404,14 @@ export class GatewayRuntimeRepository {
           );
         }
       }
+      await client.query(
+        `
+          INSERT INTO planner_triggers (trigger_id, cause, subject_id, occurred_at, priority)
+          VALUES ($1, 'goal.created', $2, NOW(), $3)
+          ON CONFLICT (trigger_id) DO NOTHING
+        `,
+        [`goal-${taskId}`, taskId, input.priority],
+      );
       await client.query("COMMIT");
       return {
         projectId,
@@ -512,6 +533,50 @@ export class GatewayRuntimeRepository {
       [header.jobId],
     );
     return { ...header, tasks: tasks.rows };
+  }
+
+  public async listPlannerTriggers(limit = 100): Promise<readonly PlannerTriggerRecord[]> {
+    const result = await this.pool.query(
+      `
+        SELECT trigger_id AS "triggerId", cause, subject_id AS "subjectId",
+               occurred_at AS "occurredAt", priority, status, attempts,
+               last_error_json AS "lastError", created_at AS "createdAt",
+               processed_at AS "processedAt"
+        FROM planner_triggers
+        ORDER BY CASE WHEN status = 'PENDING' THEN 0 ELSE 1 END,
+                 priority DESC, occurred_at, trigger_id
+        LIMIT $1
+      `,
+      [limit],
+    );
+    return result.rows;
+  }
+
+  private async recordPlannerTrigger(client: PoolClient, event: Event): Promise<void> {
+    let cause: string | undefined;
+    let subjectId: string | undefined;
+    if (event.type === "command.completed" || event.type === "command.failed") {
+      if (event.commandId) {
+        const task = await client.query<{ task_id: string }>(
+          `SELECT task_id::text FROM gateway_commands WHERE command_id = $1`,
+          [event.commandId],
+        );
+        subjectId = task.rows[0]?.task_id;
+        cause = event.type;
+      }
+    } else if (event.type === "movement.blocked" && event.workerId) {
+      cause = "worker.blocked";
+      subjectId = event.workerId;
+    }
+    if (!cause || !subjectId) return;
+    await client.query(
+      `
+        INSERT INTO planner_triggers (trigger_id, cause, subject_id, occurred_at)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (trigger_id) DO NOTHING
+      `,
+      [`event-${event.eventId}`, cause, subjectId, new Date(event.occurredAt)],
+    );
   }
 
   public async listRunnableTasks(): Promise<readonly Record<string, unknown>[]> {
@@ -2655,6 +2720,8 @@ export class GatewayRuntimeRepository {
         ],
       );
     }
+
+    await this.recordPlannerTrigger(client, event);
   }
 
   private parseCursor(value: string): number {
