@@ -184,7 +184,9 @@ for those same protocol-level tasks and invokes the atomic dispatch path once pe
 It does not auto-dispatch multi-step goal workflows. Its response includes `skipped` entries when a
 ready task is not eligible, with bounded reasons such as `WORKER_OFFLINE`, `WORKER_BUSY`,
 `TARGET_WORKER_NOT_FOUND`, or `MISSING_CAPABILITIES`; missing-capability entries include the exact
-capability names the current idle workers do not advertise.
+capability names the current idle workers do not advertise. The first-use gather preflight also
+includes the safe operator remediation: run `lua enable-gather.lua` on the turtle and then run
+`startup` so the worker re-registers its capabilities; it never enables a capability remotely.
 The transition request contains `{ "protocolVersion": 1, "status": "...", "reason": "..." }`
 and is checked against the persisted task transition graph. When supplied, the reason is stored
 in the task's error/context field for auditability. It is an explicit operator control path; it

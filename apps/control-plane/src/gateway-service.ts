@@ -611,7 +611,11 @@ export class GatewayService {
         blockers.push({
           code: "MISSING_CAPABILITIES",
           message: "the worker does not advertise all gather workflow capabilities",
-          details: { missingCapabilities },
+          details: {
+            missingCapabilities,
+            remediation:
+              "On the turtle, run lua enable-gather.lua, then run startup so it re-registers its capabilities",
+          },
         });
       }
 

@@ -502,7 +502,10 @@ test("operator goal preflight reports missing worker capability without persisti
     assert.equal(response.status, 200);
     const body = (await response.json()) as {
       ready: boolean;
-      blockers: Array<{ code: string; details?: { missingCapabilities?: string[] } }>;
+      blockers: Array<{
+        code: string;
+        details?: { missingCapabilities?: string[]; remediation?: string };
+      }>;
       path: { status: string };
     };
     assert.equal(body.ready, false);
@@ -511,7 +514,11 @@ test("operator goal preflight reports missing worker capability without persisti
       {
         code: "MISSING_CAPABILITIES",
         message: "the worker does not advertise all gather workflow capabilities",
-        details: { missingCapabilities: ["mining.gather"] },
+        details: {
+          missingCapabilities: ["mining.gather"],
+          remediation:
+            "On the turtle, run lua enable-gather.lua, then run startup so it re-registers its capabilities",
+        },
       },
     ]);
     assert.equal(store.projects.length, 1);
