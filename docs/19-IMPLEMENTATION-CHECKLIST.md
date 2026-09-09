@@ -34,7 +34,7 @@
 - [x] Path executor.
 - [ ] Blocked-path replan.
 - [x] Position anchoring/recalibration.
-- [ ] Named location/dock model.
+- [x] Named location/dock model.
 - [ ] Exploration strategy.
 - [ ] Worker-area reservations.
 

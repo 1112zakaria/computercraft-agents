@@ -443,9 +443,9 @@ Add CLI commands to list workers and inspect status/state.
 
 **Priority:** P0  
 **Dependencies:** CC-033, CC-042, CC-050
-**Status:** IN PROGRESS — bounded move and stop commands are implemented and fake-integrated; the
-turtle runtime is installed on worker `alice` (ComputerCraft ID 9), while the live-server
-acceptance remains blocked until gateway ID 4 and the turtle have modems attached.
+**Status:** PARTIAL — bounded move and stop commands are implemented and fake-integrated, and the
+direct-HTTP movement canary has been validated on the live modem-less turtle. The gateway-Rednet
+live acceptance remains blocked until gateway ID 4 and the turtle have modems attached.
 
 Before Codex, prove `worker move/turn` command path end-to-end.
 
