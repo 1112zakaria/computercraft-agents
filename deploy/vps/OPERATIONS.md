@@ -42,6 +42,8 @@ deploy/vps/update-control-plane.sh /opt/computercraft-agents
 
 The helper validates the complete repository before restarting systemd and waits for the private
 `/healthz` endpoint. It never sources or prints `/etc/computercraft-agents/control-plane.env`.
+The control plane closes idle HTTP keep-alive connections during shutdown so ComputerCraft clients
+do not make an operator restart wait for the full systemd stop timeout.
 For rollback, check out the previous deployed commit and run the helper again. Do not use a dirty
 working tree for either operation.
 

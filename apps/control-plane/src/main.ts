@@ -144,6 +144,9 @@ async function main(): Promise<void> {
     clearInterval(retentionCleanupTimer);
     if (schedulerTimer) clearInterval(schedulerTimer);
     if (plannerTimer) clearInterval(plannerTimer);
+    // ComputerCraft clients may keep an otherwise-idle HTTP connection alive. Close those
+    // sockets before waiting for the server so systemd restarts do not fall through to SIGKILL.
+    server.closeIdleConnections();
     await new Promise<void>((resolve, reject) => {
       server.close((error) => (error ? reject(error) : resolve()));
     });
