@@ -1154,9 +1154,11 @@ Use boot/session IDs to avoid assuming prior in-flight command state.
 **Priority:** P0  
 **Dependencies:** CC-041, CC-047
 
-**Status:** PARTIAL — the control plane now prevents stale assigned work from being silently
-redelivered and requires explicit task resumption after a worker stop. Turtle-side command recovery
-and runtime-specific resume state remain.
+**Status:** DONE — a changed turtle boot ID cancels uncertain transport delivery, pauses assigned
+tasks behind explicit resume, queues a transport-specific stop, and records a high-retention
+recovery event for direct HTTP and gateway-backed workers.
+
+Runtime-specific resume state and a live reboot canary remain future validation work.
 
 ### CC-163 — No-human-online/chunk-loading spike
 

@@ -772,7 +772,7 @@ export class GatewayRuntimeRepository {
     try {
       await client.query("BEGIN");
       const existing = await client.query<WorkerRow>(
-        `SELECT id, worker_key, gateway_id, computer_id, transport_type, minecraft_server_id
+        `SELECT id, worker_key, gateway_id, computer_id, transport_type, minecraft_server_id, boot_id
          FROM workers WHERE worker_key = $1`,
         [payload.workerId],
       );
@@ -793,6 +793,16 @@ export class GatewayRuntimeRepository {
           "WORKER_BOUND_ELSEWHERE",
           "worker is already registered with another transport or server",
           409,
+        );
+      }
+
+      if (existingRow.boot_id && existingRow.boot_id !== payload.workerBootId) {
+        await this.reconcileWorkerRestart(
+          client,
+          payload.workerId,
+          existingRow.boot_id,
+          payload.workerBootId,
+          "direct-http",
         );
       }
 
@@ -1771,6 +1781,68 @@ export class GatewayRuntimeRepository {
     );
   }
 
+  private async reconcileWorkerRestart(
+    client: PoolClient,
+    workerKey: string,
+    previousBootId: string,
+    bootId: string,
+    transportType: WorkerTransport,
+  ): Promise<void> {
+    await client.query(
+      `
+        UPDATE tasks
+        SET status = 'PAUSED', assigned_worker_id = NULL,
+            last_error_json = $2
+        WHERE assigned_worker_id = (SELECT id FROM workers WHERE worker_key = $1)
+          AND status = 'RUNNING'
+      `,
+      [workerKey, asJson({ reason: "worker restarted; explicit resume required" })],
+    );
+    await client.query(
+      `
+        UPDATE gateway_commands
+        SET status = 'CANCELLED', completed_at = NOW()
+        WHERE worker_key = $1
+          AND transport_type = $2
+          AND status IN ('QUEUED', 'DELIVERED', 'RUNNING')
+      `,
+      [workerKey, transportType],
+    );
+    const control = {
+      protocolVersion: 1,
+      controlId: `reconcile-stop-${workerKey}-${bootId}`.slice(0, 128),
+      issuedAt: new Date().toISOString(),
+      type: "worker.stop",
+      workerId: workerKey,
+      reason: "worker restarted; stop before explicit resume",
+    };
+    await client.query(
+      `
+        INSERT INTO gateway_stop_controls (control_id, worker_key, payload_json, transport_type)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (control_id) DO NOTHING
+      `,
+      [control.controlId, workerKey, asJson(control), transportType],
+    );
+    await client.query(
+      `
+        INSERT INTO audit_events (
+          category, worker_id, action_json, result_json, retention_class
+        )
+        VALUES (
+          'worker.recovery.restart',
+          (SELECT id FROM workers WHERE worker_key = $1),
+          $2, $3, 'HIGH'
+        )
+      `,
+      [
+        workerKey,
+        asJson({ action: "reconcile-worker-restart", workerId: workerKey, previousBootId, bootId }),
+        asJson({ outcome: "paused-cancelled-stopped", explicitResumeRequired: true }),
+      ],
+    );
+  }
+
   private async findGateway(
     client: Pool | PoolClient,
     gatewayId: string,
@@ -1796,7 +1868,7 @@ export class GatewayRuntimeRepository {
     },
   ): Promise<WorkerRow> {
     const existing = await client.query<WorkerRow>(
-      `SELECT id, worker_key, gateway_id, computer_id FROM workers WHERE worker_key = $1`,
+      `SELECT id, worker_key, gateway_id, computer_id, boot_id FROM workers WHERE worker_key = $1`,
       [values.workerKey],
     );
     if (existing.rows[0] && existing.rows[0].gateway_id !== gatewayId) {
@@ -1804,6 +1876,15 @@ export class GatewayRuntimeRepository {
         "WORKER_BOUND_ELSEWHERE",
         "worker is already bound to another gateway",
         409,
+      );
+    }
+    if (existing.rows[0]?.boot_id && values.bootId && existing.rows[0].boot_id !== values.bootId) {
+      await this.reconcileWorkerRestart(
+        client,
+        values.workerKey,
+        existing.rows[0].boot_id,
+        values.bootId,
+        "gateway-rednet",
       );
     }
 
