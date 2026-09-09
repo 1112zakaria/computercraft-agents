@@ -552,8 +552,8 @@ Represent observed cells and freshness/worker source.
 **Priority:** P0  
 **Dependencies:** CC-060
 
-**Status:** PARTIAL — bounded known-cell A* baseline exists; runtime path execution/replanning
-remains.
+**Status:** PARTIAL — bounded known-cell A* planning is exposed through a protected worker-to-
+named-location route-plan API and CLI; runtime path execution/replanning remains.
 
 **Acceptance criteria**
 
@@ -568,8 +568,9 @@ remains.
 **Dependencies:** CC-042, CC-043, CC-061
 
 **Status:** PARTIAL — the turtle executor already performs bounded `navigate.path` execution with
-per-step cancellation and blocked-step reporting, and the operator CLI now exposes a bounded
-`path` command; loading persistent paths and replanning around newly observed cells remain.
+per-step cancellation and blocked-step reporting, and the operator CLI now exposes bounded `path`
+and read-only `path-to` commands; loading persistent paths and replanning around newly observed
+cells remain.
 
 **Acceptance criteria**
 

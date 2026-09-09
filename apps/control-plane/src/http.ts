@@ -46,6 +46,7 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
       const url = new URL(request.url ?? "/", "http://control-plane.local");
       const method = requestMethod(request);
       const workerPathMatch = url.pathname.match(/^\/v1\/workers(?:\/([^/]+))?$/);
+      const workerPathPlanMatch = url.pathname.match(/^\/v1\/workers\/([^/]+)\/path-to\/([^/]+)$/);
       const workerProvisionPath = url.pathname === "/v1/workers/provision";
       const updatePathMatch = url.pathname.match(/^\/v1\/updates(?:\/([^/]+))?$/);
       const goalsPath = url.pathname === "/v1/goals";
@@ -65,6 +66,7 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
 
       if (
         workerPathMatch ||
+        workerPathPlanMatch ||
         workerProvisionPath ||
         updatePathMatch ||
         goalsPath ||
@@ -81,6 +83,18 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
         url.pathname === "/v1/stop-controls"
       ) {
         options.service.authenticateAdmin(request.headers);
+        if (method === "GET" && workerPathPlanMatch) {
+          let workerId: string;
+          let locationName: string;
+          try {
+            workerId = decodeURIComponent(workerPathPlanMatch[1]!);
+            locationName = decodeURIComponent(workerPathPlanMatch[2]!);
+          } catch {
+            throw new HttpError(400, "INVALID_PAYLOAD", "path target is not valid URL encoding");
+          }
+          sendJson(response, 200, await options.service.planPathToLocation(workerId, locationName));
+          return;
+        }
         if (method === "GET" && workerPathMatch && !workerProvisionPath) {
           const encodedWorkerId = workerPathMatch[1];
           if (encodedWorkerId) {

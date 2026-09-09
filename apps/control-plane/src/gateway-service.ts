@@ -25,6 +25,7 @@ import {
   UpdateRequestSchema,
 } from "@computercraft-agents/protocol";
 import { selectDispatchableTasks } from "@computercraft-agents/scheduler";
+import { findKnownPath, SparseWorldModel, type Coordinate } from "@computercraft-agents/navigation";
 import { parseAddressedGatherGoal } from "@computercraft-agents/domain";
 import type {
   CommandPollResponse,
@@ -164,6 +165,31 @@ function stringList(value: unknown): string[] {
     }
     return [];
   });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function coordinateFromUnknown(value: unknown): Coordinate | undefined {
+  if (!isRecord(value)) return undefined;
+  const dimension = value.dimension;
+  const x = value.x;
+  const y = value.y;
+  const z = value.z;
+  if (
+    typeof dimension !== "number" ||
+    !Number.isInteger(dimension) ||
+    typeof x !== "number" ||
+    !Number.isInteger(x) ||
+    typeof y !== "number" ||
+    !Number.isInteger(y) ||
+    typeof z !== "number" ||
+    !Number.isInteger(z)
+  ) {
+    return undefined;
+  }
+  return { dimension, x, y, z };
 }
 
 export class GatewayService {
@@ -521,6 +547,57 @@ export class GatewayService {
       throw new HttpError(404, "UNKNOWN_LOCATION", "named location was not found");
     }
     return location;
+  }
+
+  public async planPathToLocation(
+    workerId: string,
+    locationName: string,
+  ): Promise<Record<string, unknown>> {
+    if (!IdentifierSchema.safeParse(workerId).success) {
+      throw new HttpError(400, "INVALID_PAYLOAD", "worker id is invalid");
+    }
+    const location = await this.resolveNamedLocation(locationName);
+    const worker = await this.store.getWorker(workerId);
+    if (!worker) {
+      throw new HttpError(404, "UNKNOWN_WORKER", "worker was not found");
+    }
+    const observation = worker.observation;
+    if (!isRecord(observation) || !isRecord(observation.position)) {
+      throw new HttpError(409, "POSITION_UNKNOWN", "worker has no known position");
+    }
+    const start = coordinateFromUnknown(observation.position);
+    const target = coordinateFromUnknown(location);
+    if (!start || !target) {
+      throw new HttpError(409, "POSITION_UNKNOWN", "worker or location position is incomplete");
+    }
+    if (start.dimension !== target.dimension) {
+      throw new HttpError(409, "PATH_NOT_FOUND", "worker and location are in different dimensions");
+    }
+
+    const world = new SparseWorldModel();
+    for (const cell of await this.store.listWorldCells()) {
+      const coordinate = coordinateFromUnknown(cell);
+      if (!coordinate || typeof cell.walkable !== "boolean") continue;
+      world.setCell({
+        ...coordinate,
+        walkable: cell.walkable,
+        observedAt: String(cell.observedAt ?? ""),
+        source: String(cell.sourceWorkerId ?? "unknown"),
+      });
+    }
+    const path = findKnownPath(world, start, target, { maxNodes: 10_000 });
+    if (!path) {
+      throw new HttpError(409, "PATH_NOT_FOUND", "no path exists through known walkable cells");
+    }
+    return {
+      workerId,
+      location,
+      start,
+      target,
+      directions: path.directions,
+      coordinates: path.coordinates,
+      expandedNodes: path.expandedNodes,
+    };
   }
 
   public async listWorldCells(): Promise<readonly Record<string, unknown>[]> {

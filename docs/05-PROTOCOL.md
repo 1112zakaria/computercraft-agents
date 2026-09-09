@@ -100,10 +100,15 @@ Named locations are managed through the protected operator API:
 ```text
 POST /v1/locations
 GET  /v1/locations
+GET  /v1/locations/:name
+GET  /v1/workers/:workerId/path-to/:locationName
 ```
 
 Location writes are idempotent by name and store dimension, coordinates, optional facing, source,
-confidence, and metadata. Ready tasks can be inspected and claimed with:
+confidence, and metadata. Location resolution is case-insensitive. The route-plan endpoint returns
+a bounded deterministic path only through known walkable cells from the worker's latest observed
+position; it never moves a worker and fails safely when position, dimension, or path knowledge is
+insufficient. Ready tasks can be inspected and claimed with:
 
 ```text
 GET  /v1/tasks

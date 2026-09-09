@@ -29,6 +29,7 @@ export function usage(): string {
     `${cliName} world-cells`,
     `${cliName} move <worker-id> <N|E|S|W|UP|DOWN>`,
     `${cliName} path <worker-id> <N|E|S|W|UP|DOWN>...`,
+    `${cliName} path-to <worker-id> <location-name>`,
     `${cliName} excavate <worker-id> <width> <height> <depth>`,
     `${cliName} gather <worker-id> <item-key> <quantity> <max-depth>`,
     `${cliName} deposit <worker-id> [quantity] [slot] [--container-id <id>]`,
@@ -285,6 +286,22 @@ export async function runCli(args: readonly string[]): Promise<void> {
     };
     console.log(
       JSON.stringify(await request("/v1/commands", { method: "POST", body: JSON.stringify(body) })),
+    );
+    return;
+  }
+  if (command === "path-to") {
+    const locationName = args.slice(2).join(" ").trim();
+    if (!first || !locationName) {
+      throw new Error(`usage: ${cliName} path-to <worker-id> <location-name>`);
+    }
+    console.log(
+      JSON.stringify(
+        await request(
+          `/v1/workers/${encodeURIComponent(first)}/path-to/${encodeURIComponent(locationName)}`,
+        ),
+        null,
+        2,
+      ),
     );
     return;
   }

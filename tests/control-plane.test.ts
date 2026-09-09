@@ -62,6 +62,7 @@ class FakeGatewayStore implements GatewayServiceStore {
     { taskId: "task-runnable", status: "READY" },
   ];
   public readonly availableWorkers: Record<string, unknown>[] = [];
+  public readonly worldCells: Record<string, unknown>[] = [];
 
   public async register(payload: GatewayRegistration): Promise<void> {
     this.registrations.push(payload);
@@ -128,6 +129,16 @@ class FakeGatewayStore implements GatewayServiceStore {
   }
 
   public async getWorker(workerId: string): Promise<Record<string, unknown> | undefined> {
+    if (workerId === "path-worker") {
+      return {
+        workerId,
+        computerId: 8,
+        online: true,
+        observation: {
+          position: { dimension: 0, x: 0, y: 0, z: 0, confidence: "CONFIRMED" },
+        },
+      };
+    }
     return workerId === "worker-test"
       ? { workerId, computerId: 7, online: true, observation: null }
       : undefined;
@@ -262,7 +273,7 @@ class FakeGatewayStore implements GatewayServiceStore {
   }
 
   public async listWorldCells(): Promise<readonly Record<string, unknown>[]> {
-    return [];
+    return this.worldCells;
   }
 }
 
@@ -527,6 +538,42 @@ test("operator location API resolves names case-insensitively", async () => {
     const body = JSON.parse(responseBody) as { name: string; x: number; y: number; z: number };
     assert.equal(body.name, "Test Chest");
     assert.deepEqual([body.x, body.y, body.z], [1, 2, 3]);
+  } finally {
+    await server.close();
+  }
+});
+
+test("operator path API plans only through known walkable cells", async () => {
+  const store = new FakeGatewayStore();
+  for (const [x, y, z] of [
+    [0, 0, 0],
+    [1, 0, 0],
+    [1, 1, 0],
+    [1, 2, 0],
+    [1, 2, 1],
+    [1, 2, 2],
+    [1, 2, 3],
+  ]) {
+    store.worldCells.push({
+      dimension: 0,
+      x,
+      y,
+      z,
+      walkable: true,
+      observedAt: "2026-09-09T00:00:00.000Z",
+      sourceWorkerId: "path-worker",
+    });
+  }
+  const server = await startServer(store);
+  try {
+    const response = await fetch(
+      `${server.baseUrl}/v1/workers/path-worker/path-to/${encodeURIComponent("Test Chest")}`,
+      { headers: adminHeaders() },
+    );
+    assert.equal(response.status, 200);
+    const body = (await response.json()) as { directions: string[]; expandedNodes: number };
+    assert.deepEqual(body.directions, ["E", "UP", "UP", "S", "S", "S"]);
+    assert.ok(body.expandedNodes > 0);
   } finally {
     await server.close();
   }
