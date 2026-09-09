@@ -345,6 +345,11 @@ without requiring the admin secret or contacting the control plane. For a goal, 
 shows the deterministic worker/item/quantity/destination parse, so an operator can catch an
 addressing or spelling mistake before creating a persistent goal.
 
+When the scheduler background loop is disabled, `goal ... --start` is the explicit operator path
+to create a goal and perform exactly one bounded scheduler tick. It does not bypass capability,
+worker-availability, task-dependency, or one-active-task checks, and it reports an empty dispatch
+list when no worker is currently eligible. Omit `--start` to create the goal without dispatching.
+
 The protected operator inspection commands are:
 
 ```bash

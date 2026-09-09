@@ -84,6 +84,7 @@ npm run cli -- gather alice minecraft:cobblestone 8 12
 npm run cli -- deposit alice 8 --container-id test-chest
 npm run cli -- withdraw alice minecraft:cobblestone 8 --container-id test-chest
 npm run cli -- goal "@alice get 64 cobblestone and deposit it in Test Chest"
+npm run cli -- goal "@alice get 64 cobblestone and deposit it in Test Chest" --start
 npm run cli -- goal "@alice get 64 cobblestone and deposit it in Test Chest" --dry-run
 npm run cli -- locations
 npm run cli -- location "Test Chest"

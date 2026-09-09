@@ -26,7 +26,7 @@ export function usage(): string {
     `${cliName} projects`,
     `${cliName} feature-gates`,
     `${cliName} audit [limit]`,
-    `${cliName} goal <@worker get ... and deposit it in ...> [--dry-run]`,
+    `${cliName} goal <@worker get ... and deposit it in ...> [--start] [--dry-run]`,
     `${cliName} goal-report <task-id>`,
     `${cliName} planner-triggers [limit]`,
     `${cliName} planner-status`,
@@ -116,8 +116,14 @@ async function postOrPreview(path: string, body: unknown, dryRun: boolean): Prom
 
 export async function runCli(args: readonly string[]): Promise<void> {
   const dryRun = args.includes("--dry-run");
-  const positionalArgs = args.filter((argument) => argument !== "--dry-run");
+  const startGoal = args.includes("--start");
+  const positionalArgs = args.filter(
+    (argument) => argument !== "--dry-run" && argument !== "--start",
+  );
   const [command, first, second] = positionalArgs.map((argument) => argument.trim());
+  if (startGoal && command !== "goal") {
+    throw new Error("--start is supported only for goal");
+  }
   if (
     dryRun &&
     (command === undefined ||
@@ -204,6 +210,9 @@ export async function runCli(args: readonly string[]): Promise<void> {
     return;
   }
   if (command === "goal") {
+    if (dryRun && startGoal) {
+      throw new Error("goal cannot combine --start with --dry-run");
+    }
     const goalText = positionalArgs.slice(1).join(" ").trim();
     if (!goalText) {
       throw new Error(`usage: ${cliName} goal <@worker get ... and deposit it in ...>`);
@@ -232,16 +241,27 @@ export async function runCli(args: readonly string[]): Promise<void> {
       );
       return;
     }
-    console.log(
-      JSON.stringify(
-        await request("/v1/goals", {
-          method: "POST",
-          body: JSON.stringify(body),
-        }),
-        null,
-        2,
-      ),
-    );
+    const goal = await request("/v1/goals", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    if (startGoal) {
+      console.log(
+        JSON.stringify(
+          {
+            goal,
+            scheduler: await request("/v1/scheduler/tick", {
+              method: "POST",
+              body: "{}",
+            }),
+          },
+          null,
+          2,
+        ),
+      );
+      return;
+    }
+    console.log(JSON.stringify(goal, null, 2));
     return;
   }
   if (command === "tasks") {

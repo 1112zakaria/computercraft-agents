@@ -813,6 +813,50 @@ test("CLI submits the first addressed gather goal", async () => {
   }
 });
 
+test("CLI can explicitly start one bounded scheduler tick after creating a goal", async () => {
+  const previousFetch = globalThis.fetch;
+  const previousUrl = process.env.CONTROL_PLANE_URL;
+  const previousSecret = process.env.CONTROL_PLANE_ADMIN_SECRET;
+  const capturedRequests: Array<{ url: string; method: string | undefined }> = [];
+  process.env.CONTROL_PLANE_URL = "http://control-plane.test";
+  process.env.CONTROL_PLANE_ADMIN_SECRET = "test-admin-secret";
+  globalThis.fetch = async (input, init) => {
+    capturedRequests.push({ url: String(input), method: init?.method });
+    const body = String(input).endsWith("/v1/goals")
+      ? { taskId: "goal-task", status: "READY" }
+      : { dispatched: [{ taskId: "workflow-step", status: "DISPATCHED" }] };
+    return new Response(JSON.stringify(body), {
+      status: String(input).endsWith("/v1/goals") ? 202 : 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  };
+  try {
+    await runCli([
+      "goal",
+      "@alice",
+      "get",
+      "8",
+      "cobblestone",
+      "and",
+      "deposit",
+      "it",
+      "in",
+      "Test Chest",
+      "--start",
+    ]);
+    assert.deepEqual(capturedRequests, [
+      { url: "http://control-plane.test/v1/goals", method: "POST" },
+      { url: "http://control-plane.test/v1/scheduler/tick", method: "POST" },
+    ]);
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousUrl === undefined) delete process.env.CONTROL_PLANE_URL;
+    else process.env.CONTROL_PLANE_URL = previousUrl;
+    if (previousSecret === undefined) delete process.env.CONTROL_PLANE_ADMIN_SECRET;
+    else process.env.CONTROL_PLANE_ADMIN_SECRET = previousSecret;
+  }
+});
+
 test("CLI requests bounded planning context for a task", async () => {
   const previousFetch = globalThis.fetch;
   const previousUrl = process.env.CONTROL_PLANE_URL;
