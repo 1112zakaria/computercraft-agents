@@ -126,6 +126,9 @@ The operator position-anchor path is also covered: a protected request stores ex
 as `CONFIRMED_ANCHOR` and may include a manually verified facing. It never infers compass
 orientation from the turtle runtime.
 
+Database tests also verify that a same-coordinate telemetry heartbeat retains a verified operator
+anchor while a changed coordinate becomes unconfirmed and requires re-anchoring.
+
 ## Gateway-managed update acceptance
 
 Before a live canary, the fake integration must prove:

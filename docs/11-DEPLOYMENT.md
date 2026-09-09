@@ -204,6 +204,10 @@ safe adjacent turtle standing coordinate when the named block is a container or 
 target. These are operator assertions, so only
 use coordinates that have been verified in-game; it does not move the turtle or detect direction.
 
+When creating a new `worker.conf`, keep the template's complete `capabilities` list unless a
+deliberate canary needs a narrower local allowlist. Older configurations that explicitly list
+only movement and inventory skills must add `mining.gather` before a gather preflight can pass.
+
 The turtle's cursor, authenticated UTC clock handoff, and event outbox are local persistent files. Do not commit the populated
 configuration or secret.
 

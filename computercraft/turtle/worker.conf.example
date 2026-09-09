@@ -28,6 +28,19 @@ return {
   container_side = "front",
   -- Optional stable IDs for known containers used by inventory.deposit/withdraw.
   container_sides = { ["test-chest"] = "front" },
+  -- Advertise only skills installed and approved for this worker. The VPS still
+  -- applies its own feature gate before dispatching a command.
+  capabilities = {
+    "movement.step",
+    "navigate.path",
+    "observation.block",
+    "inventory.inspect",
+    "inventory.deposit",
+    "inventory.withdraw",
+    "mining.excavate",
+    "mining.gather",
+    "fuel.refuel",
+  },
   reserved_slots = { [1] = true },
   acceptable_fuel_items = { "minecraft:coal", "minecraft:charcoal" },
 }
