@@ -15,7 +15,7 @@ local function error_payload(code, message, retryable, details)
   }
 end
 
-function M.new(config, client, state, cancellation, movement, observation, inventory, fuel, cache, protocol, id, logger, excavation)
+function M.new(config, client, state, cancellation, movement, observation, inventory, fuel, cache, protocol, id, logger, excavation, peripherals)
   local executor = {
     config = config,
     client = client,
@@ -30,6 +30,7 @@ function M.new(config, client, state, cancellation, movement, observation, inven
     id = id,
     logger = logger,
     excavation = excavation,
+    peripherals = peripherals,
   }
 
   function executor:emit(command_id, event_type, payload)
@@ -59,6 +60,8 @@ function M.new(config, client, state, cancellation, movement, observation, inven
       return self.movement:path(args.steps)
     elseif skill == "observation.block" then
       return self.observation:inspect(args.direction)
+    elseif skill == "peripheral.inspect" then
+      return self.peripherals:inspect(args.side)
     elseif skill == "inventory.inspect" then
       return { status = "OK", inventory = self.inventory:snapshot() }
     elseif skill == "inventory.deposit" then
@@ -125,6 +128,15 @@ function M.new(config, client, state, cancellation, movement, observation, inven
         block = result.block or self.protocol.JSON_NULL,
         position = self.state:position(),
       })
+    end
+    if command.skill == "peripheral.inspect" and result.status == "OK" then
+      for _, peripheral_info in ipairs(result.peripherals or {}) do
+        self:emit(command.commandId, "peripheral.observed", {
+          side = peripheral_info.side,
+          type = peripheral_info.type,
+          methods = peripheral_info.methods,
+        })
+      end
     end
     if (command.skill == "inventory.deposit" or command.skill == "inventory.withdraw")
       and result.status == "OK" and result.inventory and result.inventory.slots then

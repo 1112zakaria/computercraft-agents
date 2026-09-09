@@ -482,6 +482,11 @@ that ID through its local configured container allowlist and reject unknown IDs 
 `inventory.deposit` may also carry an `itemKey`; when present, the worker must select a matching
 stack and reject a missing or mismatched item before transferring.
 
+`peripheral.inspect` is a read-only bounded discovery command. With no arguments it inspects the
+six turtle attachment sides; with `{ "side": "front" }` (or another attachment side) it inspects
+only that side. The result reports the peripheral type and method names, and the worker emits one
+`peripheral.observed` event per attached peripheral. It never invokes a discovered method.
+
 Building execution MAY use paged/chunked blueprint segments:
 
 ```text

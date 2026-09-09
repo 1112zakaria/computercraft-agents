@@ -35,6 +35,7 @@ const luaFiles = [
   "turtle/logging.lua",
   "turtle/movement.lua",
   "turtle/observation.lua",
+  "turtle/peripherals.lua",
   "turtle/protocol.lua",
   "turtle/rednet_client.lua",
   "turtle/startup",
@@ -166,6 +167,20 @@ test("turtle runtime exposes bounded target-aware gathering", () => {
     executor,
     /self\.excavation:gather\(args\.itemKey, args\.quantity, args\.maxDepth\)/,
   );
+});
+
+test("turtle runtime exposes read-only peripheral discovery", () => {
+  const peripherals = readFileSync(join(runtimeRoot, "turtle/peripherals.lua"), "utf8");
+  const protocol = readFileSync(join(runtimeRoot, "turtle/protocol.lua"), "utf8");
+  const executor = readFileSync(join(runtimeRoot, "turtle/executor.lua"), "utf8");
+  const startup = readFileSync(join(runtimeRoot, "turtle/startup.lua"), "utf8");
+  assert.match(peripherals, /function peripherals:inspect\(side\)/);
+  assert.match(peripherals, /getMethods/);
+  assert.match(peripherals, /table\.sort\(methods\)/);
+  assert.match(protocol, /\["peripheral\.inspect"\] = true/);
+  assert.match(executor, /self\.peripherals:inspect\(args\.side\)/);
+  assert.match(executor, /"peripheral\.observed"/);
+  assert.match(startup, /peripherals_module = require\("peripherals"\)/);
 });
 
 test("turtle inventory and excavation normalize namespaced item keys", () => {

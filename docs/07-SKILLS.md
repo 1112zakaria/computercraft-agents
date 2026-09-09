@@ -22,6 +22,7 @@ Suggested hierarchy:
 movement.step
 navigation.route
 observation.block
+peripheral.inspect
 inventory.inspect
 inventory.deposit
 inventory.withdraw
@@ -62,6 +63,7 @@ Lua primitives:
 - dig front/up/down;
 - place front/up/down;
 - inspect front/up/down;
+- inspect attached peripheral types and method names (read-only);
 - attack front/up/down where supported;
 - select/equip;
 - suck/drop;

@@ -100,6 +100,7 @@ function M.load(path)
     "movement.step",
     "navigate.path",
     "observation.block",
+    "peripheral.inspect",
     "inventory.inspect",
     "inventory.deposit",
     "inventory.withdraw",

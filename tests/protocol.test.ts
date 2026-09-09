@@ -92,6 +92,25 @@ test("bounded gather commands require a target and depth budget", () => {
   );
 });
 
+test("peripheral inspection accepts an optional bounded side", () => {
+  const command = CommandSchema.parse({
+    protocolVersion: 1,
+    commandId: "command-peripheral-1",
+    workerId: "alice",
+    issuedAt: "2026-09-08T12:00:00.000Z",
+    expiresAt: "2026-09-08T12:10:00.000Z",
+    budget: { maxPrimitives: 1, maxBlockChanges: 0 },
+    skill: "peripheral.inspect",
+    arguments: { side: "front" },
+  });
+  assert.equal(command.skill, "peripheral.inspect");
+  assert.equal(
+    CommandSchema.safeParse({ ...command, arguments: { side: "diagonal" } }).success,
+    false,
+  );
+  assert.equal(CommandSchema.safeParse({ ...command, arguments: {} }).success, true);
+});
+
 test("deposit commands may carry a canonical target item", () => {
   const command = CommandSchema.parse({
     protocolVersion: 1,

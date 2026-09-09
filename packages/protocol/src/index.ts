@@ -225,6 +225,7 @@ export const SkillNameSchema = z.enum([
   "movement.step",
   "navigate.path",
   "observation.block",
+  "peripheral.inspect",
   "inventory.inspect",
   "inventory.deposit",
   "inventory.withdraw",
@@ -248,6 +249,14 @@ const NavigatePathArgumentsSchema = z
 const ObservationBlockArgumentsSchema = z
   .object({
     direction: RelativeDirectionSchema,
+  })
+  .strict();
+
+export const PeripheralSideSchema = z.enum(["top", "bottom", "front", "back", "left", "right"]);
+
+const PeripheralInspectArgumentsSchema = z
+  .object({
+    side: PeripheralSideSchema.optional(),
   })
   .strict();
 
@@ -323,6 +332,13 @@ const CommandUnionSchema = z.discriminatedUnion("skill", [
       ...commandBaseShape,
       skill: z.literal("observation.block"),
       arguments: ObservationBlockArgumentsSchema,
+    })
+    .strict(),
+  z
+    .object({
+      ...commandBaseShape,
+      skill: z.literal("peripheral.inspect"),
+      arguments: PeripheralInspectArgumentsSchema,
     })
     .strict(),
   z

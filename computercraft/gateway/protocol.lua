@@ -6,6 +6,7 @@ local skill_names = {
   ["movement.step"] = true,
   ["navigate.path"] = true,
   ["observation.block"] = true,
+  ["peripheral.inspect"] = true,
   ["inventory.inspect"] = true,
   ["inventory.deposit"] = true,
   ["inventory.withdraw"] = true,
@@ -152,6 +153,14 @@ local function validate_arguments(skill, arguments)
     local ok, error_message = has_only_keys(arguments, { direction = true })
     if not ok or not relative_directions[arguments.direction] then
       return fail(error_message or "observation.block.direction is invalid")
+    end
+    return true
+  elseif skill == "peripheral.inspect" then
+    local ok, error_message = has_only_keys(arguments, { side = true })
+    if not ok then return fail(error_message) end
+    if arguments.side ~= nil and arguments.side ~= "top" and arguments.side ~= "bottom" and arguments.side ~= "front"
+      and arguments.side ~= "back" and arguments.side ~= "left" and arguments.side ~= "right" then
+      return fail("peripheral.inspect.side is invalid")
     end
     return true
   elseif skill == "inventory.inspect" then
