@@ -194,18 +194,22 @@ planner from one deliberately waiting for provider recovery. `PLANNER_FAILURE_TH
 `PLANNER_RETRY_AFTER_SECONDS` bound when the gate pauses and when retry is permitted.
 The reasoning package provides a runner that releases provider failures for retry and calls an
 explicit decision sink only after a validated result is returned. The control plane now has an
-opt-in, plan-only loop: when enabled, it claims a bounded batch, invokes the configured read-only
-Codex boundary, and records the validated decision as a HIGH-retention audit event. It does not
-create tasks, dispatch commands, or apply model output. Provider failures release the durable
-trigger for retry; stale claims are also requeued after the configured lease. The planner outage
-snapshot is persisted so a restart preserves the pause window. The loop is disabled by default and
-decision application remains a separate safety-gated work item.
+opt-in planner loop: when enabled, it claims a bounded batch, invokes the configured read-only
+Codex boundary, and records the validated decision as a HIGH-retention audit event. By default it
+is plan-only. With the separate `PLANNER_APPLY_ENABLED` gate, only `create-task` and `plan`
+proposals whose arguments pass the real command schemas, remain within the subject worker scope,
+and use capabilities already allowed by the subject job are persisted as idempotent ready tasks.
+`continue`, `delegate`, `replan`, `refuse`, and `report` remain audit-only until their safety
+contracts are implemented. Provider failures release the durable trigger for retry; stale claims
+are also requeued after the configured lease. The planner outage snapshot is persisted so a
+restart preserves the pause window. Both gates are disabled by default.
 
 The reasoning package now exposes a provider-neutral planner-trigger service. It accepts only the
 bounded causes `goal.created`, `command.completed`, `command.failed`, `worker.blocked`,
 `delegation.required`, and `replan.required`, deduplicates trigger IDs, assembles the same bounded
-context, and returns a schema-validated planner decision. The plan-only sink persists the decision
-for operator review but does not mutate tasks or execute model output.
+context, and returns a schema-validated planner decision. The control-plane sink persists every
+decision and can apply only the separately gated safe task-proposal subset; it never executes model
+output directly.
 
 After a successful `observation.block` command, the turtle emits a `block.observed` event. The
 control plane derives the inspected cell from the worker position/facing and persists it in the

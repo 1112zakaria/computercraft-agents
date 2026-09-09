@@ -18,7 +18,7 @@ import type {
   WorkerAnchorRequest,
   WorkerTransport,
 } from "@computercraft-agents/protocol";
-import { CommandSchema } from "@computercraft-agents/protocol";
+import { CommandSchema, SkillNameSchema } from "@computercraft-agents/protocol";
 import { findKnownPath, SparseWorldModel, type Coordinate } from "@computercraft-agents/navigation";
 import type { Pool, PoolClient, QueryResultRow } from "pg";
 import { storedPositionConfidence } from "./position-confidence";
@@ -68,6 +68,13 @@ export interface GoalTaskRecord {
   readonly status: string;
   readonly skillName: string;
   readonly arguments: unknown;
+}
+
+export interface PlannerTaskProposalInput {
+  readonly skillName: string;
+  readonly arguments: Record<string, unknown>;
+  readonly requiredCapabilities: readonly string[];
+  readonly priority: number;
 }
 
 export interface PlannerTriggerRecord {
@@ -225,7 +232,13 @@ function normalizeContainerId(value: string): string | undefined {
 }
 
 function commandArguments(value: Record<string, unknown>): Record<string, unknown> {
-  const { targetWorkerId: _targetWorkerId, ...argumentsWithoutRouting } = value;
+  const {
+    targetWorkerId: _targetWorkerId,
+    _plannerTriggerId: _plannerTriggerId,
+    _plannerIndex: _plannerIndex,
+    _plannerPriority: _plannerPriority,
+    ...argumentsWithoutRouting
+  } = value;
   return argumentsWithoutRouting;
 }
 
@@ -726,6 +739,203 @@ export class GatewayRuntimeRepository {
         skillName: input.skillName,
         arguments: input.arguments,
       };
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * Apply the narrow, safe subset of planner output that can become ready tasks.
+   * The caller controls whether this boundary is enabled; this method still
+   * validates every proposal as a real protocol command before persisting it.
+   */
+  public async applyPlannerTaskProposals(input: {
+    readonly triggerId: string;
+    readonly subjectId: string;
+    readonly proposals: readonly PlannerTaskProposalInput[];
+  }): Promise<readonly string[]> {
+    if (
+      !input.triggerId ||
+      !input.subjectId ||
+      input.proposals.length < 1 ||
+      input.proposals.length > 64
+    ) {
+      throw new RepositoryError(
+        "INVALID_PLANNER_DECISION",
+        "planner task application requires one to 64 proposals and a trigger subject",
+        400,
+      );
+    }
+
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const sourceResult = await client.query<{
+        id: string;
+        job_id: string;
+        arguments_json: unknown;
+        required_capabilities_json: unknown;
+      }>(
+        `
+          SELECT t.id::text, t.job_id::text, t.arguments_json,
+                 j.required_capabilities_json
+          FROM tasks t
+          JOIN jobs j ON j.id = t.job_id
+          WHERE t.id = $1
+          FOR UPDATE OF t
+        `,
+        [input.subjectId],
+      );
+      const source = sourceResult.rows[0];
+      if (!source) {
+        throw new RepositoryError("UNKNOWN_TASK", "planner subject task was not found", 404);
+      }
+      const sourceArguments = parseJson<Record<string, unknown>>(source.arguments_json);
+      const sourceTarget = sourceArguments.targetWorkerId;
+      if (sourceTarget !== undefined && typeof sourceTarget !== "string") {
+        throw new RepositoryError(
+          "INVALID_PLANNER_DECISION",
+          "planner subject has an invalid target worker",
+          400,
+        );
+      }
+      const jobCapabilities = new Set(
+        capabilityNames(parseJson<unknown>(source.required_capabilities_json)),
+      );
+      const taskIds: string[] = [];
+      let previousTaskId: string | undefined;
+      const issuedAt = new Date();
+      const expiresAt = new Date(issuedAt.getTime() + 10 * 60_000);
+
+      for (let index = 0; index < input.proposals.length; index += 1) {
+        const proposal = input.proposals[index]!;
+        const skill = SkillNameSchema.safeParse(proposal.skillName);
+        if (!skill.success) {
+          throw new RepositoryError(
+            "INVALID_PLANNER_DECISION",
+            `planner proposed unsupported skill: ${proposal.skillName}`,
+            400,
+          );
+        }
+        if (
+          !Number.isSafeInteger(proposal.priority) ||
+          proposal.priority < -1000 ||
+          proposal.priority > 1000 ||
+          !Array.isArray(proposal.requiredCapabilities) ||
+          proposal.requiredCapabilities.some(
+            (capability) => typeof capability !== "string" || capability.trim() === "",
+          )
+        ) {
+          throw new RepositoryError(
+            "INVALID_PLANNER_DECISION",
+            "planner task metadata is invalid",
+            400,
+          );
+        }
+        const rawArguments = proposal.arguments;
+        const requestedTarget = rawArguments.targetWorkerId;
+        if (requestedTarget !== undefined && typeof requestedTarget !== "string") {
+          throw new RepositoryError(
+            "INVALID_PLANNER_DECISION",
+            "planner targetWorkerId must be a string",
+            400,
+          );
+        }
+        if (sourceTarget && requestedTarget && sourceTarget !== requestedTarget) {
+          throw new RepositoryError(
+            "PLANNER_SCOPE_VIOLATION",
+            "planner cannot retarget a task to another worker",
+            409,
+          );
+        }
+        const targetWorkerId = requestedTarget ?? sourceTarget;
+        const commandArgumentsJson = commandArguments(rawArguments);
+        const commandValidation = CommandSchema.safeParse({
+          protocolVersion: 1,
+          commandId: `planner-${input.triggerId}-${index}`.slice(0, 128),
+          taskId: `planner-${input.triggerId}-${index}`.slice(0, 128),
+          workerId: targetWorkerId ?? "planner",
+          issuedAt: issuedAt.toISOString(),
+          expiresAt: expiresAt.toISOString(),
+          budget: commandBudget(skill.data, commandArgumentsJson),
+          skill: skill.data,
+          arguments: commandArgumentsJson,
+        });
+        if (!commandValidation.success) {
+          throw new RepositoryError(
+            "INVALID_PLANNER_DECISION",
+            `planner arguments are invalid for ${skill.data}`,
+            400,
+          );
+        }
+        const unsupportedCapabilities = proposal.requiredCapabilities.filter(
+          (capability) => !jobCapabilities.has(capability),
+        );
+        if (unsupportedCapabilities.length > 0) {
+          throw new RepositoryError(
+            "PLANNER_SCOPE_VIOLATION",
+            "planner proposal requires capabilities outside the subject job",
+            409,
+          );
+        }
+
+        const existing = await client.query<{ id: string }>(
+          `
+            SELECT id::text
+            FROM tasks
+            WHERE job_id = $1
+              AND arguments_json->>'_plannerTriggerId' = $2
+              AND arguments_json->>'_plannerIndex' = $3
+            LIMIT 1
+          `,
+          [source.job_id, input.triggerId, String(index)],
+        );
+        const taskId = existing.rows[0]?.id;
+        if (taskId) {
+          taskIds.push(taskId);
+          previousTaskId = taskId;
+          continue;
+        }
+
+        const storedArguments = {
+          ...commandArgumentsJson,
+          ...(targetWorkerId ? { targetWorkerId } : {}),
+          _plannerTriggerId: input.triggerId,
+          _plannerIndex: index,
+          _plannerPriority: proposal.priority,
+        };
+        const inserted = await client.query<{ id: string }>(
+          `
+            INSERT INTO tasks (
+              job_id, kind, status, skill_name, arguments_json, parent_task_id
+            )
+            VALUES ($1, 'planner-task', 'READY', $2, $3, $4)
+            RETURNING id::text
+          `,
+          [source.job_id, skill.data, asJson(storedArguments), source.id],
+        );
+        const insertedTaskId = inserted.rows[0]?.id;
+        if (!insertedTaskId) {
+          throw new RepositoryError("INTERNAL_ERROR", "planner task insert returned no row", 500);
+        }
+        if (previousTaskId) {
+          await client.query(
+            `
+              INSERT INTO task_dependencies (task_id, depends_on_task_id)
+              VALUES ($1, $2)
+              ON CONFLICT DO NOTHING
+            `,
+            [insertedTaskId, previousTaskId],
+          );
+        }
+        taskIds.push(insertedTaskId);
+        previousTaskId = insertedTaskId;
+      }
+      await client.query("COMMIT");
+      return taskIds;
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;

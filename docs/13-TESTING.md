@@ -19,7 +19,8 @@ Test:
 - context assembly;
 - planner decision validation and fake reasoning responses;
 - planner trigger classification, bounded provider invocation, and duplicate-trigger suppression;
-- opt-in plan-only runner claim/release behavior and high-retention decision recording;
+- opt-in planner runner claim/release behavior, high-retention decision recording, and safe
+  task-proposal application/idempotency when explicitly enabled;
 - reasoning outage pause, bounded retry, and recovery reset;
 - bounded gather workflow transitions and terminal blocking;
 - blocked navigation contradiction handling and the maximum-three-attempt gather replan boundary;

@@ -774,8 +774,10 @@ requests can be cancelled before execution.
 **Dependencies:** CC-080, CC-023
 
 **Status:** PARTIAL — plan/create-task/continue/delegate/replan/refuse/report decisions are
-validated in the reasoning package and planner decisions are durably recorded in HIGH-retention
-audit events by the opt-in plan-only loop; safe decision application remains.
+validated in the reasoning package, planner decisions are durably recorded in HIGH-retention audit
+events, and a separately gated safe apply boundary can persist protocol-validated `plan` and
+`create-task` proposals idempotently within the subject job/worker scope. Continue/delegate/replan
+application and richer policy remain.
 
 Define decisions for plan/create-task/delegate/report/refuse/replan.
 
@@ -799,11 +801,12 @@ Assemble goal, current job/task, relevant worker observation, skills, world know
 **Status:** PARTIAL — the reasoning package now validates the supported trigger causes, assembles
 bounded context, invokes the configured provider, and suppresses duplicate trigger IDs. The
 control plane persists idempotent `goal.created`, task-correlated command completion/failure, and
-`worker.blocked` triggers, exposes bounded operator inspection, and has an opt-in plan-only loop
-that claims triggers, records validated decisions as HIGH-retention audit events, and never mutates
-tasks or dispatches commands. The repository provides a transactional claim/complete boundary
-with stale-claim recovery, and the runner releases provider failures for retry. Decision
-application and broader planner policy remain.
+`worker.blocked` triggers, exposes bounded operator inspection, and has an opt-in planner loop that
+records validated decisions as HIGH-retention audit events. A separate apply gate can persist only
+validated `plan`/`create-task` proposals within the subject job and worker scope, with trigger/index
+idempotency and sequential dependencies. Continue/delegate/replan application and broader planner
+policy remain. The repository provides a transactional claim/complete boundary with stale-claim
+recovery, and the runner releases provider failures for retry.
 
 Trigger on new goal, meaningful completion/failure, unexpected state, delegation need, replan.
 

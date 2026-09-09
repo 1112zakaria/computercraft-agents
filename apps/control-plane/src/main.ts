@@ -20,6 +20,7 @@ async function main(): Promise<void> {
     port: config.port,
     schedulerEnabled: config.schedulerEnabled,
     plannerEnabled: config.plannerEnabled,
+    plannerApplyEnabled: config.plannerApplyEnabled,
   });
   const pool = createDatabasePool(config.databaseUrl);
   await runMigrations(pool);

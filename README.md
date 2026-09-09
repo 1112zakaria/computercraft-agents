@@ -27,8 +27,10 @@ workspace does not require a live Minecraft server, PostgreSQL instance, or Code
 these baseline checks.
 
 The control plane's Codex planner loop is disabled by default. When explicitly enabled, it is
-currently plan-only: it claims durable triggers and records validated decisions for review without
-creating tasks or dispatching commands. See [deployment](docs/11-DEPLOYMENT.md) before enabling it.
+plan-only unless `PLANNER_APPLY_ENABLED=true` is also set. The apply boundary accepts only
+protocol-validated `create-task`/`plan` proposals within the subject job's worker scope, persists
+them idempotently, and leaves other decision kinds in audit-only mode. See
+[deployment](docs/11-DEPLOYMENT.md) before enabling it.
 
 To package the ComputerCraft programs for friend-side installation, run
 `npm run release:lua`. The resulting `dist/release/computercraft-lua.zip` contains no populated

@@ -20,6 +20,7 @@ export interface ControlPlaneConfig {
   readonly retentionCleanupIntervalSeconds: number;
   readonly enabledSkills: readonly SkillName[];
   readonly plannerEnabled: boolean;
+  readonly plannerApplyEnabled: boolean;
   readonly plannerIntervalSeconds: number;
   readonly plannerBatchSize: number;
   readonly plannerTimeoutMs: number;
@@ -122,6 +123,7 @@ export function loadConfig(): ControlPlaneConfig {
     retentionCleanupIntervalSeconds: positiveInteger("RETENTION_CLEANUP_INTERVAL_SECONDS", 86_400),
     enabledSkills: enabledSkills(),
     plannerEnabled: booleanValue("PLANNER_ENABLED", false),
+    plannerApplyEnabled: booleanValue("PLANNER_APPLY_ENABLED", false),
     plannerIntervalSeconds: positiveInteger("PLANNER_INTERVAL_SECONDS", 30),
     plannerBatchSize: positiveInteger("PLANNER_BATCH_SIZE", 1),
     plannerTimeoutMs: positiveInteger("PLANNER_TIMEOUT_MS", 30_000),

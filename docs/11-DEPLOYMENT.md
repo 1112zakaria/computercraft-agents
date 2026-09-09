@@ -291,12 +291,15 @@ The control plane also supports an opt-in bounded background scheduler loop. Set
 reviewing the task set. Each interval performs at most one non-overlapping scheduler tick; the
 loop is disabled by default so deployment does not silently begin dispatching queued work.
 
-The planner loop is separately opt-in and currently plan-only. Set `PLANNER_ENABLED=true` only
-after confirming the VPS has an authenticated `codex` executable and reviewing the cost, timeout,
-and retention implications:
+The planner loop is separately opt-in. Set `PLANNER_ENABLED=true` only after confirming the VPS
+has an authenticated `codex` executable and reviewing the cost, timeout, and retention implications.
+Leave `PLANNER_APPLY_ENABLED=false` for plan-only review. The apply gate only accepts validated
+`create-task`/`plan` proposals within the existing job and worker scope; all other decision kinds
+remain audit-only.
 
 ```text
 PLANNER_ENABLED=true
+PLANNER_APPLY_ENABLED=false
 PLANNER_INTERVAL_SECONDS=30
 PLANNER_BATCH_SIZE=1
 PLANNER_TIMEOUT_MS=30000
@@ -317,13 +320,14 @@ CODEX_COMMAND=codex
 
 `PLANNER_REASONING_TIER` selects one logical tier. The corresponding optional model/profile
 variables are passed only to the Codex CLI invocation for that tier; they do not change the
-validated decision schema or enable decision application. Keeping all six override variables
-blank is valid and uses the locally configured Codex default.
+validated decision schema. Keeping all six override variables blank is valid and uses the locally
+configured Codex default.
 
 The loop claims durable planner triggers, invokes Codex in its read-only ephemeral boundary, and
-records validated decisions as HIGH-retention audit events. It does not create tasks, dispatch
-commands, or apply model output. Keep it disabled for installations that are not ready to review
-planner decisions; decision application is a later safety-gated milestone.
+records validated decisions as HIGH-retention audit events. With `PLANNER_APPLY_ENABLED=true`, a
+safe subset of validated task proposals becomes ready tasks; the scheduler still controls worker
+assignment and command dispatch. Keep the apply gate disabled until the resulting task stream has
+been reviewed in a canary environment.
 
 Every stale-worker check is also a recovery boundary. When a worker transitions from online to
 stale, the control plane pauses its assigned task, cancels queued or in-flight command delivery,

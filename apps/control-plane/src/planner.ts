@@ -21,6 +21,7 @@ import type { Logger } from "./logger";
 
 interface PlannerRuntimeConfig {
   readonly plannerBatchSize: number;
+  readonly plannerApplyEnabled: boolean;
   readonly plannerTimeoutMs: number;
   readonly plannerMaxConcurrent: number;
   readonly plannerClaimLeaseSeconds: number;
@@ -120,6 +121,21 @@ export async function createPlannerRunner(
     service,
     {
       async apply(trigger, result) {
+        const proposals =
+          result.decision.kind === "plan"
+            ? result.decision.tasks
+            : result.decision.kind === "create-task"
+              ? [result.decision.task]
+              : [];
+        const createdTaskIds =
+          config.plannerApplyEnabled && proposals.length > 0
+            ? await repository.applyPlannerTaskProposals({
+                triggerId: trigger.triggerId,
+                subjectId: trigger.subjectId,
+                proposals,
+              })
+            : [];
+        const applied = createdTaskIds.length > 0;
         await auditEvents.append({
           category: "planner.decision.recorded",
           action: { trigger },
@@ -127,14 +143,16 @@ export async function createPlannerRunner(
             requestId: result.requestId,
             provider: result.provider,
             decision: result.decision,
-            applied: false,
-            mode: "plan-only",
+            applied,
+            createdTaskIds,
+            mode: config.plannerApplyEnabled ? "apply-enabled" : "plan-only",
           },
           retentionClass: "HIGH",
         });
         logger.info("planner.decision.recorded", {
           taskId: trigger.subjectId,
-          outcome: "plan-only",
+          outcome: applied ? "applied" : "plan-only",
+          createdTaskCount: createdTaskIds.length,
           status: result.decision.kind,
         });
       },
