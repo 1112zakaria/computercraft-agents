@@ -196,6 +196,74 @@ function M.new(config, client, protocol, id, logger, bootstrap)
     return true
   end
 
+  function manager:process_direct(update)
+    if type(update) ~= "table" or update.transport ~= "direct-http" then
+      return false, "invalid direct update control"
+    end
+    if update.workerId ~= self.config.worker_id then
+      return false, "update worker does not match this turtle"
+    end
+    if self.protocol.is_expired(update.expiresAt) then
+      return self:fail(update, "update has expired")
+    end
+    if self.client.execution_state ~= "IDLE" then
+      return self:fail(update, "worker is not idle")
+    end
+
+    local manifest_response = self.client:get_raw(update.manifestUrl)
+    if not manifest_response.ok then
+      return self:fail(update, manifest_response.error or "cannot download update manifest")
+    end
+    local decoded, manifest = pcall(textutils.unserializeJSON, manifest_response.body or "")
+    if not decoded or type(manifest) ~= "table" or manifest.version ~= update.releaseVersion then
+      return self:fail(update, "update manifest version is invalid")
+    end
+    if type(manifest.runtimeFiles) ~= "table" then
+      return self:fail(update, "update manifest has no runtime files")
+    end
+
+    if fs.exists(self.config.update_staging_path) then fs.delete(self.config.update_staging_path) end
+    fs.makeDir(self.config.update_staging_path)
+    self.current = {
+      updateId = update.updateId,
+      releaseVersion = update.releaseVersion,
+      gatewayBootId = self.client.gateway_boot_id,
+      stage = self.config.update_staging_path,
+      files = {},
+    }
+    self:event(update, "worker.update.started")
+
+    for _, entry in ipairs(manifest.runtimeFiles) do
+      if type(entry) ~= "table" or not self.protocol.is_update_path(entry.path)
+        or type(entry.downloadUrl) ~= "string" or string.sub(entry.downloadUrl, 1, 8) ~= "https://" then
+        return self:fail(update, "manifest contains an unsafe runtime file")
+      end
+      local response = self.client:get_raw(entry.downloadUrl)
+      if not response.ok then
+        return self:fail(update, response.error or "cannot download runtime file")
+      end
+      local relative = relative_path(entry.path)
+      local staged = fs.combine(self.current.stage, relative)
+      local parent = fs.getDir(staged)
+      if parent and parent ~= "" and not fs.exists(parent) then fs.makeDir(parent) end
+      local handle = fs.open(staged, "w")
+      if not handle then return self:fail(update, "cannot stage runtime file") end
+      handle.write(response.body or "")
+      handle.close()
+      self.current.files[entry.path] = { relative = relative, totalChunks = 1 }
+    end
+
+    self:event(update, "worker.update.staged")
+    return self:activate({
+      protocolVersion = 1,
+      type = "worker.update.activate",
+      gatewayBootId = self.client.gateway_boot_id,
+      updateId = update.updateId,
+      releaseVersion = update.releaseVersion,
+      workerId = update.workerId,
+    })
+  end
+
   function manager:handle(message)
     if type(message) ~= "table" or not string.find(message.type or "", "^worker%.update%.") then return false end
     if message.type == "worker.update.prepare" then return self:prepare(message) end

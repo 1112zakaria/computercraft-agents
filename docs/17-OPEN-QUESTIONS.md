@@ -59,6 +59,13 @@ Determine practical modem topology, relay needs, and how turtles behave when mov
 
 This can materially affect long-distance autonomy.
 
+## OQ-003a — Direct worker transport hardening
+
+The first direct HTTP implementation reuses the gateway bearer secret and supports one worker at a
+time. Before operating multiple direct turtles, decide on per-worker credentials or short-lived
+signed credentials, rate limits, fleet rollout/canary behavior, and whether a worker should fall
+back between direct HTTP and gateway Rednet when both are configured.
+
 ## OQ-004 — Turtle chunk-loading behavior
 
 Determine whether active turtles keep relevant chunks loaded in this server/modpack and what occurs while no human players are online. If not sufficient, determine whether an existing chunk-loader mod/system can be used.

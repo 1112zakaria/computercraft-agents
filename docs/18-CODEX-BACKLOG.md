@@ -490,6 +490,32 @@ attempt rollback after interrupted activation.
 - verify new runtime heartbeat and `update-status` success;
 - interrupt a fake/live-safe activation and verify rollback.
 
+### CC-091 — Direct turtle HTTP transport
+
+**Priority:** P0
+**Dependencies:** CC-010, CC-020, CC-050, CC-053
+**Status:** IMPLEMENTED on `feat/direct-turtle-http-transport`; live direct canary pending
+
+Add `direct-http` as a transport-aware alternative to `gateway-rednet`. Direct turtles register,
+heartbeat, poll commands/stop controls/updates, and submit durable event batches through the
+authenticated `/v1/worker/*` API. Direct workers have no gateway association, do not need a modem,
+and download immutable release files directly from GitHub for individual OTA updates. Existing
+gateway-backed workers and fleet rollouts remain unchanged.
+
+**Remaining live acceptance**
+
+- provision one direct worker;
+- install the direct runtime and `worker.conf` on a modem-less turtle;
+- verify registration, heartbeat, bounded movement, stop, and event ingestion;
+- queue an individual update and verify activation/rollback without overwriting local state.
+
+**Future hardening**
+
+- per-worker credentials and rotation;
+- direct-worker fleet rollout/canary promotion;
+- release signatures and per-file hashes;
+- optional direct/gateway fallback and offline command mode.
+
 ---
 
 ## Epic G — Navigation and world map

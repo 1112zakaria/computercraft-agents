@@ -1,4 +1,5 @@
 local M = {}
+local compat = assert(loadfile("compat.lua"))()
 
 M.VERSION = 1
 
@@ -115,7 +116,7 @@ local function arguments_valid(skill, args)
 end
 
 function M.encode(value)
-  return textutils.serializeJSON(value)
+  return compat.encode_json(value)
 end
 
 function M.decode(value)
@@ -184,6 +185,10 @@ function M.validate_update_message(message)
 end
 
 function M.is_expired(timestamp)
+  if compat.now() then
+    local expiry = compat.parse_time(timestamp)
+    return not expiry or expiry <= compat.now()
+  end
   if type(timestamp) ~= "string" then
     return true
   end

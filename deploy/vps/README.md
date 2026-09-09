@@ -72,8 +72,8 @@ https://192.99.69.46.sslip.io:8443
 
 `sslip.io` resolves this hostname to the VPS's public IPv4. The existing Caddy container obtains
 and renews a publicly trusted certificate through its already-public port 80. It exposes only
-`/v1/gateway/*` on dedicated port 8443 and forwards to `172.18.0.1:8787`, a private Docker bridge
-address unavailable from the public internet.
+`/v1/gateway/*` and `/v1/worker/*` on dedicated port 8443 and forwards to `172.18.0.1:8787`, a
+private Docker bridge address unavailable from the public internet.
 
 Docker-published ports bypass ordinary UFW filtering. Therefore both the Caddy `remote_ip` matcher
 and `computercraft-agents-docker-firewall.service.example` enforce the `51.161.113.44` source

@@ -3,10 +3,10 @@
 ComputerCraft-first autonomous Minecraft workers for Minecraft Java 1.7.10 + Forge.
 
 The repository has completed the CC-001 bootstrap, CC-010 protocol-schema, CC-020 database schema,
-CC-030–047 ComputerCraft runtime stages, and the first VPS gateway transport/domain slice. The
-control-plane workspace is intentionally small and dependency-light; later backlog items add
-scheduling and reasoning
-integrations.
+CC-030–047 ComputerCraft runtime stages, and the first VPS gateway transport/domain slice. It now
+supports both gateway-backed Rednet workers and direct HTTP turtles; the control-plane workspace
+is intentionally small and dependency-light, while later backlog items add scheduling and
+reasoning integrations.
 
 ## Quick start
 
@@ -30,8 +30,8 @@ To package the ComputerCraft programs for friend-side installation, run
 `npm run release:lua`. The resulting `dist/release/computercraft-lua.zip` contains no populated
 configuration or secrets.
 
-Gateway-managed OTA-style updates are queued through the protected VPS CLI and delivered by the
-gateway's existing HTTPS poll:
+OTA-style updates are queued through the protected VPS CLI and delivered by the gateway poll for
+Rednet workers or the direct worker poll for direct turtles:
 
 ```text
 npm run cli -- update --target worker:alice --version v0.2.0
@@ -41,6 +41,34 @@ npm run cli -- update-status <update-id>
 
 Tagged GitHub releases publish the archive and `release-manifest.json`. The update design and
 rollback procedure are documented in [Gateway-managed updates](docs/21-UPDATEABILITY.md).
+
+## Worker transports
+
+Gateway-backed workers use:
+
+```text
+VPS ⇄ HTTPS ⇄ Gateway ⇄ Rednet ⇄ Turtle
+```
+
+Direct workers use:
+
+```text
+VPS ⇄ HTTPS ⇄ Turtle
+```
+
+Direct setup does not require a gateway computer or wireless modem. Provision one from the
+operator CLI, then configure `worker.conf` with `transport = "direct-http"`, the VPS URL, worker
+identity, Minecraft server ID, and the existing bearer secret:
+
+```text
+npm run cli -- provision-worker --id alice --server friends-server --computer-id 21 --version v0.4.0
+npm run cli -- workers alice
+npm run cli -- update --target worker:alice --version v0.4.0
+```
+
+See [architecture](docs/02-ARCHITECTURE.md), [protocol](docs/05-PROTOCOL.md), and
+[Minecraft-side deployment](deploy/minecraft/README.md) for endpoint and installation details.
+The gateway route remains available for modem-equipped fleets.
 
 ## Repository layout
 

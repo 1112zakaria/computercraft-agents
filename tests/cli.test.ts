@@ -41,3 +41,52 @@ test("CLI constructs an authenticated immutable update request", async () => {
     else process.env.CONTROL_PLANE_ADMIN_SECRET = previousSecret;
   }
 });
+
+test("CLI constructs a direct worker provisioning request", async () => {
+  const previousFetch = globalThis.fetch;
+  const previousUrl = process.env.CONTROL_PLANE_URL;
+  const previousSecret = process.env.CONTROL_PLANE_ADMIN_SECRET;
+  let capturedUrl = "";
+  let capturedInit: RequestInit | undefined;
+  process.env.CONTROL_PLANE_URL = "http://control-plane.test";
+  process.env.CONTROL_PLANE_ADMIN_SECRET = "test-admin-secret";
+  globalThis.fetch = async (input, init) => {
+    capturedUrl = String(input);
+    capturedInit = init;
+    return new Response(JSON.stringify({ workerId: "alice", transport: "direct-http" }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  };
+  try {
+    await runCli([
+      "provision-worker",
+      "--id",
+      "alice",
+      "--server",
+      "friends-server",
+      "--computer-id",
+      "21",
+      "--version",
+      "v0.4.0",
+    ]);
+    assert.equal(capturedUrl, "http://control-plane.test/v1/workers/provision");
+    assert.equal(capturedInit?.method, "POST");
+    const body = JSON.parse(String(capturedInit?.body)) as {
+      workerId: string;
+      transport: string;
+      minecraftServerId: string;
+      computerId: number;
+    };
+    assert.equal(body.workerId, "alice");
+    assert.equal(body.transport, "direct-http");
+    assert.equal(body.minecraftServerId, "friends-server");
+    assert.equal(body.computerId, 21);
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousUrl === undefined) delete process.env.CONTROL_PLANE_URL;
+    else process.env.CONTROL_PLANE_URL = previousUrl;
+    if (previousSecret === undefined) delete process.env.CONTROL_PLANE_ADMIN_SECRET;
+    else process.env.CONTROL_PLANE_ADMIN_SECRET = previousSecret;
+  }
+});

@@ -5,6 +5,10 @@ import test from "node:test";
 
 import type {
   Command,
+  DirectWorkerEventBatch,
+  DirectWorkerHeartbeat,
+  DirectWorkerProvision,
+  DirectWorkerRegistration,
   EventBatch,
   GatewayHeartbeat,
   GatewayRegistration,
@@ -16,12 +20,20 @@ import {
   GatewayService,
   type GatewayServiceStore,
 } from "../apps/control-plane/src/gateway-service";
-import type { GatewayPollResult, UpdateRolloutRecord } from "@computercraft-agents/database";
+import type {
+  DirectWorkerPollResult,
+  GatewayPollResult,
+  UpdateRolloutRecord,
+} from "@computercraft-agents/database";
 import { createControlPlaneServer } from "../apps/control-plane/src/http";
 
 const gatewayId = "gateway-test";
 const bootId = "boot-test";
 const secret = "test-secret";
+
+async function responseJson<T>(response: Response): Promise<T> {
+  return (await response.json()) as T;
+}
 
 function command(): Command {
   return {
@@ -43,6 +55,9 @@ class FakeGatewayStore implements GatewayServiceStore {
   public readonly commands: Command[] = [];
   public readonly stopControls: StopControl[] = [];
   public readonly updates: UpdateRolloutRecord[] = [];
+  public readonly directRegistrations: DirectWorkerRegistration[] = [];
+  public readonly directHeartbeats: DirectWorkerHeartbeat[] = [];
+  public readonly directEvents: DirectWorkerEventBatch[] = [];
 
   public async register(payload: GatewayRegistration): Promise<void> {
     this.registrations.push(payload);
@@ -90,6 +105,7 @@ class FakeGatewayStore implements GatewayServiceStore {
       workerIds: payload.target.startsWith("worker:")
         ? [payload.target.slice("worker:".length)]
         : [],
+      transport: "gateway-rednet",
     };
     this.updates.push(record);
     return record;
@@ -115,6 +131,47 @@ class FakeGatewayStore implements GatewayServiceStore {
 
   public async listGateways(): Promise<readonly Record<string, unknown>[]> {
     return [];
+  }
+
+  public async provisionDirectWorker(
+    payload: DirectWorkerProvision,
+  ): Promise<Record<string, unknown>> {
+    return {
+      workerId: payload.workerId,
+      computerId: payload.computerId,
+      transport: payload.transport,
+      minecraftServerId: payload.minecraftServerId,
+    };
+  }
+
+  public async registerDirectWorker(payload: DirectWorkerRegistration): Promise<{
+    readonly workerId: string;
+    readonly workerBootId: string;
+  }> {
+    this.directRegistrations.push(payload);
+    return { workerId: payload.workerId, workerBootId: payload.workerBootId };
+  }
+
+  public async heartbeatDirectWorker(payload: DirectWorkerHeartbeat): Promise<{
+    readonly workerId: string;
+    readonly workerBootId: string;
+  }> {
+    this.directHeartbeats.push(payload);
+    return { workerId: payload.workerId, workerBootId: payload.workerBootId };
+  }
+
+  public async pollDirectWorker(): Promise<DirectWorkerPollResult> {
+    return {
+      commands: [command()],
+      stopControls: [],
+      updates: [],
+      nextCursor: "1",
+    };
+  }
+
+  public async ingestDirectWorkerEvents(payload: DirectWorkerEventBatch): Promise<string[]> {
+    this.directEvents.push(payload);
+    return payload.events.map((event) => event.eventId);
   }
 }
 
@@ -241,11 +298,27 @@ test("operator API supports inspection and deterministic command/stop enqueueing
     });
     assert.equal(diagnostics.status, 200);
 
+    const provision = await fetch(`${server.baseUrl}/v1/workers/provision`, {
+      method: "POST",
+      headers: adminHeaders(),
+      body: JSON.stringify({
+        protocolVersion: 1,
+        transport: "direct-http",
+        workerId: "alice-direct",
+        minecraftServerId: "friends-server",
+        computerId: 21,
+        runtimeVersion: "v0.4.0",
+        capabilities: [],
+      }),
+    });
+    assert.equal(provision.status, 200);
+    assert.equal((await responseJson<{ transport: string }>(provision)).transport, "direct-http");
+
     const worker = await fetch(`${server.baseUrl}/v1/workers/worker-test`, {
       headers: adminHeaders(),
     });
     assert.equal(worker.status, 200);
-    assert.equal((await worker.json()).workerId, "worker-test");
+    assert.equal((await responseJson<{ workerId: string }>(worker)).workerId, "worker-test");
 
     const missingWorker = await fetch(`${server.baseUrl}/v1/workers/missing`, {
       headers: adminHeaders(),
@@ -288,16 +361,140 @@ test("operator API supports inspection and deterministic command/stop enqueueing
       }),
     });
     assert.equal(update.status, 202);
-    assert.equal((await update.json()).updateId, "update-admin-test");
+    assert.equal((await responseJson<{ updateId: string }>(update)).updateId, "update-admin-test");
 
     const updateList = await fetch(`${server.baseUrl}/v1/updates`, { headers: adminHeaders() });
     assert.equal(updateList.status, 200);
-    assert.equal((await updateList.json()).updates[0].status, "QUEUED");
+    assert.equal(
+      (await responseJson<{ updates: Array<{ status: string }> }>(updateList)).updates[0]?.status,
+      "QUEUED",
+    );
 
     const updateStatus = await fetch(`${server.baseUrl}/v1/updates/update-admin-test`, {
       headers: adminHeaders(),
     });
     assert.equal(updateStatus.status, 200);
+  } finally {
+    await server.close();
+  }
+});
+
+test("direct worker API authenticates, polls, and ingests worker events", async () => {
+  const store = new FakeGatewayStore();
+  const server = await startServer(store);
+  const workerId = "alice-direct";
+  const workerBootId = "worker-boot-direct";
+  const workerHeaders = {
+    Authorization: `Bearer ${secret}`,
+    "Content-Type": "application/json",
+    "X-Agent-Worker-Id": workerId,
+  };
+  try {
+    const unauthorized = await fetch(`${server.baseUrl}/v1/worker/commands`);
+    assert.equal(unauthorized.status, 401);
+
+    const registration = await fetch(`${server.baseUrl}/v1/worker/register`, {
+      method: "POST",
+      headers: workerHeaders,
+      body: JSON.stringify({
+        protocolVersion: 1,
+        workerId,
+        workerBootId,
+        minecraftServerId: "friends-server",
+        computerId: 21,
+        runtimeVersion: "v0.4.0",
+        capabilities: ["movement.step"],
+      }),
+    });
+    assert.equal(registration.status, 200);
+    assert.equal(store.directRegistrations[0]?.workerId, workerId);
+
+    const heartbeat = await fetch(`${server.baseUrl}/v1/worker/heartbeat`, {
+      method: "POST",
+      headers: workerHeaders,
+      body: JSON.stringify({
+        protocolVersion: 1,
+        workerId,
+        workerBootId,
+        minecraftServerId: "friends-server",
+        computerId: 21,
+        runtimeVersion: "v0.4.0",
+        status: "ONLINE",
+        executionState: "IDLE",
+        capabilities: ["movement.step"],
+        lastSeenAt: "2026-09-08T12:00:00.000Z",
+        currentCommandId: null,
+        position: null,
+        fuel: null,
+      }),
+    });
+    assert.equal(heartbeat.status, 200);
+    assert.equal(store.directHeartbeats[0]?.workerBootId, workerBootId);
+
+    const poll = await fetch(`${server.baseUrl}/v1/worker/commands?after=0`, {
+      headers: workerHeaders,
+    });
+    assert.equal(poll.status, 200);
+    assert.equal(
+      (await responseJson<{ commands: Array<{ commandId: string }> }>(poll)).commands[0]?.commandId,
+      "command-test",
+    );
+
+    const events = await fetch(`${server.baseUrl}/v1/worker/events`, {
+      method: "POST",
+      headers: workerHeaders,
+      body: JSON.stringify({
+        protocolVersion: 1,
+        workerId,
+        workerBootId,
+        batchId: "direct-batch-1",
+        events: [
+          {
+            protocolVersion: 1,
+            eventId: "direct-event-1",
+            workerId,
+            commandId: "command-test",
+            sequence: 1,
+            type: "command.completed",
+            occurredAt: "2026-09-08T12:00:01.000Z",
+            payload: { result: { ok: true } },
+          },
+        ],
+      }),
+    });
+    assert.equal(events.status, 200);
+    assert.deepEqual(
+      (await responseJson<{ acceptedEventIds: string[] }>(events)).acceptedEventIds,
+      ["direct-event-1"],
+    );
+    assert.equal(store.directEvents.length, 1);
+  } finally {
+    await server.close();
+  }
+});
+
+test("direct worker API rejects a mismatched worker identity", async () => {
+  const store = new FakeGatewayStore();
+  const server = await startServer(store);
+  try {
+    const response = await fetch(`${server.baseUrl}/v1/worker/register`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${secret}`,
+        "Content-Type": "application/json",
+        "X-Agent-Worker-Id": "alice",
+      },
+      body: JSON.stringify({
+        protocolVersion: 1,
+        workerId: "bob",
+        workerBootId: "worker-boot",
+        minecraftServerId: "friends-server",
+        computerId: 21,
+        runtimeVersion: "v0.4.0",
+        capabilities: [],
+      }),
+    });
+    assert.equal(response.status, 401);
   } finally {
     await server.close();
   }

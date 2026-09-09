@@ -1,5 +1,10 @@
 import type {
   Command,
+  DirectUpdateControl,
+  DirectWorkerEventBatch,
+  DirectWorkerHeartbeat,
+  DirectWorkerProvision,
+  DirectWorkerRegistration,
   Event,
   EventBatch,
   GatewayHeartbeat,
@@ -8,8 +13,10 @@ import type {
   UpdateControl,
   UpdateRequest,
   UpdateStatus,
+  WorkerTransport,
 } from "@computercraft-agents/protocol";
 import type { Pool, PoolClient, QueryResultRow } from "pg";
+import { storedPositionConfidence } from "./position-confidence";
 
 export interface GatewayRuntimeConfig {
   readonly gatewayTimeoutSeconds: number;
@@ -23,10 +30,18 @@ export interface GatewayPollResult {
   readonly nextCursor: string | null;
 }
 
+export interface DirectWorkerPollResult {
+  readonly commands: readonly Command[];
+  readonly stopControls: readonly StopControl[];
+  readonly updates: readonly DirectUpdateControl[];
+  readonly nextCursor: string | null;
+}
+
 export interface UpdateRolloutRecord extends UpdateRequest {
   readonly status: UpdateStatus;
-  readonly gatewayId: string;
+  readonly gatewayId: string | null;
   readonly workerIds: string[];
+  readonly transport: WorkerTransport;
   readonly failureCode?: string | null;
   readonly failureMessage?: string | null;
   readonly startedAt?: Date | string | null;
@@ -48,8 +63,11 @@ interface GatewayRow extends QueryResultRow {
 interface WorkerRow extends QueryResultRow {
   id: string;
   worker_key: string;
-  gateway_id: string;
+  gateway_id: string | null;
   computer_id: number;
+  transport_type: WorkerTransport;
+  minecraft_server_id: string;
+  boot_id: string | null;
 }
 
 interface CursorRow extends QueryResultRow {
@@ -63,7 +81,8 @@ interface UpdateRow extends QueryResultRow {
   target: string;
   target_type: "gateway" | "worker" | "fleet";
   target_key: string;
-  gateway_key: string;
+  gateway_key: string | null;
+  transport_type: WorkerTransport;
   release_version: string;
   manifest_url: string;
   issued_at: Date;
@@ -225,7 +244,7 @@ export class GatewayRuntimeRepository {
             worker.position?.y ?? null,
             worker.position?.z ?? null,
             worker.position?.facing ?? null,
-            worker.position?.confidence ?? null,
+            storedPositionConfidence(worker.position?.confidence),
             worker.fuel?.level ?? null,
             worker.currentCommandId ?? null,
             worker.status,
@@ -258,6 +277,7 @@ export class GatewayRuntimeRepository {
           WHERE delivery_cursor > $1
             AND status IN ('QUEUED', 'DELIVERED', 'RUNNING')
             AND expires_at > NOW()
+            AND transport_type = 'gateway-rednet'
             AND worker_key IN (SELECT worker_key FROM workers WHERE gateway_id = $2)
           ORDER BY delivery_cursor
           LIMIT 128
@@ -270,6 +290,10 @@ export class GatewayRuntimeRepository {
           FROM gateway_stop_controls
           WHERE delivery_cursor > $1
             AND (
+              transport_type IS NULL
+              OR transport_type = 'gateway-rednet'
+            )
+            AND (
               payload_json->>'type' = 'all.stop'
               OR worker_key IN (SELECT worker_key FROM workers WHERE gateway_id = $2)
             )
@@ -280,13 +304,14 @@ export class GatewayRuntimeRepository {
       ),
       this.pool.query<UpdateRow>(
         `
-          SELECT update_id, target, target_type, target_key, gateway_key,
+          SELECT update_id, target, target_type, target_key, gateway_key, transport_type,
                  release_version, manifest_url, issued_at, expires_at, status,
                  failure_code, failure_message, started_at, completed_at,
                  created_at, delivery_cursor
           FROM update_rollouts
           WHERE delivery_cursor > $1
             AND gateway_key = $2
+            AND transport_type = 'gateway-rednet'
             AND status IN ('QUEUED', 'RUNNING', 'CANARY')
             AND expires_at > NOW()
           ORDER BY delivery_cursor
@@ -330,6 +355,358 @@ export class GatewayRuntimeRepository {
     };
   }
 
+  public async registerDirectWorker(
+    payload: DirectWorkerRegistration,
+  ): Promise<{ readonly workerId: string; readonly workerBootId: string }> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const existing = await client.query<WorkerRow>(
+        `SELECT id, worker_key, gateway_id, computer_id, transport_type, minecraft_server_id
+         FROM workers WHERE worker_key = $1`,
+        [payload.workerId],
+      );
+      const existingRow = existing.rows[0] as
+        (WorkerRow & { minecraft_server_id: string }) | undefined;
+      if (!existingRow) {
+        throw new RepositoryError(
+          "UNKNOWN_WORKER",
+          "direct worker must be provisioned before registration",
+          404,
+        );
+      }
+      if (
+        existingRow.transport_type !== "direct-http" ||
+        existingRow.minecraft_server_id !== payload.minecraftServerId
+      ) {
+        throw new RepositoryError(
+          "WORKER_BOUND_ELSEWHERE",
+          "worker is already registered with another transport or server",
+          409,
+        );
+      }
+
+      await client.query(
+        `
+          INSERT INTO workers (
+            worker_key, backend_type, gateway_id, computer_id, minecraft_server_id,
+            transport_type, online, boot_id, runtime_version, last_seen_at, capabilities_json
+          )
+          VALUES ($1, 'computercraft', NULL, $2, $3, 'direct-http', TRUE, $4, $5, NOW(), $6)
+          ON CONFLICT (worker_key) DO UPDATE
+          SET computer_id = EXCLUDED.computer_id,
+              minecraft_server_id = EXCLUDED.minecraft_server_id,
+              transport_type = EXCLUDED.transport_type,
+              online = EXCLUDED.online,
+              boot_id = EXCLUDED.boot_id,
+              runtime_version = EXCLUDED.runtime_version,
+              last_seen_at = EXCLUDED.last_seen_at,
+              capabilities_json = EXCLUDED.capabilities_json
+        `,
+        [
+          payload.workerId,
+          payload.computerId,
+          payload.minecraftServerId,
+          payload.workerBootId,
+          payload.runtimeVersion,
+          asJson(payload.capabilities),
+        ],
+      );
+      await client.query("COMMIT");
+      return { workerId: payload.workerId, workerBootId: payload.workerBootId };
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  public async provisionDirectWorker(
+    payload: DirectWorkerProvision,
+  ): Promise<Record<string, unknown>> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const existing = await client.query<WorkerRow>(
+        `SELECT id, worker_key, gateway_id, computer_id, transport_type, minecraft_server_id
+         FROM workers WHERE worker_key = $1`,
+        [payload.workerId],
+      );
+      const existingRow = existing.rows[0];
+      if (
+        existingRow &&
+        (existingRow.transport_type !== "direct-http" ||
+          existingRow.minecraft_server_id !== payload.minecraftServerId)
+      ) {
+        throw new RepositoryError(
+          "WORKER_BOUND_ELSEWHERE",
+          "worker is already registered with another transport or server",
+          409,
+        );
+      }
+
+      const result = await client.query(
+        `
+          INSERT INTO workers (
+            worker_key, backend_type, gateway_id, computer_id, minecraft_server_id,
+            transport_type, online, runtime_version, capabilities_json
+          )
+          VALUES ($1, 'computercraft', NULL, $2, $3, 'direct-http', FALSE, $4, $5)
+          ON CONFLICT (worker_key) DO UPDATE
+          SET computer_id = EXCLUDED.computer_id,
+              minecraft_server_id = EXCLUDED.minecraft_server_id,
+              transport_type = EXCLUDED.transport_type,
+              runtime_version = EXCLUDED.runtime_version,
+              capabilities_json = EXCLUDED.capabilities_json
+          RETURNING worker_key AS "workerId", computer_id AS "computerId", online,
+                    transport_type AS "transport", minecraft_server_id AS "minecraftServerId"
+        `,
+        [
+          payload.workerId,
+          payload.computerId,
+          payload.minecraftServerId,
+          payload.runtimeVersion,
+          asJson(payload.capabilities),
+        ],
+      );
+      await client.query("COMMIT");
+      return result.rows[0] as Record<string, unknown>;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  public async heartbeatDirectWorker(payload: DirectWorkerHeartbeat): Promise<{
+    readonly workerId: string;
+    readonly workerBootId: string;
+  }> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const worker = await client.query<WorkerRow>(
+        `SELECT id, worker_key, gateway_id, computer_id, transport_type, minecraft_server_id, boot_id
+         FROM workers WHERE worker_key = $1 AND transport_type = 'direct-http'`,
+        [payload.workerId],
+      );
+      const row = worker.rows[0];
+      if (!row) {
+        throw new RepositoryError("UNKNOWN_WORKER", "direct worker has not registered", 404);
+      }
+      if (row.boot_id !== payload.workerBootId) {
+        throw new RepositoryError("STALE_WORKER_BOOT", "worker boot id is stale", 409);
+      }
+      if (row.minecraft_server_id !== payload.minecraftServerId) {
+        throw new RepositoryError(
+          "WORKER_BOUND_ELSEWHERE",
+          "worker is registered to another Minecraft server",
+          409,
+        );
+      }
+
+      await client.query(
+        `
+          UPDATE workers
+          SET computer_id = $2, online = $3, boot_id = $4, runtime_version = $5,
+              last_seen_at = $6, capabilities_json = $7
+          WHERE id = $1
+        `,
+        [
+          row.id,
+          payload.computerId,
+          payload.status === "ONLINE",
+          payload.workerBootId,
+          payload.runtimeVersion,
+          new Date(payload.lastSeenAt),
+          asJson(payload.capabilities),
+        ],
+      );
+      await client.query(
+        `
+          INSERT INTO worker_observations (
+            worker_id, observed_at, dimension, x, y, z, facing,
+            position_confidence, fuel_level, current_command_id, status
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        `,
+        [
+          row.id,
+          new Date(payload.lastSeenAt),
+          payload.position?.dimension ?? null,
+          payload.position?.x ?? null,
+          payload.position?.y ?? null,
+          payload.position?.z ?? null,
+          payload.position?.facing ?? null,
+          storedPositionConfidence(payload.position?.confidence),
+          payload.fuel?.level ?? null,
+          payload.currentCommandId ?? null,
+          payload.status,
+        ],
+      );
+      await client.query("COMMIT");
+      return { workerId: payload.workerId, workerBootId: payload.workerBootId };
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  public async pollDirectWorker(
+    workerId: string,
+    after: string | null,
+  ): Promise<DirectWorkerPollResult> {
+    const worker = await this.pool.query<{ id: string }>(
+      `SELECT id FROM workers WHERE worker_key = $1 AND transport_type = 'direct-http'`,
+      [workerId],
+    );
+    if (!worker.rows[0]) {
+      throw new RepositoryError("UNKNOWN_WORKER", "direct worker has not registered", 404);
+    }
+
+    const afterId = after === null ? 0 : this.parseCursor(after);
+    const [commands, stopControls, updates] = await Promise.all([
+      this.pool.query<CursorRow>(
+        `
+          SELECT id, delivery_cursor, payload_json
+          FROM gateway_commands
+          WHERE delivery_cursor > $1
+            AND status IN ('QUEUED', 'DELIVERED', 'RUNNING')
+            AND expires_at > NOW()
+            AND transport_type = 'direct-http'
+            AND worker_key = $2
+          ORDER BY delivery_cursor
+          LIMIT 128
+        `,
+        [afterId, workerId],
+      ),
+      this.pool.query<CursorRow>(
+        `
+          SELECT id, delivery_cursor, payload_json
+          FROM gateway_stop_controls
+          WHERE delivery_cursor > $1
+            AND (transport_type IS NULL OR transport_type = 'direct-http')
+            AND (payload_json->>'type' = 'all.stop' OR worker_key = $2)
+          ORDER BY delivery_cursor
+          LIMIT 128
+        `,
+        [afterId, workerId],
+      ),
+      this.pool.query<UpdateRow>(
+        `
+          SELECT update_id, target, target_type, target_key, gateway_key, transport_type,
+                 release_version, manifest_url, issued_at, expires_at, status,
+                 failure_code, failure_message, started_at, completed_at,
+                 created_at, delivery_cursor
+          FROM update_rollouts
+          WHERE delivery_cursor > $1
+            AND transport_type = 'direct-http'
+            AND target_type = 'worker'
+            AND target_key = $2
+            AND status IN ('QUEUED', 'RUNNING', 'CANARY')
+            AND expires_at > NOW()
+          ORDER BY delivery_cursor
+          LIMIT 32
+        `,
+        [afterId, workerId],
+      ),
+    ]);
+
+    const commandRows = commands.rows;
+    const stopRows = stopControls.rows;
+    const updateRows = updates.rows;
+    const maxId = [...commandRows, ...stopRows, ...updateRows]
+      .map((row) => BigInt(row.delivery_cursor))
+      .reduce((maximum, value) => (value > maximum ? value : maximum), BigInt(afterId));
+
+    if (commandRows.length > 0) {
+      await this.pool.query(
+        `
+          UPDATE gateway_commands
+          SET status = CASE WHEN status = 'QUEUED' THEN 'DELIVERED' ELSE status END,
+              delivered_at = COALESCE(delivered_at, NOW())
+          WHERE id = ANY($1::bigint[])
+        `,
+        [commandRows.map((row) => row.id)],
+      );
+    }
+    if (stopRows.length > 0) {
+      await this.pool.query(
+        `UPDATE gateway_stop_controls SET delivered_at = COALESCE(delivered_at, NOW()) WHERE id = ANY($1::bigint[])`,
+        [stopRows.map((row) => row.id)],
+      );
+    }
+
+    return {
+      commands: commandRows.map((row) => parseJson<Command>(row.payload_json)),
+      stopControls: stopRows.map((row) => parseJson<StopControl>(row.payload_json)),
+      updates: updateRows.map((row) => this.toDirectUpdateControl(row)),
+      nextCursor: maxId === BigInt(afterId) ? null : maxId.toString(),
+    };
+  }
+
+  public async ingestDirectWorkerEvents(batch: DirectWorkerEventBatch): Promise<string[]> {
+    const client = await this.pool.connect();
+    const acceptedEventIds: string[] = [];
+    try {
+      await client.query("BEGIN");
+      const worker = await client.query<WorkerRow>(
+        `SELECT id, worker_key, gateway_id, computer_id, transport_type, boot_id
+         FROM workers WHERE worker_key = $1 AND transport_type = 'direct-http'`,
+        [batch.workerId],
+      );
+      const workerRow = worker.rows[0];
+      if (!workerRow) {
+        throw new RepositoryError("UNKNOWN_WORKER", "direct worker has not registered", 404);
+      }
+      if (workerRow.boot_id !== batch.workerBootId) {
+        throw new RepositoryError("STALE_WORKER_BOOT", "worker boot id is stale", 409);
+      }
+
+      for (const event of batch.events) {
+        const inserted = await client.query<IdRow>(
+          `
+            INSERT INTO gateway_events (
+              event_id, gateway_key, boot_id, worker_key, command_id,
+              sequence, event_type, occurred_at, payload_json, transport_type
+            )
+            VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, $8, 'direct-http')
+            ON CONFLICT (event_id) DO NOTHING
+            RETURNING event_id AS id
+          `,
+          [
+            event.eventId,
+            batch.workerBootId,
+            batch.workerId,
+            event.commandId ?? null,
+            event.sequence,
+            event.type,
+            new Date(event.occurredAt),
+            asJson(event.payload),
+          ],
+        );
+        acceptedEventIds.push(event.eventId);
+        if (inserted.rowCount !== null && inserted.rowCount > 0) {
+          await this.applyEvent(client, null, event);
+        }
+      }
+      await client.query("UPDATE workers SET online = TRUE, last_seen_at = NOW() WHERE id = $1", [
+        workerRow.id,
+      ]);
+      await client.query("COMMIT");
+      return acceptedEventIds;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   public async enqueueUpdate(request: UpdateRequest): Promise<UpdateRolloutRecord> {
     const separator = request.target.indexOf(":");
     const targetType = request.target.slice(0, separator) as "gateway" | "worker" | "fleet";
@@ -338,7 +715,7 @@ export class GatewayRuntimeRepository {
     try {
       await client.query("BEGIN");
       const existing = await client.query<UpdateRow>(
-        `SELECT update_id, target, target_type, target_key, gateway_key,
+        `SELECT update_id, target, target_type, target_key, gateway_key, transport_type,
                 release_version, manifest_url, issued_at, expires_at, status,
                 failure_code, failure_message, started_at, completed_at,
                 created_at, delivery_cursor
@@ -362,33 +739,45 @@ export class GatewayRuntimeRepository {
         return this.toUpdateRecord(row);
       }
 
-      const gatewayResult = await client.query<{ gateway_key: string }>(
+      const deliveryTarget = await client.query<{
+        gateway_key: string | null;
+        transport_type: WorkerTransport;
+      }>(
         targetType === "worker"
           ? `
-              SELECT g.gateway_key
-              FROM workers w JOIN gateways g ON g.id = w.gateway_id
+              SELECT g.gateway_key, w.transport_type
+              FROM workers w LEFT JOIN gateways g ON g.id = w.gateway_id
               WHERE w.worker_key = $1
             `
-          : `SELECT gateway_key FROM gateways WHERE gateway_key = $1`,
+          : `SELECT gateway_key, 'gateway-rednet'::text AS transport_type FROM gateways WHERE gateway_key = $1`,
         [targetKey],
       );
-      const gatewayKey = gatewayResult.rows[0]?.gateway_key;
-      if (!gatewayKey) {
+      const delivery = deliveryTarget.rows[0];
+      if (!delivery || (targetType !== "worker" && !delivery.gateway_key)) {
         throw new RepositoryError(
           targetType === "worker" ? "UNKNOWN_WORKER" : "UNKNOWN_GATEWAY",
           `${targetType} target was not found`,
           404,
         );
       }
+      const gatewayKey = delivery.gateway_key;
+      const transport = delivery.transport_type;
+      if (targetType !== "worker" && transport !== "gateway-rednet") {
+        throw new RepositoryError(
+          "INVALID_TARGET",
+          "only gateway targets can use fleet rollouts",
+          400,
+        );
+      }
 
       const inserted = await client.query<UpdateRow>(
         `
           INSERT INTO update_rollouts (
-            update_id, target, target_type, target_key, gateway_key,
+            update_id, target, target_type, target_key, gateway_key, transport_type,
             release_version, manifest_url, issued_at, expires_at
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-          RETURNING update_id, target, target_type, target_key, gateway_key,
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          RETURNING update_id, target, target_type, target_key, gateway_key, transport_type,
                     release_version, manifest_url, issued_at, expires_at, status,
                     failure_code, failure_message, started_at, completed_at,
                     created_at, delivery_cursor
@@ -399,6 +788,7 @@ export class GatewayRuntimeRepository {
           targetType,
           targetKey,
           gatewayKey,
+          transport,
           request.releaseVersion,
           request.manifestUrl,
           new Date(request.issuedAt),
@@ -433,7 +823,7 @@ export class GatewayRuntimeRepository {
   public async listUpdates(): Promise<readonly UpdateRolloutRecord[]> {
     const result = await this.pool.query<UpdateRow>(
       `
-        SELECT update_id, target, target_type, target_key, gateway_key,
+        SELECT update_id, target, target_type, target_key, gateway_key, transport_type,
                release_version, manifest_url, issued_at, expires_at, status,
                failure_code, failure_message, started_at, completed_at,
                created_at, delivery_cursor
@@ -447,7 +837,7 @@ export class GatewayRuntimeRepository {
   public async getUpdate(updateId: string): Promise<UpdateRolloutRecord | undefined> {
     const result = await this.pool.query<UpdateRow>(
       `
-        SELECT update_id, target, target_type, target_key, gateway_key,
+        SELECT update_id, target, target_type, target_key, gateway_key, transport_type,
                release_version, manifest_url, issued_at, expires_at, status,
                failure_code, failure_message, started_at, completed_at,
                created_at, delivery_cursor
@@ -528,6 +918,7 @@ export class GatewayRuntimeRepository {
       status: row.status,
       gatewayId: row.gateway_key,
       workerIds: row.target_type === "worker" ? [row.target_key] : [],
+      transport: row.transport_type,
       failureCode: row.failure_code,
       failureMessage: row.failure_message,
       startedAt: row.started_at,
@@ -537,14 +928,38 @@ export class GatewayRuntimeRepository {
   }
 
   private toUpdateControl(row: UpdateRow): UpdateControl {
-    return this.toUpdateRecord(row);
+    return {
+      ...this.toUpdateRecord(row),
+      gatewayId: row.gateway_key!,
+      transport: "gateway-rednet",
+    };
+  }
+
+  private toDirectUpdateControl(row: UpdateRow): DirectUpdateControl {
+    return {
+      protocolVersion: 1,
+      updateId: row.update_id,
+      target: row.target,
+      releaseVersion: row.release_version as DirectUpdateControl["releaseVersion"],
+      manifestUrl: row.manifest_url,
+      issuedAt: new Date(row.issued_at).toISOString(),
+      expiresAt: new Date(row.expires_at).toISOString(),
+      status: row.status,
+      workerId: row.target_key,
+      transport: "direct-http",
+    };
   }
 
   public async enqueueCommand(command: Command): Promise<void> {
     await this.pool.query(
       `
-        INSERT INTO gateway_commands (command_id, worker_key, payload_json, issued_at, expires_at)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO gateway_commands (
+          command_id, worker_key, payload_json, issued_at, expires_at, transport_type
+        )
+        VALUES (
+          $1, $2, $3, $4, $5,
+          COALESCE((SELECT transport_type FROM workers WHERE worker_key = $2), 'gateway-rednet')
+        )
         ON CONFLICT (command_id) DO NOTHING
       `,
       [
@@ -560,8 +975,16 @@ export class GatewayRuntimeRepository {
   public async enqueueStopControl(control: StopControl): Promise<void> {
     await this.pool.query(
       `
-        INSERT INTO gateway_stop_controls (control_id, worker_key, payload_json)
-        VALUES ($1, $2, $3)
+        INSERT INTO gateway_stop_controls (control_id, worker_key, payload_json, transport_type)
+        VALUES (
+          $1,
+          $2,
+          $3,
+          CASE
+            WHEN $2 IS NULL THEN NULL
+            ELSE (SELECT transport_type FROM workers WHERE worker_key = $2)
+          END
+        )
         ON CONFLICT (control_id) DO NOTHING
       `,
       [
@@ -593,9 +1016,12 @@ export class GatewayRuntimeRepository {
     const result = await this.pool.query(
       `
         SELECT worker_key AS "workerId", computer_id AS "computerId", online,
+               transport_type AS "transport", minecraft_server_id AS "minecraftServerId",
+               g.gateway_key AS "gatewayId",
                boot_id AS "bootId", runtime_version AS "runtimeVersion",
                last_seen_at AS "lastSeenAt", capabilities_json AS capabilities
-        FROM workers
+        FROM workers w
+        LEFT JOIN gateways g ON g.id = w.gateway_id
         ORDER BY worker_key
       `,
     );
@@ -606,6 +1032,8 @@ export class GatewayRuntimeRepository {
     const result = await this.pool.query(
       `
         SELECT w.worker_key AS "workerId", w.computer_id AS "computerId", w.online,
+               w.transport_type AS "transport", w.minecraft_server_id AS "minecraftServerId",
+               g.gateway_key AS "gatewayId",
                w.boot_id AS "bootId", w.runtime_version AS "runtimeVersion",
                w.last_seen_at AS "lastSeenAt", w.capabilities_json AS capabilities,
                observation.observed_at AS "observedAt",
@@ -615,6 +1043,7 @@ export class GatewayRuntimeRepository {
                observation.current_command_id AS "currentCommandId",
                observation.status AS "observedStatus"
         FROM workers w
+        LEFT JOIN gateways g ON g.id = w.gateway_id
         LEFT JOIN LATERAL (
           SELECT observed_at, dimension, x, y, z, facing, position_confidence,
                  fuel_level, current_command_id, status
@@ -802,14 +1231,24 @@ export class GatewayRuntimeRepository {
     return row;
   }
 
-  private async applyEvent(client: PoolClient, gatewayId: string, event: Event): Promise<void> {
+  private async applyEvent(
+    client: PoolClient,
+    gatewayId: string | null,
+    event: Event,
+  ): Promise<void> {
     if (event.workerId) {
       const worker = await client.query<WorkerRow>(
-        `SELECT id, worker_key, gateway_id, computer_id FROM workers WHERE worker_key = $1`,
+        `SELECT id, worker_key, gateway_id, computer_id, transport_type, minecraft_server_id, boot_id
+         FROM workers WHERE worker_key = $1`,
         [event.workerId],
       );
       const workerRow = worker.rows[0];
-      if (!workerRow || workerRow.gateway_id !== gatewayId) {
+      const identityMatches =
+        workerRow &&
+        (gatewayId === null
+          ? workerRow.transport_type === "direct-http" && workerRow.gateway_id === null
+          : workerRow.transport_type === "gateway-rednet" && workerRow.gateway_id === gatewayId);
+      if (!identityMatches) {
         throw new RepositoryError(
           "UNKNOWN_WORKER",
           `worker ${event.workerId} is not registered`,
@@ -867,7 +1306,8 @@ export class GatewayRuntimeRepository {
         return;
       }
       const worker = await client.query<WorkerRow>(
-        `SELECT id, worker_key, gateway_id, computer_id FROM workers WHERE worker_key = $1`,
+        `SELECT id, worker_key, gateway_id, computer_id, transport_type, minecraft_server_id, boot_id
+         FROM workers WHERE worker_key = $1`,
         [workerId],
       );
       const workerRow = worker.rows[0];
@@ -890,7 +1330,7 @@ export class GatewayRuntimeRepository {
           payload.position?.y ?? null,
           payload.position?.z ?? null,
           payload.position?.facing ?? null,
-          payload.position?.confidence ?? null,
+          storedPositionConfidence(payload.position?.confidence),
           payload.fuel?.level ?? null,
           payload.currentCommandId,
           payload.state === "IDLE" ? "ONLINE" : "ONLINE",

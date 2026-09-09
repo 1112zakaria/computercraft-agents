@@ -21,7 +21,7 @@ this deployment guide. It does not contain populated configuration or secrets.
    to turtles without a modem.
 4. Reboot or run `startup`.
 
-## Turtle
+## Gateway-backed turtle
 
 1. Copy the contents of `computercraft/turtle/` to the turtle filesystem.
 2. Copy `worker.conf.example` to `worker.conf` and set a stable worker ID, the gateway computer
@@ -29,6 +29,35 @@ this deployment guide. It does not contain populated configuration or secrets.
 3. Ensure the turtle has a compatible modem upgrade installed and fuel for any later movement
    canary.
 4. Reboot or run `startup`.
+
+## Direct HTTP turtle
+
+The direct path is intended for a turtle that cannot use a wireless modem. It talks to the VPS
+over ComputerCraft's outbound HTTPS API, so no gateway computer or modem is required.
+
+1. Provision the worker from the protected VPS CLI:
+
+   ```bash
+   npm run cli -- provision-worker --id alice --server friends-server --computer-id 21 --version v0.4.0
+   ```
+
+2. Copy the contents of `computercraft/turtle/` to the turtle filesystem.
+3. Copy `worker.conf.example` to `worker.conf` and set:
+
+   ```lua
+   transport = "direct-http",
+   worker_id = "alice",
+   minecraft_server_id = "friends-server",
+   vps_url = "https://192.99.69.46.sslip.io:8443",
+   vps_bearer_secret = "set-locally",
+   runtime_version = "v0.4.0",
+   ```
+
+4. Ensure the ComputerCraft HTTP allowlist permits the VPS hostname over HTTPS.
+5. Reboot or run `startup`.
+
+Do not set `modem_side`, `gateway_rednet_id`, or `rednet_protocol` for this transport. Verify the
+worker with `npm run cli -- workers alice` after its registration and heartbeat arrive.
 
 Use only the smallest read-only/registration canary first. Do not issue movement, mining, or
 placement commands until the worker appears online in `computercraft-agents workers`.
@@ -58,7 +87,16 @@ files over Rednet. `gateway.conf`, `worker.conf`, state, command caches, logs, a
 are preserved. The turtle must be idle; activation uses a rollback journal and the stable
 bootstrap. Inspect progress with `npm run cli -- update-status <update-id>`.
 
-The gateway computer must have ComputerCraft HTTP enabled and allow the configured public VPS
-hostname over HTTPS. No WireGuard client or inbound Minecraft-host port is required: the gateway
+For a direct turtle, use the same operator command with an individual worker target. The turtle
+downloads the immutable manifest and allowlisted files directly from GitHub on its next poll,
+stages them, preserves its local files, and reports activation or rollback over
+`/v1/worker/events`:
+
+```text
+npm run cli -- update --target worker:alice --version v0.4.0
+```
+
+The ComputerCraft HTTP API must be enabled and allow the configured public VPS hostname over HTTPS.
+No WireGuard client or inbound Minecraft-host port is required: the gateway or direct turtle
 initiates every HTTPS request. Before enabling the VPS allowlist, verify the Minecraft host's
 outbound public address is `51.161.113.44`.

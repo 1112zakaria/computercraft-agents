@@ -46,6 +46,7 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
       const url = new URL(request.url ?? "/", "http://control-plane.local");
       const method = requestMethod(request);
       const workerPathMatch = url.pathname.match(/^\/v1\/workers(?:\/([^/]+))?$/);
+      const workerProvisionPath = url.pathname === "/v1/workers/provision";
       const updatePathMatch = url.pathname.match(/^\/v1\/updates(?:\/([^/]+))?$/);
 
       if (method === "GET" && url.pathname === "/healthz") {
@@ -55,13 +56,14 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
 
       if (
         workerPathMatch ||
+        workerProvisionPath ||
         updatePathMatch ||
         url.pathname === "/v1/diagnostics" ||
         url.pathname === "/v1/commands" ||
         url.pathname === "/v1/stop-controls"
       ) {
         options.service.authenticateAdmin(request.headers);
-        if (method === "GET" && workerPathMatch) {
+        if (method === "GET" && workerPathMatch && !workerProvisionPath) {
           const encodedWorkerId = workerPathMatch[1];
           if (encodedWorkerId) {
             let workerId: string;
@@ -74,6 +76,13 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
           } else {
             sendJson(response, 200, { workers: await options.service.listWorkers() });
           }
+          return;
+        }
+        if (method === "POST" && workerProvisionPath) {
+          const provisionBody = options.service.parseBody(
+            await readBody(request, options.maxBodyBytes),
+          );
+          sendJson(response, 200, await options.service.provisionDirectWorker(provisionBody));
           return;
         }
         if (method === "GET" && url.pathname === "/v1/diagnostics") {
@@ -114,6 +123,48 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
       }
 
       if (!url.pathname.startsWith("/v1/gateway/")) {
+        if (!url.pathname.startsWith("/v1/worker/")) {
+          sendJson(response, 404, { error: "not found" });
+          return;
+        }
+
+        const workerContext = options.service.authenticateWorker(request.headers);
+        if (method === "GET" && url.pathname === "/v1/worker/commands") {
+          sendJson(
+            response,
+            200,
+            await options.service.pollDirectWorker(workerContext, url.searchParams.get("after")),
+          );
+          return;
+        }
+        if (method !== "POST") {
+          throw new HttpError(405, "INVALID_PAYLOAD", "method is not supported");
+        }
+        const workerBody = options.service.parseBody(await readBody(request, options.maxBodyBytes));
+        if (url.pathname === "/v1/worker/register") {
+          sendJson(
+            response,
+            200,
+            await options.service.registerDirectWorker(workerContext, workerBody),
+          );
+          return;
+        }
+        if (url.pathname === "/v1/worker/heartbeat") {
+          sendJson(
+            response,
+            200,
+            await options.service.heartbeatDirectWorker(workerContext, workerBody),
+          );
+          return;
+        }
+        if (url.pathname === "/v1/worker/events") {
+          sendJson(
+            response,
+            200,
+            await options.service.directWorkerEvents(workerContext, workerBody),
+          );
+          return;
+        }
         sendJson(response, 404, { error: "not found" });
         return;
       }

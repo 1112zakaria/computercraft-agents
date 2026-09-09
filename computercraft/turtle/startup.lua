@@ -1,15 +1,19 @@
 -- ComputerCraft 1.75 does not provide Lua's package/require loader.
 -- Define the small loader needed by this runtime before loading modules.
 if type(require) ~= "function" then
+  local modules = {}
   function require(name)
+    if modules[name] ~= nil then return modules[name] end
     local chunk, load_error = loadfile(name .. ".lua")
     if not chunk then
       error(load_error, 0)
     end
-    return chunk()
+    modules[name] = chunk()
+    return modules[name]
   end
 end
 
+require("compat").install()
 local config_loader = require("config")
 local bootstrap = require("update_bootstrap")
 local logging = require("logging")
@@ -35,7 +39,12 @@ local observation_module = require("observation")
 local inventory_module = require("inventory")
 local fuel_module = require("fuel")
 local cache_module = require("idempotency")
-local client_module = require("rednet_client")
+local client_module
+if config.transport == "direct-http" then
+  client_module = require("direct_http_client")
+else
+  client_module = require("rednet_client")
+end
 local executor_module = require("executor")
 local state = state_module.new(config.state_path, id)
 local cancellation
@@ -90,8 +99,10 @@ end
 while true do
   client:maybe_heartbeat()
   local sender_id, message = client:receive(config.receive_timeout_seconds)
-  if sender_id == config.gateway_rednet_id and message then
-    if string.find(message.type or "", "^worker%.update%.") then
+  if sender_id and message and client:is_sender(sender_id) then
+    if config.transport == "direct-http" and message.transport == "direct-http" then
+      update_manager:process_direct(message)
+    elseif string.find(message.type or "", "^worker%.update%.") then
       update_manager:handle(message)
     elseif message.type == "worker.command" then
       if message.gatewayBootId == client.gateway_boot_id then

@@ -1,4 +1,6 @@
 local M = {}
+local counter = 0
+math.randomseed(math.floor(os.time() * 1000 + os.clock() * 1000 + os.getComputerID()))
 
 local function random_token(length)
   local alphabet = "abcdefghijklmnopqrstuvwxyz0123456789"
@@ -11,8 +13,8 @@ local function random_token(length)
 end
 
 function M.new(prefix)
-  math.randomseed(os.time() + os.getComputerID())
-  return tostring(prefix) .. "-" .. tostring(os.time()) .. "-" .. random_token(8)
+  counter = counter + 1
+  return tostring(prefix) .. "-" .. tostring(os.time()) .. "-" .. random_token(8) .. "-" .. counter
 end
 
 return M

@@ -1,12 +1,19 @@
 -- Stable recovery layer. Keep this file and startup.lua outside the managed runtime set.
 local M = {}
+local compat = assert(loadfile("compat.lua"))()
 
 local function write_json(path, value)
   local handle = fs.open(path .. ".tmp", "w")
   if not handle then
     return false, "cannot write update journal"
   end
-  handle.write(textutils.serializeJSON(value))
+  local encoded, encode_error = compat.encode_json(value)
+  if not encoded then
+    handle.close()
+    if fs.exists(path .. ".tmp") then fs.delete(path .. ".tmp") end
+    return false, encode_error
+  end
+  handle.write(encoded)
   handle.close()
   if fs.exists(path) then
     fs.delete(path)
