@@ -2436,11 +2436,11 @@ export class GatewayRuntimeRepository {
   public async listWorkers(): Promise<readonly Record<string, unknown>[]> {
     const result = await this.pool.query(
       `
-        SELECT worker_key AS "workerId", computer_id AS "computerId", online,
-               transport_type AS "transport", minecraft_server_id AS "minecraftServerId",
+        SELECT w.worker_key AS "workerId", w.computer_id AS "computerId", w.online,
+               w.transport_type AS "transport", w.minecraft_server_id AS "minecraftServerId",
                g.gateway_key AS "gatewayId",
-               boot_id AS "bootId", runtime_version AS "runtimeVersion",
-               last_seen_at AS "lastSeenAt", capabilities_json AS capabilities,
+               w.boot_id AS "bootId", w.runtime_version AS "runtimeVersion",
+               w.last_seen_at AS "lastSeenAt", w.capabilities_json AS capabilities,
                active_task.task_id AS "currentTaskId"
         FROM workers w
         LEFT JOIN gateways g ON g.id = w.gateway_id

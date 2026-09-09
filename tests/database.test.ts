@@ -117,6 +117,8 @@ test("database migration set is ordered and contains the core relational model",
   assert.match(repositorySql, /requeueStalePlannerTriggers/);
   assert.match(repositorySql, /releasePlannerTrigger/);
   assert.match(repositorySql, /active_task\.task_id AS "currentTaskId"/);
+  assert.match(repositorySql, /w\.minecraft_server_id AS "minecraftServerId"/);
+  assert.match(repositorySql, /w\.runtime_version AS "runtimeVersion"/);
   assert.match(repositorySql, /t\.status IN \('RUNNING', 'PAUSED'\)/);
   assert.match(repositorySql, /getPlannerRuntimeState/);
   assert.match(repositorySql, /savePlannerRuntimeState/);
