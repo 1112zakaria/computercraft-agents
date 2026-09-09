@@ -111,9 +111,10 @@ POST /v1/tasks/:taskId/transition
 
 The claim request contains `workerId`. The database rejects claims for offline workers, unmet
 dependencies, already-claimed tasks, and workers with another active task.
-The transition request contains `{ "protocolVersion": 1, "status": "..." }` and is checked
-against the persisted task transition graph. It is an explicit operator control path; it does
-not itself dispatch a command or mark a physical action successful.
+The transition request contains `{ "protocolVersion": 1, "status": "...", "reason": "..." }`
+and is checked against the persisted task transition graph. When supplied, the reason is stored
+in the task's error/context field for auditability. It is an explicit operator control path; it
+does not itself dispatch a command or mark a physical action successful.
 
 After a successful `observation.block` command, the turtle emits a `block.observed` event. The
 control plane derives the inspected cell from the worker position/facing and persists it in the

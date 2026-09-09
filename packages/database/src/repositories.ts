@@ -268,8 +268,8 @@ export class GatewayRuntimeRepository {
     return new TaskRepository(this.pool).claimReadyTask(taskId, workerKey);
   }
 
-  public async transitionTask(taskId: string, nextState: string): Promise<void> {
-    return new TaskRepository(this.pool).transitionTask(taskId, nextState);
+  public async transitionTask(taskId: string, nextState: string, reason?: string): Promise<void> {
+    return new TaskRepository(this.pool).transitionTask(taskId, nextState, reason);
   }
 
   public async upsertNamedLocation(input: NamedLocationInput): Promise<Record<string, unknown>> {
@@ -1815,7 +1815,7 @@ export class TaskRepository {
     }
   }
 
-  public async transitionTask(taskId: string, nextState: string): Promise<void> {
+  public async transitionTask(taskId: string, nextState: string, reason?: string): Promise<void> {
     const result = await this.pool.query<{ status: string }>(
       `SELECT status FROM tasks WHERE id = $1`,
       [taskId],
@@ -1835,10 +1835,11 @@ export class TaskRepository {
       `
         UPDATE tasks
         SET status = $2,
-            assigned_worker_id = CASE WHEN $2 IN ('DONE', 'FAILED', 'CANCELLED') THEN NULL ELSE assigned_worker_id END
+            assigned_worker_id = CASE WHEN $2 IN ('DONE', 'FAILED', 'CANCELLED') THEN NULL ELSE assigned_worker_id END,
+            last_error_json = CASE WHEN $3::text IS NULL THEN last_error_json ELSE $3::jsonb END
         WHERE id = $1
       `,
-      [taskId, nextState],
+      [taskId, nextState, reason ? asJson({ reason }) : null],
     );
   }
 

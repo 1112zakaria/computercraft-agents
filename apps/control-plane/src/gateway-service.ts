@@ -91,7 +91,7 @@ export interface GatewayServiceStore {
   listGoals(): Promise<readonly Record<string, unknown>[]>;
   listTasks(): Promise<readonly Record<string, unknown>[]>;
   claimTask(taskId: string, workerKey: string): Promise<Record<string, unknown>>;
-  transitionTask(taskId: string, nextState: string): Promise<void>;
+  transitionTask(taskId: string, nextState: string, reason?: string): Promise<void>;
   upsertNamedLocation(input: {
     readonly name: string;
     readonly dimension: number;
@@ -403,8 +403,8 @@ export class GatewayService {
       throw new HttpError(400, "INVALID_PAYLOAD", "task id is invalid");
     }
     const request = this.parsePayload(TaskTransitionRequestSchema, input);
-    await this.store.transitionTask(taskId, request.status);
-    return { accepted: true, taskId, status: request.status };
+    await this.store.transitionTask(taskId, request.status, request.reason);
+    return { accepted: true, taskId, status: request.status, reason: request.reason ?? null };
   }
 
   public async createNamedLocation(input: unknown): Promise<Record<string, unknown>> {

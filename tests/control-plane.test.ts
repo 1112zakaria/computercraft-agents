@@ -205,11 +205,11 @@ class FakeGatewayStore implements GatewayServiceStore {
     return { taskId, workerKey, status: "RUNNING" };
   }
 
-  public async transitionTask(taskId: string, nextState: string): Promise<void> {
-    this.transitionedTask = { taskId, nextState };
+  public async transitionTask(taskId: string, nextState: string, reason?: string): Promise<void> {
+    this.transitionedTask = { taskId, nextState, reason };
   }
 
-  public transitionedTask: { taskId: string; nextState: string } | undefined;
+  public transitionedTask: { taskId: string; nextState: string; reason?: string } | undefined;
 
   public async upsertNamedLocation(input: {
     readonly name: string;
@@ -352,15 +352,24 @@ test("operator task API validates and applies explicit task transitions", async 
     const response = await fetch(`${server.baseUrl}/v1/tasks/task-test/transition`, {
       method: "POST",
       headers: adminHeaders(),
-      body: JSON.stringify({ protocolVersion: 1, status: "BLOCKED" }),
+      body: JSON.stringify({
+        protocolVersion: 1,
+        status: "BLOCKED",
+        reason: "awaiting destination anchor",
+      }),
     });
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), {
       accepted: true,
       taskId: "task-test",
       status: "BLOCKED",
+      reason: "awaiting destination anchor",
     });
-    assert.deepEqual(store.transitionedTask, { taskId: "task-test", nextState: "BLOCKED" });
+    assert.deepEqual(store.transitionedTask, {
+      taskId: "task-test",
+      nextState: "BLOCKED",
+      reason: "awaiting destination anchor",
+    });
   } finally {
     await server.close();
   }
