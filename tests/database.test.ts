@@ -518,7 +518,20 @@ test("operator pause and cancel preserve a transport-aware stop boundary", () =>
   assert.match(repositories, /status IN \('QUEUED', 'DELIVERED', 'RUNNING'\)/);
   assert.match(repositories, /WHEN \$2 IN \('DONE', 'FAILED', 'CANCELLED', 'PAUSED'\)/);
   assert.match(repositories, /INSERT INTO gateway_stop_controls/);
-  assert.match(repositories, /current\.transport_type/);
+  assert.match(repositories, /activeExecution\.transport_type/);
+});
+
+test("operator pause and cancel propagate to the active workflow child", () => {
+  const repositories = readFileSync(
+    join(__dirname, "../packages/database/src/repositories.ts"),
+    "utf8",
+  );
+  assert.match(repositories, /t\.parent_task_id = \$1/);
+  assert.match(repositories, /propagatesToWorkflowChildren/);
+  assert.match(repositories, /SELECT id FROM tasks WHERE id = \$1 OR parent_task_id = \$1/);
+  assert.match(repositories, /WHERE parent_task_id = \$1[\s\S]*status IN \('READY', 'RUNNING'\)/);
+  assert.match(repositories, /activeExecution\.worker_key/);
+  assert.match(repositories, /activeExecution\.transport_type/);
 });
 
 test("audit retention cleanup preserves immutable history", () => {

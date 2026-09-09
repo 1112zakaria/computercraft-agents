@@ -4412,19 +4412,55 @@ export class TaskRepository {
         );
       }
 
-      const requiresStop =
-        current.status === "RUNNING" &&
-        (nextState === "PAUSED" || nextState === "CANCELLED") &&
-        current.worker_key !== null;
-      if (requiresStop) {
+      // Workflow parents do not own the worker claim; their active child step does. Resolve the
+      // execution task before deciding whether a stop control is required so pausing/cancelling a
+      // goal cannot leave its turtle running underneath a paused parent.
+      const activeExecutionResult = await client.query<{
+        task_id: string;
+        worker_key: string | null;
+        transport_type: WorkerTransport | null;
+      }>(
+        `
+          SELECT t.id::text AS task_id, w.worker_key, w.transport_type
+          FROM tasks t
+          LEFT JOIN workers w ON w.id = t.assigned_worker_id
+          WHERE (t.id = $1 OR t.parent_task_id = $1)
+            AND t.status = 'RUNNING'
+          ORDER BY CASE WHEN t.id = $1 THEN 0 ELSE 1 END, t.id DESC
+          LIMIT 1
+          FOR UPDATE OF t
+        `,
+        [taskId],
+      );
+      const activeExecution = activeExecutionResult.rows[0];
+      const propagatesToWorkflowChildren =
+        current.status === "RUNNING" && (nextState === "PAUSED" || nextState === "CANCELLED");
+      const requiresStop = propagatesToWorkflowChildren && activeExecution?.worker_key != null;
+      if (propagatesToWorkflowChildren) {
         await client.query(
           `
             UPDATE gateway_commands
             SET status = 'CANCELLED', completed_at = NOW()
-            WHERE task_id = $1
+            WHERE task_id IN (
+              SELECT id FROM tasks WHERE id = $1 OR parent_task_id = $1
+            )
               AND status IN ('QUEUED', 'DELIVERED', 'RUNNING')
           `,
           [taskId],
+        );
+        await client.query(
+          `
+            UPDATE tasks
+            SET status = $2, assigned_worker_id = NULL,
+                last_error_json = $3
+            WHERE parent_task_id = $1
+              AND status IN ('READY', 'RUNNING')
+          `,
+          [
+            taskId,
+            nextState === "CANCELLED" ? "CANCELLED" : "PAUSED",
+            asJson({ reason: reason ?? `parent task ${nextState.toLowerCase()}` }),
+          ],
         );
       }
 
@@ -4484,7 +4520,7 @@ export class TaskRepository {
           controlId,
           issuedAt: new Date().toISOString(),
           type: "worker.stop",
-          workerId: current.worker_key!,
+          workerId: activeExecution.worker_key!,
           reason: reason ?? `task ${nextState.toLowerCase()} by operator`,
         } satisfies StopControl;
         await client.query(
@@ -4492,7 +4528,7 @@ export class TaskRepository {
             INSERT INTO gateway_stop_controls (control_id, worker_key, payload_json, transport_type)
             VALUES ($1, $2, $3, $4)
           `,
-          [controlId, current.worker_key, asJson(control), current.transport_type],
+          [controlId, activeExecution.worker_key, asJson(control), activeExecution.transport_type],
         );
       }
 

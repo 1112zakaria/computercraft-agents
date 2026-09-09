@@ -404,6 +404,8 @@ host's public egress address.
 Use `pause-task`, `resume-task`, and `cancel-task` for explicit lifecycle control. Pausing or
 cancelling a running task cancels its active command delivery, releases the worker claim, and
 queues a transport-aware stop control before the task can be resumed or permanently cancelled.
+For a multi-step workflow, the parent goal may not own the worker claim; the control plane also
+propagates the pause/cancel to its active child step so the actual turtle execution stream stops.
 
 ## 10. Releases
 
