@@ -43,7 +43,7 @@ over ComputerCraft's outbound HTTPS API, so no gateway computer or modem is requ
 1. Provision the worker from the protected VPS CLI:
 
    ```bash
-   npm run cli -- provision-worker --id alice --server friends-server --computer-id 21 --version v0.4.0
+   npm run cli -- provision-worker --id alice --server friends-server --computer-id 21 --version v0.4.1
    ```
 
 2. Copy the contents of `computercraft/turtle/` to the turtle filesystem.
@@ -55,7 +55,7 @@ over ComputerCraft's outbound HTTPS API, so no gateway computer or modem is requ
    minecraft_server_id = "friends-server",
    vps_url = "https://192.99.69.46.sslip.io:8443",
    vps_bearer_secret = "set-locally",
-   runtime_version = "v0.4.0",
+   runtime_version = "v0.4.1",
    ```
 
    Optionally configure named transfer sides, for example:
@@ -125,7 +125,7 @@ stages them, preserves its local files, and reports activation or rollback over
 `/v1/worker/events`:
 
 ```text
-npm run cli -- update --target worker:alice --version v0.4.0
+npm run cli -- update --target worker:alice --version v0.4.1
 ```
 
 The ComputerCraft HTTP API must be enabled and allow the configured public VPS hostname over HTTPS.

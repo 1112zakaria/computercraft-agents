@@ -8,7 +8,7 @@ return {
   gateway_rednet_id = 42,
   modem_side = "back",
   rednet_protocol = "computercraft-agents-v1",
-  runtime_version = "0.1.0",
+  runtime_version = "v0.4.1",
   runtime_version_path = "worker-runtime-version.txt",
   state_path = "worker-state.json",
   idempotency_path = "worker-command-cache.json",

@@ -67,7 +67,7 @@ operator CLI, then configure `worker.conf` with `transport = "direct-http"`, the
 identity, Minecraft server ID, and the existing bearer secret:
 
 ```text
-npm run cli -- provision-worker --id alice --server friends-server --computer-id 21 --version v0.4.0
+  npm run cli -- provision-worker --id alice --server friends-server --computer-id 21 --version v0.4.1
 npm run cli -- workers alice
 npm run cli -- agents
 npm run cli -- agent alice
@@ -75,7 +75,7 @@ npm run cli -- projects
 npm run cli -- feature-gates
 npm run cli -- audit 50
 npm run cli -- diagnose
-npm run cli -- update --target worker:alice --version v0.4.0
+npm run cli -- update --target worker:alice --version v0.4.1
 npm run cli -- excavate alice 1 1 8
 npm run cli -- path alice N N E
 npm run cli -- path-to alice "Test Chest"

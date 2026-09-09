@@ -81,7 +81,7 @@ activated can be rolled back by its bootstrap recovery path.
 Direct workers are updated individually:
 
 ```bash
-npm run cli -- update --target worker:alice --version v0.4.0
+npm run cli -- update --target worker:alice --version v0.4.1
 ```
 
 The control plane resolves `alice` as `transport: direct-http` and includes a direct update

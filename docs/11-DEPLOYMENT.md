@@ -155,7 +155,7 @@ npm run cli -- provision-worker \
   --id alice \
   --server friends-server \
   --computer-id 21 \
-  --version v0.4.0
+  --version v0.4.1
 ```
 
 Copy the turtle runtime and stable bootstrap files from the release archive. Create `worker.conf`
@@ -168,7 +168,7 @@ return {
   transport = "direct-http",
   vps_url = "https://192.99.69.46.sslip.io:8443",
   vps_bearer_secret = "set-locally",
-  runtime_version = "v0.4.0",
+  runtime_version = "v0.4.1",
   poll_interval_seconds = 2,
   heartbeat_interval_seconds = 10,
 }
