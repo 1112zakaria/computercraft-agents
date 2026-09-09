@@ -385,6 +385,10 @@ peripheral.observed
 protocol.error
 ```
 
+The canonical `protocol.error` payload contains `code`, `message`, `retryable`, and optional
+`details` fields directly. The control plane also accepts the legacy `{ "error": { ... } }` shape
+for events buffered by pre-fix turtle runtimes; new runtimes MUST emit the canonical shape.
+
 `inventory.changed` events contain a bounded post-transfer inventory snapshot. The control plane
 stores it on the latest worker observation, preserving the previously observed position when one
 exists. A gather deposit workflow also requires this event alongside the reported moved quantity

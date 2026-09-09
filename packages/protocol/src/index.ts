@@ -924,6 +924,15 @@ const ProtocolErrorPayloadSchema = z
   })
   .strict();
 
+// Older turtle runtimes wrapped protocol errors in an `error` property. Keep
+// accepting that already-buffered shape while current runtimes emit the
+// canonical flat payload above.
+const LegacyProtocolErrorPayloadSchema = z
+  .object({
+    error: ProtocolErrorPayloadSchema,
+  })
+  .strict();
+
 const event = <T extends z.ZodTypeAny>(type: string, payload: T) =>
   z
     .object({
@@ -950,7 +959,7 @@ const EventUnionSchema = z.discriminatedUnion("type", [
   event("inventory.full", InventoryFullPayloadSchema),
   event("block.observed", BlockObservedPayloadSchema),
   event("peripheral.observed", PeripheralObservedPayloadSchema),
-  event("protocol.error", ProtocolErrorPayloadSchema),
+  event("protocol.error", z.union([ProtocolErrorPayloadSchema, LegacyProtocolErrorPayloadSchema])),
   event("worker.update.started", UpdateEventPayloadSchema),
   event("worker.update.staged", UpdateEventPayloadSchema),
   event("worker.update.activated", UpdateEventPayloadSchema),

@@ -15,6 +15,15 @@ local function error_payload(code, message, retryable, details)
   }
 end
 
+local function protocol_error_payload(code, message, retryable, details)
+  return {
+    code = code,
+    message = message,
+    retryable = retryable,
+    details = details,
+  }
+end
+
 function M.new(config, client, state, cancellation, movement, observation, inventory, fuel, cache, protocol, id, logger, excavation, peripherals)
   local executor = {
     config = config,
@@ -104,7 +113,11 @@ function M.new(config, client, state, cancellation, movement, observation, inven
   function executor:execute(command)
     local valid, validation_error = self.protocol.validate_command(command)
     if not valid then
-      self:emit(command and command.commandId or nil, "protocol.error", error_payload("INVALID_PAYLOAD", validation_error, false))
+      self:emit(
+        command and command.commandId or nil,
+        "protocol.error",
+        protocol_error_payload("INVALID_PAYLOAD", validation_error, false)
+      )
       return { status = "INVALID_PAYLOAD", error = validation_error }
     end
     if self.protocol.is_expired(command.expiresAt) then

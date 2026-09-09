@@ -12,6 +12,7 @@ import {
   DirectWorkerRegistrationSchema,
   ErrorResponseSchema,
   EventBatchSchema,
+  EventSchema,
   GatewayHeartbeatSchema,
   GatewayRegistrationSchema,
   StopControlSchema,
@@ -167,6 +168,43 @@ test("command events require command correlation and error responses are typed",
   assert.equal(error.error.retryable, false);
   assert.equal(isSupportedProtocolVersion(error.protocolVersion), true);
   assert.equal(isSupportedProtocolVersion(2), false);
+});
+
+test("protocol errors accept the legacy buffered wrapper and the canonical payload", () => {
+  const event = {
+    protocolVersion: 1,
+    eventId: "protocol-error-1",
+    workerId: "alice",
+    commandId: null,
+    sequence: 1,
+    type: "protocol.error" as const,
+    occurredAt: "2026-09-09T12:00:00.000Z",
+  };
+  assert.equal(
+    EventSchema.safeParse({
+      ...event,
+      payload: {
+        code: "INVALID_PAYLOAD",
+        message: "invalid command",
+        retryable: false,
+      },
+    }).success,
+    true,
+  );
+  assert.equal(
+    EventSchema.safeParse({
+      ...event,
+      eventId: "protocol-error-legacy",
+      payload: {
+        error: {
+          code: "INVALID_PAYLOAD",
+          message: "invalid command",
+          retryable: false,
+        },
+      },
+    }).success,
+    true,
+  );
 });
 
 test("update controls require immutable releases and validate transfer envelopes", () => {
