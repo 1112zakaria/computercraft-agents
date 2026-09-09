@@ -344,8 +344,9 @@ protocol.error
 
 `inventory.changed` events contain a bounded post-transfer inventory snapshot. The control plane
 stores it on the latest worker observation, preserving the previously observed position when one
-exists; this is observation data for later postcondition verification, not proof that a named
-destination has been reached.
+exists. A gather deposit workflow also requires this event alongside the reported moved quantity
+before it marks the transfer complete. This proves the bounded turtle transfer operation; it is not
+proof of the destination's exact contents unless a destination peripheral adapter is available.
 
 ## 8. Idempotency
 

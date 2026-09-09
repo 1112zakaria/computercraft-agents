@@ -3188,6 +3188,20 @@ export class GatewayRuntimeRepository {
         await block("deposit completed without transferring the requested quantity");
         return;
       }
+      const transferEvidence = await client.query(
+        `
+          SELECT 1
+          FROM gateway_events
+          WHERE command_id = $1
+            AND event_type = 'inventory.changed'
+          LIMIT 1
+        `,
+        [event.commandId],
+      );
+      if (!transferEvidence.rowCount) {
+        await block("deposit completed without post-transfer inventory evidence");
+        return;
+      }
       if (parentArguments.resumeGatherAfterDeposit === true) {
         const targetWorkerId = parentArguments.targetWorkerId;
         const itemKey = parentArguments.itemKey;

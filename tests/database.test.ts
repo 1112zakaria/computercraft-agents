@@ -120,6 +120,7 @@ test("database migration set is ordered and contains the core relational model",
   assert.match(repositorySql, /CommandSchema\.safeParse/);
   assert.match(repositorySql, /_plannerTriggerId/);
   assert.match(repositorySql, /PLANNER_SCOPE_VIOLATION/);
+  assert.match(repositorySql, /event_type = 'inventory\.changed'/);
 });
 
 test("position persistence seeds only the observed world cell as walkable", () => {

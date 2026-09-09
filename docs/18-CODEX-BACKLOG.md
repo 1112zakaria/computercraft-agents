@@ -931,8 +931,8 @@ now model targeted gather, known-cell destination navigation, allowlisted deposi
 safe blocking. The scheduler can dispatch the first protocol step and command events advance the
 workflow idempotently. Inventory-full failures now attempt a bounded return to the named container,
 deposit the collected quantity, and queue a fresh gather step; if the route or evidence is
-insufficient, the workflow pauses with an explicit resume instruction. Capacity planning, final
-delivery postcondition verification, and full live acceptance remain.
+insufficient, the workflow pauses with an explicit resume instruction. Capacity planning,
+destination-content postcondition verification, and full live acceptance remain.
 
 ### CC-103 — Implement known-container deposit skill
 
@@ -940,8 +940,9 @@ delivery postcondition verification, and full live acceptance remain.
 **Dependencies:** CC-045, CC-064
 
 **Status:** PARTIAL — deposit/withdraw commands now accept a validated container ID and resolve it
-through a local front/up/down allowlist; named-location approach/docking and postcondition
-verification remain.
+through a local front/up/down allowlist; named-location approach/docking and post-transfer inventory
+evidence are enforced by the gather workflow. Inspecting the destination's actual contents remains
+optional peripheral-specific hardening.
 
 ### CC-104 — Implement known-container withdraw skill
 

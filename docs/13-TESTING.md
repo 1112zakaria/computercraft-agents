@@ -153,7 +153,7 @@ Acceptance:
 - Alice reaches deposit location;
 - a blocked route records the contradicted cell and deterministically replans when a known alternate
   route exists, without retrying indefinitely;
-- 64 cobblestone are verified delivered;
+- 64 cobblestone have a verified moved quantity and post-transfer inventory evidence;
 - project is marked complete;
 - user receives completion report;
 - action lineage is inspectable.
