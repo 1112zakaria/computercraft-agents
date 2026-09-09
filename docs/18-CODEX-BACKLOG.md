@@ -824,6 +824,10 @@ pause window, and exposes protected `planner-status` inspection. Richer outage p
 **Priority:** P0  
 **Dependencies:** CC-021
 
+**Status:** PARTIAL — explicit syntax for one or more named targets and `@all` is parsed before
+reasoning, with duplicate and mixed-`@all` targets rejected. Registry-backed distinction between
+worker names and group names, scope expansion, and authorization remain.
+
 Parse agents/groups/`@all` before reasoning.
 
 ### CC-097 — Implement CLI natural-language command

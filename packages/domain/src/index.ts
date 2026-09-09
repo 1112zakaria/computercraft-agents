@@ -217,16 +217,78 @@ export function advanceGatherTask(
   };
 }
 
+export type AddressTarget =
+  { readonly kind: "named"; readonly name: string } | { readonly kind: "all" };
+
+export interface AddressedCommand {
+  readonly targets: readonly AddressTarget[];
+  readonly commandText: string;
+}
+
+export type AddressedCommandParseResult =
+  | { readonly ok: true; readonly command: AddressedCommand }
+  | { readonly ok: false; readonly error: string };
+
+/** Parse explicit worker/group/all addressing before any natural-language interpretation. */
+export function parseAddressedCommand(input: string): AddressedCommandParseResult {
+  const match =
+    /^\s*((?:@[A-Za-z0-9][A-Za-z0-9._:-]*)(?:\s*,\s*@[A-Za-z0-9][A-Za-z0-9._:-]*)*)\s+(.+?)\s*$/i.exec(
+      input,
+    );
+  if (!match) {
+    return {
+      ok: false,
+      error: "expected one or more explicit @worker, @group, or @all targets followed by a command",
+    };
+  }
+
+  const names = match[1]!
+    .split(",")
+    .map((value) => value.trim().slice(1))
+    .filter(Boolean);
+  const normalizedNames = names.map((name) => name.toLowerCase());
+  if (new Set(normalizedNames).size !== normalizedNames.length) {
+    return { ok: false, error: "address targets must be unique" };
+  }
+  if (normalizedNames.includes("all") && normalizedNames.length > 1) {
+    return { ok: false, error: "@all cannot be combined with named targets" };
+  }
+
+  return {
+    ok: true,
+    command: {
+      targets:
+        normalizedNames[0] === "all"
+          ? [{ kind: "all" }]
+          : names.map((name) => ({ kind: "named", name })),
+      commandText: match[2]!,
+    },
+  };
+}
+
 export type AddressedGoalParseResult =
   | { readonly ok: true; readonly goal: GatherResourceGoal }
   | { readonly ok: false; readonly error: string };
 
 /** Parse the deliberately narrow first useful-worker sentence into a deterministic goal. */
 export function parseAddressedGatherGoal(input: string): AddressedGoalParseResult {
-  const match =
-    /^\s*@([A-Za-z0-9][A-Za-z0-9._:-]*)\s+get\s+(\d+)\s+([A-Za-z0-9._:-]+)\s+and\s+deposit\s+it\s+in\s+(.+?)\s*$/i.exec(
-      input,
-    );
+  const addressed = parseAddressedCommand(input);
+  if (!addressed.ok || addressed.command.targets.length !== 1) {
+    return {
+      ok: false,
+      error: "expected '@worker get <quantity> <item> and deposit it in <location>'",
+    };
+  }
+  const target = addressed.command.targets[0];
+  if (!target || target.kind !== "named") {
+    return {
+      ok: false,
+      error: "the first useful gather goal requires exactly one named worker",
+    };
+  }
+  const match = /^get\s+(\d+)\s+([A-Za-z0-9._:-]+)\s+and\s+deposit\s+it\s+in\s+(.+?)\s*$/i.exec(
+    addressed.command.commandText,
+  );
   if (!match) {
     return {
       ok: false,
@@ -234,9 +296,9 @@ export function parseAddressedGatherGoal(input: string): AddressedGoalParseResul
     };
   }
 
-  const quantity = Number(match[2]);
-  const itemKey = normalizeItemKey(match[3]!);
-  const destination = match[4]!.trim();
+  const quantity = Number(match[1]);
+  const itemKey = normalizeItemKey(match[2]!);
+  const destination = match[3]!.trim();
   if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > 64) {
     return { ok: false, error: "quantity must be an integer between 1 and 64" };
   }
@@ -245,7 +307,7 @@ export function parseAddressedGatherGoal(input: string): AddressedGoalParseResul
   return {
     ok: true,
     goal: {
-      targetWorkerId: match[1]!,
+      targetWorkerId: target.name,
       itemKey,
       quantity,
       destination,

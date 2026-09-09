@@ -5,6 +5,7 @@ import { protocolVersion } from "../packages/protocol/src/index";
 import {
   advanceGatherTask,
   parseAddressedGatherGoal,
+  parseAddressedCommand,
   type GatherTaskState,
 } from "../packages/domain/src/index";
 import {
@@ -80,6 +81,36 @@ test("addressed gather goal parser produces a bounded structured goal", () => {
       },
     },
   );
+});
+
+test("address parser handles workers, groups, lists, and all without interpretation", () => {
+  assert.deepEqual(parseAddressedCommand("@alice get stone"), {
+    ok: true,
+    command: {
+      targets: [{ kind: "named", name: "alice" }],
+      commandText: "get stone",
+    },
+  });
+  assert.deepEqual(parseAddressedCommand("@alice,@bob clear this area"), {
+    ok: true,
+    command: {
+      targets: [
+        { kind: "named", name: "alice" },
+        { kind: "named", name: "bob" },
+      ],
+      commandText: "clear this area",
+    },
+  });
+  assert.deepEqual(parseAddressedCommand("@miners gather iron"), {
+    ok: true,
+    command: { targets: [{ kind: "named", name: "miners" }], commandText: "gather iron" },
+  });
+  assert.deepEqual(parseAddressedCommand("@all return to the workshop"), {
+    ok: true,
+    command: { targets: [{ kind: "all" }], commandText: "return to the workshop" },
+  });
+  assert.equal(parseAddressedCommand("@all,@alice stop").ok, false);
+  assert.equal(parseAddressedCommand("@alice,@alice stop").ok, false);
 });
 
 test("addressed gather goal parser rejects unsupported or unsafe quantities", () => {
