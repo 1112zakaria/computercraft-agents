@@ -264,6 +264,10 @@ export class GatewayRuntimeRepository {
     return new TaskRepository(this.pool).listTasks();
   }
 
+  public async listRunnableTasks(): Promise<readonly Record<string, unknown>[]> {
+    return new TaskRepository(this.pool).listRunnableTasks();
+  }
+
   public async claimTask(taskId: string, workerKey: string): Promise<Record<string, unknown>> {
     return new TaskRepository(this.pool).claimReadyTask(taskId, workerKey);
   }
@@ -1735,8 +1739,12 @@ export class TaskRepository {
         SELECT t.id::text AS "taskId", t.job_id::text AS "jobId",
                t.kind, t.status, t.skill_name AS "skillName", t.arguments_json AS arguments,
                t.assigned_worker_id::text AS "assignedWorkerId", t.claimed_at AS "claimedAt",
-               t.started_at AS "startedAt"
+               t.started_at AS "startedAt", t.attempt_count AS "attemptCount",
+               j.priority, j.required_capabilities_json AS "requiredCapabilities",
+               p.goal_text AS "goalText", t.last_error_json AS "lastError"
         FROM tasks t
+        JOIN jobs j ON j.id = t.job_id
+        JOIN projects p ON p.id = j.project_id
         ORDER BY t.id DESC
       `,
     );
@@ -1847,8 +1855,12 @@ export class TaskRepository {
     const result = await this.pool.query(
       `
         SELECT t.id::text AS "taskId", t.job_id::text AS "jobId", t.skill_name AS "skillName",
-               t.arguments_json AS arguments, t.status
+               t.arguments_json AS arguments, t.status, t.attempt_count AS "attemptCount",
+               j.priority, j.required_capabilities_json AS "requiredCapabilities",
+               p.goal_text AS "goalText"
         FROM tasks t
+        JOIN jobs j ON j.id = t.job_id
+        JOIN projects p ON p.id = j.project_id
         WHERE t.status = 'READY'
           AND t.assigned_worker_id IS NULL
           AND NOT EXISTS (

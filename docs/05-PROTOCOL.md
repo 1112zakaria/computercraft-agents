@@ -105,12 +105,15 @@ confidence, and metadata. Ready tasks can be inspected and claimed with:
 
 ```text
 GET  /v1/tasks
+GET  /v1/tasks/runnable
 POST /v1/tasks/:taskId
 POST /v1/tasks/:taskId/transition
 ```
 
 The claim request contains `workerId`. The database rejects claims for offline workers, unmet
 dependencies, already-claimed tasks, and workers with another active task.
+`GET /v1/tasks/runnable` is a read-only operator view that applies the same ready-state and
+dependency filters used by the database claim path.
 The transition request contains `{ "protocolVersion": 1, "status": "...", "reason": "..." }`
 and is checked against the persisted task transition graph. When supplied, the reason is stored
 in the task's error/context field for auditability. It is an explicit operator control path; it

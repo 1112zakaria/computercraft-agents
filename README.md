@@ -71,6 +71,7 @@ npm run cli -- deposit alice
 npm run cli -- goal "@alice get 64 cobblestone and deposit it in Test Chest"
 npm run cli -- locations
 npm run cli -- tasks
+npm run cli -- runnable-tasks
 npm run cli -- task-status <task-id> BLOCKED
 ```
 

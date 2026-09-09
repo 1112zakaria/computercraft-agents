@@ -623,8 +623,9 @@ Evaluate GPS/manual docking/other available approaches and implement the simples
 **Priority:** P0  
 **Dependencies:** CC-023, CC-022
 
-**Status:** PARTIAL — deterministic capability-aware, one-worker-per-task selection exists;
-persistent claim/dispatch loop remains.
+**Status:** PARTIAL — deterministic capability-aware, one-worker-per-task selection exists and
+dependency-filtered runnable tasks are exposed for inspection; persistent claim/dispatch loop
+remains.
 
 Select tasks based on dependencies, worker availability, required capabilities, and priority.
 

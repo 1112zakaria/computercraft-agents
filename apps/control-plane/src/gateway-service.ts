@@ -90,6 +90,7 @@ export interface GatewayServiceStore {
   }): Promise<GoalTaskRecord>;
   listGoals(): Promise<readonly Record<string, unknown>[]>;
   listTasks(): Promise<readonly Record<string, unknown>[]>;
+  listRunnableTasks(): Promise<readonly Record<string, unknown>[]>;
   claimTask(taskId: string, workerKey: string): Promise<Record<string, unknown>>;
   transitionTask(taskId: string, nextState: string, reason?: string): Promise<void>;
   upsertNamedLocation(input: {
@@ -382,6 +383,10 @@ export class GatewayService {
 
   public async listTasks(): Promise<readonly Record<string, unknown>[]> {
     return this.store.listTasks();
+  }
+
+  public async listRunnableTasks(): Promise<readonly Record<string, unknown>[]> {
+    return this.store.listRunnableTasks();
   }
 
   public async claimTask(taskId: string, input: unknown): Promise<Record<string, unknown>> {

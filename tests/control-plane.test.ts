@@ -201,6 +201,10 @@ class FakeGatewayStore implements GatewayServiceStore {
     return [];
   }
 
+  public async listRunnableTasks(): Promise<readonly Record<string, unknown>[]> {
+    return [{ taskId: "task-runnable", status: "READY" }];
+  }
+
   public async claimTask(taskId: string, workerKey: string): Promise<Record<string, unknown>> {
     return { taskId, workerKey, status: "RUNNING" };
   }
@@ -369,6 +373,22 @@ test("operator task API validates and applies explicit task transitions", async 
       taskId: "task-test",
       nextState: "BLOCKED",
       reason: "awaiting destination anchor",
+    });
+  } finally {
+    await server.close();
+  }
+});
+
+test("operator task API exposes dependency-filtered runnable tasks", async () => {
+  const store = new FakeGatewayStore();
+  const server = await startServer(store);
+  try {
+    const response = await fetch(`${server.baseUrl}/v1/tasks/runnable`, {
+      headers: adminHeaders(),
+    });
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), {
+      tasks: [{ taskId: "task-runnable", status: "READY" }],
     });
   } finally {
     await server.close();
