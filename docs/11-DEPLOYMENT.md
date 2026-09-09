@@ -189,10 +189,13 @@ does not expose a universal compass sensor:
 
 ```bash
 npm run cli -- anchor alice 0 10 64 -2 E
+npm run cli -- set-location "Test Chest" 0 10 64 -2 E
 npm run cli -- workers alice
 ```
 
-The command writes a `CONFIRMED_ANCHOR` worker observation. It is an operator assertion, so only
+The `anchor` command writes a `CONFIRMED_ANCHOR` worker observation. The `set-location` command
+records a named destination with the same operator-confirmed coordinates. These are operator
+assertions, so only
 use coordinates that have been verified in-game; it does not move the turtle or detect direction.
 
 The turtle's cursor, authenticated UTC clock handoff, and event outbox are local persistent files. Do not commit the populated

@@ -78,6 +78,7 @@ file.
 For a bounded target-aware mining canary, use the operator CLI only after the worker is online:
 
 ```bash
+npm run cli -- set-location "Test Chest" 0 10 64 -2 E
 npm run cli -- gather alice minecraft:cobblestone 8 12
 npm run cli -- deposit alice 8 --container-id test-chest
 ```
