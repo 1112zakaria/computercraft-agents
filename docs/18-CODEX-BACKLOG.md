@@ -1172,6 +1172,10 @@ Test whether turtles can continue intended work with humans offline and across r
 **Priority:** P0  
 **Dependencies:** CC-024
 
+**Status:** PARTIAL — an environment-backed skill allowlist, protected inspection endpoint, and
+`feature-gates` CLI command now gate operator command/task dispatch. Persistent per-worker gates,
+canary limits, and audit-history integration remain.
+
 ### CC-171 — Implement dry-run/plan-only mode
 
 **Priority:** P0  

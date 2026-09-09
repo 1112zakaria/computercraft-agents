@@ -51,6 +51,7 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
       const updatePathMatch = url.pathname.match(/^\/v1\/updates(?:\/([^/]+))?$/);
       const agentPathMatch = url.pathname.match(/^\/v1\/agents(?:\/([^/]+))?$/);
       const projectsPath = url.pathname === "/v1/projects";
+      const featureGatesPath = url.pathname === "/v1/feature-gates";
       const goalsPath = url.pathname === "/v1/goals";
       const taskPathMatch = url.pathname.match(/^\/v1\/tasks(?:\/([^/]+))?$/);
       const taskPlanningContextPathMatch = url.pathname.match(
@@ -76,6 +77,7 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
         updatePathMatch ||
         agentPathMatch ||
         projectsPath ||
+        featureGatesPath ||
         goalsPath ||
         taskPathMatch ||
         taskPlanningContextPathMatch ||
@@ -161,6 +163,10 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
         }
         if (method === "GET" && projectsPath) {
           sendJson(response, 200, { projects: await options.service.listProjects() });
+          return;
+        }
+        if (method === "GET" && featureGatesPath) {
+          sendJson(response, 200, { featureGates: options.service.listFeatureGates() });
           return;
         }
         if (goalsPath) {

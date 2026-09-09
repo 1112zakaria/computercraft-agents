@@ -40,6 +40,7 @@ import type {
   GatewayHeartbeat,
   GatewayRegistration,
   StopControl,
+  SkillName,
   UpdateRequest,
 } from "@computercraft-agents/protocol";
 import { RepositoryError } from "@computercraft-agents/database";
@@ -55,6 +56,7 @@ import type { z } from "zod";
 export interface GatewayServiceConfig {
   readonly bearerSecret: string;
   readonly adminSecret: string;
+  readonly enabledSkills?: readonly SkillName[];
 }
 
 type GatewayRegistrationPayload = Omit<GatewayRegistration, "capabilities"> & {
@@ -412,8 +414,16 @@ export class GatewayService {
     };
   }
 
+  public listFeatureGates(): readonly Record<string, unknown>[] {
+    const enabled = new Set(this.config.enabledSkills ?? SkillNameSchema.options);
+    return SkillNameSchema.options.map((name) => ({ name, enabled: enabled.has(name) }));
+  }
+
   public async enqueueCommand(input: unknown): Promise<object> {
     const command = this.parsePayload(CommandSchema, input);
+    if (!(this.config.enabledSkills ?? SkillNameSchema.options).includes(command.skill)) {
+      throw new HttpError(403, "CAPABILITY_NOT_ENABLED", `skill is disabled: ${command.skill}`);
+    }
     await this.store.enqueueCommand(command);
     return { accepted: true, commandId: command.commandId };
   }
@@ -594,6 +604,15 @@ export class GatewayService {
       throw new HttpError(400, "INVALID_PAYLOAD", "task id is invalid");
     }
     const request = this.parsePayload(TaskDispatchRequestSchema, input);
+    const task = await this.store.getTask(taskId);
+    const skillName = task?.skillName;
+    if (
+      typeof skillName === "string" &&
+      SkillNameSchema.safeParse(skillName).success &&
+      !(this.config.enabledSkills ?? SkillNameSchema.options).includes(skillName as SkillName)
+    ) {
+      throw new HttpError(403, "CAPABILITY_NOT_ENABLED", `skill is disabled: ${skillName}`);
+    }
     const command = await this.store.dispatchTask(taskId, request.workerId, `task-${randomUUID()}`);
     return { accepted: true, taskId, workerId: request.workerId, command };
   }
@@ -788,6 +807,11 @@ export function createRepositoryService(
   repository: GatewayRuntimeRepository,
   bearerSecret: string,
   adminSecret: string,
+  enabledSkills?: readonly SkillName[],
 ): GatewayService {
-  return new GatewayService(repository, { bearerSecret, adminSecret });
+  return new GatewayService(repository, {
+    bearerSecret,
+    adminSecret,
+    enabledSkills,
+  });
 }

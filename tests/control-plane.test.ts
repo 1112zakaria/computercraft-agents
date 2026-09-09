@@ -14,6 +14,7 @@ import type {
   GatewayRegistration,
   StopControl,
   UpdateRequest,
+  type SkillName,
 } from "@computercraft-agents/protocol";
 
 import {
@@ -303,9 +304,14 @@ class FakeGatewayStore implements GatewayServiceStore {
 
 async function startServer(
   store: FakeGatewayStore,
+  enabledSkills?: readonly SkillName[],
 ): Promise<{ baseUrl: string; close: () => Promise<void> }> {
   const server = createControlPlaneServer({
-    service: new GatewayService(store, { bearerSecret: secret, adminSecret: "admin-secret" }),
+    service: new GatewayService(store, {
+      bearerSecret: secret,
+      adminSecret: "admin-secret",
+      enabledSkills,
+    }),
     maxBodyBytes: 100_000,
   });
   server.listen(0, "127.0.0.1");
@@ -821,6 +827,42 @@ test("operator inspection API exposes agents and project summaries", async () =>
     const projects = await fetch(`${server.baseUrl}/v1/projects`, { headers: adminHeaders() });
     assert.equal(projects.status, 200);
     assert.deepEqual(await projects.json(), { projects: store.projects });
+  } finally {
+    await server.close();
+  }
+});
+
+test("feature gates expose and enforce a configured skill allowlist", async () => {
+  const store = new FakeGatewayStore();
+  const server = await startServer(store, ["movement.step"]);
+  try {
+    const gates = await fetch(`${server.baseUrl}/v1/feature-gates`, { headers: adminHeaders() });
+    assert.equal(gates.status, 200);
+    const gateBody = (await gates.json()) as {
+      featureGates: Array<{ name: string; enabled: boolean }>;
+    };
+    assert.equal(
+      gateBody.featureGates.find((gate) => gate.name === "movement.step")?.enabled,
+      true,
+    );
+    assert.equal(gateBody.featureGates.find((gate) => gate.name === "fuel.refuel")?.enabled, false);
+
+    const rejected = await fetch(`${server.baseUrl}/v1/commands`, {
+      method: "POST",
+      headers: adminHeaders(),
+      body: JSON.stringify({
+        protocolVersion: 1,
+        commandId: "disabled-fuel-command",
+        workerId: "worker-test",
+        issuedAt: "2026-09-07T12:00:00.000Z",
+        expiresAt: "2026-09-07T12:05:00.000Z",
+        budget: { maxPrimitives: 1, maxBlockChanges: 0 },
+        skill: "fuel.refuel",
+        arguments: { maxItems: 1 },
+      }),
+    });
+    assert.equal(rejected.status, 403);
+    assert.equal(store.commands.length, 0);
   } finally {
     await server.close();
   }

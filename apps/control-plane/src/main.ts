@@ -21,6 +21,7 @@ async function main(): Promise<void> {
     repository,
     config.gatewayBearerSecret,
     config.adminSecret,
+    config.enabledSkills,
   );
   const server = createControlPlaneServer({ service, maxBodyBytes: config.maxHttpBodyBytes });
 

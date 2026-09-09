@@ -28,6 +28,7 @@ Test:
 - stale-worker recovery pauses and cancels work before explicit resume;
 - operator pause/cancel stops active delivery atomically and resume returns work to `READY`;
 - agent and project inspection API/CLI responses;
+- environment-backed feature-gate inspection and disabled-skill rejection;
 - outage transitions.
 
 ### Unit tests — Lua

@@ -31,7 +31,12 @@ MAX_HTTP_BODY_BYTES=1048576
 STALE_CHECK_INTERVAL_SECONDS=10
 SCHEDULER_ENABLED=false
 SCHEDULER_INTERVAL_SECONDS=10
+ENABLED_SKILLS=movement.step,navigate.path,observation.block,inventory.inspect,inventory.deposit,inventory.withdraw,mining.excavate,mining.gather,fuel.refuel
 ```
+
+`ENABLED_SKILLS` is an optional comma-separated feature gate. Omit it to preserve the default of
+enabling every currently defined skill; set it explicitly during a canary to disable a capability.
+Inspect the effective state with `npm run cli -- feature-gates` before dispatching work.
 
 ## Install/update
 

@@ -18,10 +18,12 @@ test("CLI exposes agent and project inspection endpoints", async () => {
     await runCli(["agents"]);
     await runCli(["agent", "alice"]);
     await runCli(["projects"]);
+    await runCli(["feature-gates"]);
     assert.deepEqual(capturedUrls, [
       "http://control-plane.test/v1/agents",
       "http://control-plane.test/v1/agents/alice",
       "http://control-plane.test/v1/projects",
+      "http://control-plane.test/v1/feature-gates",
     ]);
   } finally {
     globalThis.fetch = previousFetch;

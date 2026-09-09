@@ -1,3 +1,5 @@
+import { SkillNameSchema, type SkillName } from "@computercraft-agents/protocol";
+
 export interface ControlPlaneConfig {
   readonly nodeEnv: string;
   readonly host: string;
@@ -11,6 +13,7 @@ export interface ControlPlaneConfig {
   readonly staleCheckIntervalSeconds: number;
   readonly schedulerEnabled: boolean;
   readonly schedulerIntervalSeconds: number;
+  readonly enabledSkills: readonly SkillName[];
 }
 
 function required(name: string): string {
@@ -41,6 +44,18 @@ function booleanValue(name: string, fallback: boolean): boolean {
   throw new Error(`${name} must be true or false`);
 }
 
+function enabledSkills(): readonly SkillName[] {
+  const raw = process.env.ENABLED_SKILLS?.trim();
+  if (!raw) return SkillNameSchema.options;
+  const values = raw
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const invalid = values.find((value) => !SkillNameSchema.safeParse(value).success);
+  if (invalid) throw new Error(`ENABLED_SKILLS contains unknown skill: ${invalid}`);
+  return values as SkillName[];
+}
+
 export function loadConfig(): ControlPlaneConfig {
   return {
     nodeEnv: process.env.NODE_ENV ?? "development",
@@ -55,5 +70,6 @@ export function loadConfig(): ControlPlaneConfig {
     staleCheckIntervalSeconds: positiveInteger("STALE_CHECK_INTERVAL_SECONDS", 10),
     schedulerEnabled: booleanValue("SCHEDULER_ENABLED", false),
     schedulerIntervalSeconds: positiveInteger("SCHEDULER_INTERVAL_SECONDS", 10),
+    enabledSkills: enabledSkills(),
   };
 }
