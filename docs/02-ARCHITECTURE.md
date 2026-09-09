@@ -171,7 +171,7 @@ Context assembler
   │
   ▼
 ReasoningProvider
-  └── CodexCliProvider (v1)
+  └── CodexCliProvider (read-only, ephemeral v1 boundary)
   │
   ▼
 Structured decision
@@ -189,7 +189,10 @@ The planner SHALL operate on semantic skills, not raw turtle APIs.
 The reasoning package validates structured decisions before they can be consumed by a planner.
 The supported v1 decision kinds are `plan`, `create-task`, `continue`, `delegate`, `replan`,
 `refuse`, and `report`. The fake provider is deterministic and test-only; it does not authorize
-world mutations or bypass the control plane.
+world mutations or bypass the control plane. The CLI provider invokes `codex exec` in an
+ephemeral read-only sandbox, sends only a structured planning prompt, passes a sanitized child
+environment, and validates the returned JSON again locally. Its output is still inert until a
+planner service persists and dispatches the resulting semantic tasks.
 
 Bad planner interface:
 

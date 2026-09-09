@@ -689,9 +689,9 @@ Condition → desired state → finite work generation.
 **Priority:** P0  
 **Dependencies:** CC-001
 
-**Status:** PARTIAL — the provider contract now carries request identity, reasoning tier,
-timeout, cancellation, validated decision output, and timing metadata; a production provider is
-not connected.
+**Status:** DONE — the provider contract carries request identity, reasoning tier, timeout,
+cancellation, validated decision output, and timing metadata; the production CLI boundary is
+implemented but remains planner-trigger integration work.
 
 Support request context, structured schema, timeout, cancellation, reasoning tier, and result metadata.
 
@@ -709,6 +709,10 @@ Use in tests/CI without live Codex.
 
 **Priority:** P0  
 **Dependencies:** CC-003, CC-080
+
+**Status:** DONE — read-only ephemeral `codex exec` invocation, strict decision validation,
+deadline/cancellation handling, sanitized child environment, and injectable test execution are
+implemented. Planner invocation and production deployment remain separate work.
 
 **Acceptance criteria**
 

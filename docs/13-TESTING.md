@@ -185,4 +185,6 @@ Implement:
 - fake `ReasoningProvider` fixtures;
 - schema-validation tests;
 - recorded decision fixtures;
+- injected-executor tests for the read-only Codex CLI boundary, including timeout/cancellation and
+  sanitized process handling;
 - optional manual/live Codex integration test suite.

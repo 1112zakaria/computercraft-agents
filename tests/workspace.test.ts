@@ -14,7 +14,11 @@ import {
   type Coordinate,
 } from "../packages/navigation/src/index";
 import { selectDispatchableTasks, selectReadyTasks } from "../packages/scheduler/src/index";
-import { FakeReasoningProvider, PlannerDecisionSchema } from "../packages/reasoning/src/index";
+import {
+  CodexCliProvider,
+  FakeReasoningProvider,
+  PlannerDecisionSchema,
+} from "../packages/reasoning/src/index";
 
 test("workspace exposes protocol version one", () => {
   assert.equal(protocolVersion, 1);
@@ -263,5 +267,43 @@ test("planner decisions are structured and fake reasoning is deterministic", asy
     PlannerDecisionSchema.safeParse({ kind: "delegate", taskId: "task-1", reason: "no target" })
       .success,
     false,
+  );
+});
+
+test("Codex CLI provider validates structured output without executing it", async () => {
+  let executionInput: { args: readonly string[]; prompt: string; timeoutMs: number } | undefined;
+  const provider = new CodexCliProvider({
+    executable: "codex-test-double",
+    execute: async (input) => {
+      executionInput = input;
+      return JSON.stringify({
+        kind: "report",
+        status: "PROGRESS",
+        summary: "bounded plan accepted",
+      });
+    },
+  });
+  const result = await provider.decide({
+    requestId: "reasoning-cli-test-1",
+    prompt: "produce a bounded plan",
+    tier: "standard",
+    timeoutMs: 1000,
+  });
+  assert.equal(result.provider, "codex-cli");
+  assert.equal(result.decision.kind, "report");
+  assert.deepEqual(executionInput?.args, []);
+  assert.match(executionInput?.prompt ?? "", /Return exactly one JSON object/);
+  assert.equal(executionInput?.timeoutMs, 1000);
+
+  const invalidProvider = new CodexCliProvider({
+    execute: async () => JSON.stringify({ kind: "unknown" }),
+  });
+  await assert.rejects(
+    invalidProvider.decide({
+      requestId: "reasoning-cli-test-2",
+      prompt: "invalid",
+      tier: "fast",
+      timeoutMs: 1000,
+    }),
   );
 });
