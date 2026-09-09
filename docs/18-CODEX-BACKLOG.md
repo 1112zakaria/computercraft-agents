@@ -701,7 +701,7 @@ Condition → desired state → finite work generation.
 
 **Status:** DONE — the provider contract carries request identity, reasoning tier, timeout,
 cancellation, validated decision output, and timing metadata; the production CLI boundary is
-implemented but remains planner-trigger integration work.
+implemented and is used by the opt-in plan-only planner loop.
 
 Support request context, structured schema, timeout, cancellation, reasoning tier, and result metadata.
 
@@ -722,7 +722,7 @@ Use in tests/CI without live Codex.
 
 **Status:** DONE — read-only ephemeral `codex exec` invocation, strict decision validation,
 deadline/cancellation handling, sanitized child environment, and injectable test execution are
-implemented. Planner invocation and production deployment remain separate work.
+implemented. Production enablement remains separate.
 
 **Acceptance criteria**
 
@@ -759,7 +759,8 @@ requests can be cancelled before execution.
 **Dependencies:** CC-080, CC-023
 
 **Status:** PARTIAL — plan/create-task/continue/delegate/replan/refuse/report decisions are
-validated in the reasoning package; control-plane persistence and planner invocation remain.
+validated in the reasoning package and planner decisions are durably recorded in HIGH-retention
+audit events by the opt-in plan-only loop; safe decision application remains.
 
 Define decisions for plan/create-task/delegate/report/refuse/replan.
 
@@ -787,7 +788,7 @@ control plane persists idempotent `goal.created`, task-correlated command comple
 that claims triggers, records validated decisions as HIGH-retention audit events, and never mutates
 tasks or dispatches commands. The repository provides a transactional claim/complete boundary
 with stale-claim recovery, and the runner releases provider failures for retry. Decision
-application, persistent outage state/recovery, and broader planner policy remain.
+application and broader planner policy remain.
 
 Trigger on new goal, meaningful completion/failure, unexpected state, delegation need, replan.
 
@@ -1207,7 +1208,8 @@ canary limits, and audit-history integration remain.
 
 **Status:** PARTIAL — physical command, stop-control, and update CLI requests support
 `--dry-run`, which constructs the validated payload locally without contacting the control plane.
-Goal/task planning previews and feature-gate integration remain.
+The opt-in planner loop records plan-only decisions and exposes outage status; goal/task planning
+previews, decision review tooling, and feature-gate integration remain.
 
 ### CC-172 — Implement agent/project inspection CLI
 
