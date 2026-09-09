@@ -977,7 +977,9 @@ The runtime must start automatically after installation, reboot, and successful 
 control-plane prerequisites (worker online/idle state, advertised capabilities, confirmed anchor,
 named destination, and known walkable route) without persisting work. Operator anchors survive
 ordinary same-coordinate telemetry heartbeats but are invalidated by a changed reported
-coordinate. Live execution and verified delivery remain outstanding.
+coordinate. New installs advertise the full first-use capability set, and the pinned installer
+includes a backup-first `enable-gather.lua` helper for older explicit capability lists. Live
+execution and verified delivery remain outstanding.
 
 Pass live acceptance:
 

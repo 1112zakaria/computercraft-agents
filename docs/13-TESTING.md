@@ -129,6 +129,10 @@ orientation from the turtle runtime.
 Database tests also verify that a same-coordinate telemetry heartbeat retains a verified operator
 anchor while a changed coordinate becomes unconfirmed and requires re-anchoring.
 
+The deployment test also parses the backup-first `enable-gather.lua` migration helper and checks
+that the pinned installer downloads it from the deployment path without changing the runtime
+release allowlist.
+
 ## Gateway-managed update acceptance
 
 Before a live canary, the fake integration must prove:
