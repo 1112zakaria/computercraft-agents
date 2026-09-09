@@ -85,6 +85,7 @@ The protected operator API accepts the first narrow addressed gather goal:
 ```text
 POST /v1/goals
 GET  /v1/goals
+GET  /v1/goals/:taskId/report
 ```
 
 The request contains `protocolVersion`, `goalText`, `createdByPrincipal`, and an optional bounded
@@ -97,6 +98,13 @@ multi-step gather workflow. Goal creation persists a parent `resource.gather` ta
 `mining.gather` workflow step; the bounded scheduler can dispatch that protocol-level child.
 The normalized `targetWorkerId` is retained in task arguments and scheduler/database dispatch
 checks enforce it, so an addressed goal cannot be silently assigned to another worker.
+
+`GET /v1/goals/:taskId/report` is a protected, read-only completion view. The path may identify
+the root goal task or any workflow child. The control plane resolves the containing project and
+job and returns their statuses, the root task ID, the original goal text, and every task in the
+workflow with its phase, status, assigned worker, attempt count, and last error. This gives an
+operator one bounded report for deciding whether a goal is complete, paused for intervention,
+blocked by missing world knowledge, or failed.
 
 Named locations are managed through the protected operator API:
 

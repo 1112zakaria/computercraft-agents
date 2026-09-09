@@ -26,6 +26,7 @@ export function usage(): string {
     `${cliName} feature-gates`,
     `${cliName} audit [limit]`,
     `${cliName} goal <@worker get ... and deposit it in ...>`,
+    `${cliName} goal-report <task-id>`,
     `${cliName} tasks`,
     `${cliName} task <task-id>`,
     `${cliName} planning-context <task-id>`,
@@ -215,6 +216,13 @@ export async function runCli(args: readonly string[]): Promise<void> {
   if (command === "tasks") {
     if (first) throw new Error(`usage: ${cliName} tasks`);
     console.log(JSON.stringify(await request("/v1/tasks"), null, 2));
+    return;
+  }
+  if (command === "goal-report") {
+    if (!first || second) throw new Error(`usage: ${cliName} goal-report <task-id>`);
+    console.log(
+      JSON.stringify(await request(`/v1/goals/${encodeURIComponent(first)}/report`), null, 2),
+    );
     return;
   }
   if (command === "task") {

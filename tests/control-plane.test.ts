@@ -274,6 +274,21 @@ class FakeGatewayStore implements GatewayServiceStore {
     return this.tasks.find((task) => task.taskId === taskId);
   }
 
+  public async getGoalReport(taskId: string): Promise<Record<string, unknown> | undefined> {
+    return taskId === "task-report"
+      ? {
+          projectId: "project-test",
+          jobId: "job-test",
+          rootTaskId: "task-report",
+          goalText: "@alice get 64 cobblestone and deposit it in Test Chest",
+          projectStatus: "ACTIVE",
+          jobStatus: "RUNNING",
+          taskStatus: "RUNNING",
+          tasks: [{ taskId, status: "RUNNING", workflowPhase: "GATHER" }],
+        }
+      : undefined;
+  }
+
   public async listRunnableTasks(): Promise<readonly Record<string, unknown>[]> {
     return this.runnableTasks;
   }
@@ -462,6 +477,29 @@ test("operator task API returns one task by ID", async () => {
       taskId: "task-detail",
       status: "BLOCKED",
       lastError: { reason: "no path" },
+    });
+  } finally {
+    await server.close();
+  }
+});
+
+test("operator goal report API returns workflow state and task details", async () => {
+  const store = new FakeGatewayStore();
+  const server = await startServer(store);
+  try {
+    const response = await fetch(`${server.baseUrl}/v1/goals/task-report/report`, {
+      headers: adminHeaders(),
+    });
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), {
+      projectId: "project-test",
+      jobId: "job-test",
+      rootTaskId: "task-report",
+      goalText: "@alice get 64 cobblestone and deposit it in Test Chest",
+      projectStatus: "ACTIVE",
+      jobStatus: "RUNNING",
+      taskStatus: "RUNNING",
+      tasks: [{ taskId: "task-report", status: "RUNNING", workflowPhase: "GATHER" }],
     });
   } finally {
     await server.close();

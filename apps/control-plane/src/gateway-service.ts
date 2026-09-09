@@ -106,6 +106,7 @@ export interface GatewayServiceStore {
   getAgent(name: string): Promise<Record<string, unknown> | undefined>;
   listTasks(): Promise<readonly Record<string, unknown>[]>;
   getTask(taskId: string): Promise<Record<string, unknown> | undefined>;
+  getGoalReport(taskId: string): Promise<Record<string, unknown> | undefined>;
   listRunnableTasks(): Promise<readonly Record<string, unknown>[]>;
   claimTask(taskId: string, workerKey: string): Promise<Record<string, unknown>>;
   dispatchTask(taskId: string, workerKey: string, commandId: string): Promise<Command>;
@@ -506,6 +507,17 @@ export class GatewayService {
       throw new HttpError(404, "UNKNOWN_TASK", "task was not found");
     }
     return task;
+  }
+
+  public async goalReport(taskId: string): Promise<Record<string, unknown>> {
+    if (!IdentifierSchema.safeParse(taskId).success) {
+      throw new HttpError(400, "INVALID_PAYLOAD", "task id is invalid");
+    }
+    const report = await this.store.getGoalReport(taskId);
+    if (!report) {
+      throw new HttpError(404, "UNKNOWN_TASK", "task was not found");
+    }
+    return report;
   }
 
   public async planningContext(taskId: string): Promise<Record<string, unknown>> {

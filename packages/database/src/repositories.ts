@@ -480,6 +480,40 @@ export class GatewayRuntimeRepository {
     return new TaskRepository(this.pool).getTask(taskId);
   }
 
+  public async getGoalReport(taskId: string): Promise<Record<string, unknown> | undefined> {
+    const anchor = await this.pool.query(
+      `
+        SELECT p.id::text AS "projectId", j.id::text AS "jobId",
+               root.id::text AS "rootTaskId", p.goal_text AS "goalText",
+               p.status AS "projectStatus", j.status AS "jobStatus",
+               anchor.status AS "taskStatus"
+        FROM tasks anchor
+        JOIN jobs j ON j.id = anchor.job_id
+        JOIN projects p ON p.id = j.project_id
+        LEFT JOIN tasks root ON root.job_id = j.id AND root.parent_task_id IS NULL
+        WHERE anchor.id = $1
+        LIMIT 1
+      `,
+      [taskId],
+    );
+    const header = anchor.rows[0] as Record<string, unknown> | undefined;
+    if (!header) return undefined;
+
+    const tasks = await this.pool.query(
+      `
+        SELECT t.id::text AS "taskId", t.parent_task_id::text AS "parentTaskId",
+               t.workflow_phase AS "workflowPhase", t.kind, t.status,
+               t.skill_name AS "skillName", t.assigned_worker_id::text AS "assignedWorkerId",
+               t.attempt_count AS "attemptCount", t.last_error_json AS "lastError"
+        FROM tasks t
+        WHERE t.job_id = $1
+        ORDER BY t.id
+      `,
+      [header.jobId],
+    );
+    return { ...header, tasks: tasks.rows };
+  }
+
   public async listRunnableTasks(): Promise<readonly Record<string, unknown>[]> {
     return new TaskRepository(this.pool).listRunnableTasks();
   }

@@ -64,6 +64,7 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
       const featureGatesPath = url.pathname === "/v1/feature-gates";
       const auditPath = url.pathname === "/v1/audit";
       const goalsPath = url.pathname === "/v1/goals";
+      const goalReportPathMatch = url.pathname.match(/^\/v1\/goals\/([^/]+)\/report$/);
       const taskPathMatch = url.pathname.match(/^\/v1\/tasks(?:\/([^/]+))?$/);
       const taskPlanningContextPathMatch = url.pathname.match(
         /^\/v1\/tasks\/([^/]+)\/planning-context$/,
@@ -92,6 +93,7 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
         featureGatesPath ||
         auditPath ||
         goalsPath ||
+        goalReportPathMatch ||
         taskPathMatch ||
         taskPlanningContextPathMatch ||
         taskTransitionPathMatch ||
@@ -219,6 +221,19 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
             throw new HttpError(405, "INVALID_PAYLOAD", "method is not supported");
           }
           sendJson(response, 200, { tasks: await options.service.listRunnableTasks() });
+          return;
+        }
+        if (goalReportPathMatch) {
+          if (method !== "GET") {
+            throw new HttpError(405, "INVALID_PAYLOAD", "method is not supported");
+          }
+          let taskId: string;
+          try {
+            taskId = decodeURIComponent(goalReportPathMatch[1]!);
+          } catch {
+            throw new HttpError(400, "INVALID_PAYLOAD", "task id is not valid URL encoding");
+          }
+          sendJson(response, 200, await options.service.goalReport(taskId));
           return;
         }
         if (schedulerTickPath) {
