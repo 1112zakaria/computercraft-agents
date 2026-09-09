@@ -22,7 +22,11 @@ Examples:
 @all return to the workshop
 ```
 
-The address parser resolves names/groups. Codex receives the already-resolved recipient scope.
+The deterministic address parser recognizes one or more named targets and the special `@all`
+target before reasoning. Registry-backed resolution determines whether a named target is a worker
+or group and expands the recipient scope; that expansion is not yet enabled for the first
+single-worker gather workflow. Codex receives only the resolved recipient scope, never raw address
+syntax.
 
 ## 3. Natural unaddressed conversation
 
