@@ -38,6 +38,7 @@ local movement_module = require("movement")
 local observation_module = require("observation")
 local inventory_module = require("inventory")
 local fuel_module = require("fuel")
+local excavation_module = require("excavation")
 local cache_module = require("idempotency")
 local client_module
 if config.transport == "direct-http" then
@@ -57,13 +58,14 @@ local function poll_control()
 end
 
 cancellation = cancellation_module.new(poll_control)
-local inventory = inventory_module.new(turtle, config, cancellation)
-local fuel = fuel_module.new(turtle, config, cancellation)
-client = client_module.new(config, state, inventory, fuel, protocol, logging)
 local movement = movement_module.new(state, cancellation, turtle)
 local observation = observation_module.new(turtle, cancellation)
+local inventory = inventory_module.new(turtle, config, cancellation)
+local fuel = fuel_module.new(turtle, config, cancellation)
+local excavation = excavation_module.new(movement, observation)
+client = client_module.new(config, state, inventory, fuel, protocol, logging)
 local cache = cache_module.new(config.idempotency_path, config.max_cached_commands, logging)
-local executor = executor_module.new(config, client, state, cancellation, movement, observation, inventory, fuel, cache, protocol, id, logging)
+local executor = executor_module.new(config, client, state, cancellation, movement, observation, inventory, fuel, cache, protocol, id, logging, excavation)
 local update_manager = require("update_manager").new(config, client, protocol, id, logging, bootstrap)
 
 local connected = false

@@ -1,0 +1,2 @@
+-- CraftOS executes the extensionless root startup program automatically.
+shell.run("startup.lua")

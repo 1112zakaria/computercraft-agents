@@ -2,6 +2,19 @@
 
 This backlog is written for a coding agent working incrementally in the repository. Items are ordered to reduce risk. Codex SHOULD complete one bounded item at a time, run relevant tests, update documentation when contracts change, and avoid starting later destructive features before prerequisites pass.
 
+## Current implementation notes
+
+As of 2026-09-09, the direct HTTP transport has passed a live canary on worker `alice`, including
+registration, heartbeat, bounded movement, event submission, and a successful `v0.4.1` OTA
+activation/reboot. The existing turtle installation still requires a one-time extensionless
+CraftOS `startup` hook; automatic installation of that hook is tracked in GitHub issue #7.
+
+Gateway Rednet live validation remains pending because the gateway/turtle modem hardware is not
+available. It is not a blocker for the direct HTTP primary path.
+
+The navigation, scheduler, and excavation implementations currently include tested deterministic
+foundations only; they are not yet the complete persistent task/resource workflow.
+
 Priority:
 
 - **P0** — required for first useful system.
@@ -494,7 +507,8 @@ attempt rollback after interrupted activation.
 
 **Priority:** P0
 **Dependencies:** CC-010, CC-020, CC-050, CC-053
-**Status:** IMPLEMENTED on `feat/direct-turtle-http-transport`; live direct canary pending
+**Status:** LIVE CANARY COMPLETE on `main`/`v0.4.1`; automatic startup-hook installation remains
+open as issue #7
 
 Add `direct-http` as a transport-aware alternative to `gateway-rednet`. Direct turtles register,
 heartbeat, poll commands/stop controls/updates, and submit durable event batches through the
@@ -525,12 +539,18 @@ gateway-backed workers and fleet rollouts remain unchanged.
 **Priority:** P0  
 **Dependencies:** CC-020, CC-044
 
+**Status:** PARTIAL — bounded in-memory sparse walkability model and deterministic tests exist;
+persistent observation ingestion remains.
+
 Represent observed cells and freshness/worker source.
 
 ### CC-061 — Implement A* pathfinding over known cells
 
 **Priority:** P0  
 **Dependencies:** CC-060
+
+**Status:** PARTIAL — bounded known-cell A* baseline exists; runtime path execution/replanning
+remains.
 
 **Acceptance criteria**
 
@@ -594,12 +614,18 @@ Evaluate GPS/manual docking/other available approaches and implement the simples
 **Priority:** P0  
 **Dependencies:** CC-023, CC-022
 
+**Status:** PARTIAL — deterministic capability-aware, one-worker-per-task selection exists;
+persistent claim/dispatch loop remains.
+
 Select tasks based on dependencies, worker availability, required capabilities, and priority.
 
 ### CC-071 — Enforce one execution stream per worker
 
 **Priority:** P0  
 **Dependencies:** CC-070
+
+**Status:** PARTIAL — scheduler selection reserves each worker once per decision; database claim
+and restart-safe enforcement remains.
 
 **Acceptance criteria**
 
@@ -730,17 +756,17 @@ Implement complexity heuristic and structured project plan output.
 
 ## Epic J — Natural-language command system
 
-### CC-090 — Implement deterministic address parser
+### CC-096 — Implement deterministic address parser
 
 **Priority:** P0  
 **Dependencies:** CC-021
 
 Parse agents/groups/`@all` before reasoning.
 
-### CC-091 — Implement CLI natural-language command
+### CC-097 — Implement CLI natural-language command
 
 **Priority:** P0  
-**Dependencies:** CC-085, CC-090
+**Dependencies:** CC-085, CC-096
 
 Example:
 
@@ -753,7 +779,7 @@ creates goal and starts planner/scheduler flow.
 ### CC-092 — Implement conversational session context
 
 **Priority:** P1  
-**Dependencies:** CC-090, CC-020
+**Dependencies:** CC-096, CC-020
 
 Support follow-up targeting without explicit address when context is clear.
 
@@ -765,7 +791,7 @@ Support follow-up targeting without explicit address when context is clear.
 ### CC-094 — Minecraft chat integration spike
 
 **Priority:** P1  
-**Dependencies:** CC-091
+**Dependencies:** CC-097
 
 Discover existing peripheral support; otherwise specify the smallest Forge chat relay.
 
@@ -797,6 +823,9 @@ Represent item ID/damage/NBT constraints sufficiently for 1.7.10 inventory plann
 **Priority:** P0  
 **Dependencies:** CC-044, CC-062
 
+**Status:** PARTIAL — safe one-block-wide, one-block-high tunnel primitive and CLI command exist;
+box patterns remain intentionally rejected.
+
 Start with simple tunnel/box patterns; every operation bounded.
 
 ### CC-102 — Implement gather-resource task state machine
@@ -817,7 +846,7 @@ Start with simple tunnel/box patterns; every operation bounded.
 ### CC-105 — First useful natural-language acceptance
 
 **Priority:** P0  
-**Dependencies:** CC-091, CC-102, CC-103
+**Dependencies:** CC-097, CC-102, CC-103
 
 Pass live acceptance:
 

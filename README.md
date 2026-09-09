@@ -64,6 +64,8 @@ identity, Minecraft server ID, and the existing bearer secret:
 npm run cli -- provision-worker --id alice --server friends-server --computer-id 21 --version v0.4.0
 npm run cli -- workers alice
 npm run cli -- update --target worker:alice --version v0.4.0
+npm run cli -- excavate alice 1 1 8
+npm run cli -- deposit alice
 ```
 
 See [architecture](docs/02-ARCHITECTURE.md), [protocol](docs/05-PROTOCOL.md), and

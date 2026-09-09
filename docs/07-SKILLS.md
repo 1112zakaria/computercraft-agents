@@ -117,6 +117,11 @@ dig_tunnel(start, direction, length, cross_section)
 clear_layer(bounds)
 ```
 
+The current deterministic runtime slice exposes `mining.excavate` for a bounded
+one-block-wide, one-block-high tunnel. The operator CLI invokes it with, for example,
+`npm run cli -- excavate alice 1 1 8`. Wider box patterns remain explicitly unsupported until
+their turn, fuel, inventory, and rollback behavior is tested.
+
 Every excavation SHALL have explicit bounds.
 
 ## 8. Building

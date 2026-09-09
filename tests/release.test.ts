@@ -20,6 +20,7 @@ test("release manifest is immutable-tagged and excludes direct worker state", ()
     version: string;
     runtimeFiles: Array<{ path: string; downloadUrl: string }>;
     excludedPersistentFiles: string[];
+    stableBootstrapFiles: string[];
   };
 
   assert.equal(manifest.version, "v9.8.7");
@@ -29,4 +30,7 @@ test("release manifest is immutable-tagged and excludes direct worker state", ()
   assert.ok(manifest.excludedPersistentFiles.includes("worker-poll-cursor.json"));
   assert.ok(manifest.excludedPersistentFiles.includes("worker-event-outbox.json"));
   assert.ok(manifest.runtimeFiles.every((file) => !file.path.endsWith("worker.conf")));
+  assert.ok(manifest.stableBootstrapFiles.includes("computercraft/turtle/startup"));
+  assert.ok(manifest.stableBootstrapFiles.includes("computercraft/gateway/startup"));
+  assert.ok(!manifest.runtimeFiles.some((file) => file.path.endsWith("/startup")));
 });

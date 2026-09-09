@@ -8,6 +8,7 @@ import { parse } from "luaparse";
 const runtimeRoot = join(__dirname, "../computercraft");
 
 const luaFiles = [
+  "gateway/startup",
   "gateway/config.lua",
   "gateway/dispatcher.lua",
   "gateway/gateway.lua",
@@ -25,6 +26,7 @@ const luaFiles = [
   "turtle/compat.lua",
   "turtle/config.lua",
   "turtle/direct_http_client.lua",
+  "turtle/excavation.lua",
   "turtle/executor.lua",
   "turtle/fuel.lua",
   "turtle/id.lua",
@@ -35,6 +37,7 @@ const luaFiles = [
   "turtle/observation.lua",
   "turtle/protocol.lua",
   "turtle/rednet_client.lua",
+  "turtle/startup",
   "turtle/startup.lua",
   "turtle/update_bootstrap.lua",
   "turtle/update_manager.lua",
@@ -56,4 +59,11 @@ test("direct turtle updater filters the combined release manifest", () => {
     /if is_turtle_runtime_path\(type\(entry\) == "table" and entry\.path or nil\) then/,
   );
   assert.match(source, /manifest contains no turtle runtime files/);
+});
+
+test("gateway and turtle include extensionless CraftOS startup hooks", () => {
+  for (const relativePath of ["gateway/startup", "turtle/startup"]) {
+    const source = readFileSync(join(runtimeRoot, relativePath), "utf8");
+    assert.match(source, /shell\.run\("startup\.lua"\)/, relativePath);
+  }
 });

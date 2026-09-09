@@ -15,6 +15,8 @@ this deployment guide. It does not contain populated configuration or secrets.
 
 1. Extract the archive and copy the contents of `computercraft/gateway/` to the ComputerCraft
    computer filesystem.
+   Preserve the extensionless `startup` file at the filesystem root. CraftOS uses it as the
+   automatic boot hook and it launches the versioned `startup.lua` runtime.
 2. Copy `gateway.conf.example` to `gateway.conf` and fill in the VPS URL, gateway ID, server ID,
    modem side, and the bearer secret locally.
 3. Ensure a wired or wireless modem is attached on the configured side. The gateway cannot talk
@@ -24,6 +26,8 @@ this deployment guide. It does not contain populated configuration or secrets.
 ## Gateway-backed turtle
 
 1. Copy the contents of `computercraft/turtle/` to the turtle filesystem.
+   Preserve the extensionless `startup` file at the filesystem root. CraftOS uses it as the
+   automatic boot hook and it launches the versioned `startup.lua` runtime.
 2. Copy `worker.conf.example` to `worker.conf` and set a stable worker ID, the gateway computer
    ID, the modem side, and the Rednet protocol.
 3. Ensure the turtle has a compatible modem upgrade installed and fuel for any later movement

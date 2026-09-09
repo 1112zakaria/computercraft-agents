@@ -90,3 +90,33 @@ test("CLI constructs a direct worker provisioning request", async () => {
     else process.env.CONTROL_PLANE_ADMIN_SECRET = previousSecret;
   }
 });
+
+test("CLI constructs a bounded excavation command", async () => {
+  const previousFetch = globalThis.fetch;
+  const previousUrl = process.env.CONTROL_PLANE_URL;
+  const previousSecret = process.env.CONTROL_PLANE_ADMIN_SECRET;
+  let capturedInit: RequestInit | undefined;
+  process.env.CONTROL_PLANE_URL = "http://control-plane.test";
+  process.env.CONTROL_PLANE_ADMIN_SECRET = "test-admin-secret";
+  globalThis.fetch = async (_input, init) => {
+    capturedInit = init;
+    return new Response(JSON.stringify({ accepted: true }), { status: 200 });
+  };
+  try {
+    await runCli(["excavate", "alice", "1", "1", "8"]);
+    const body = JSON.parse(String(capturedInit?.body)) as {
+      skill: string;
+      arguments: { width: number; height: number; depth: number };
+      budget: { maxPrimitives: number; maxBlockChanges: number };
+    };
+    assert.equal(body.skill, "mining.excavate");
+    assert.deepEqual(body.arguments, { width: 1, height: 1, depth: 8 });
+    assert.deepEqual(body.budget, { maxPrimitives: 24, maxBlockChanges: 8 });
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousUrl === undefined) delete process.env.CONTROL_PLANE_URL;
+    else process.env.CONTROL_PLANE_URL = previousUrl;
+    if (previousSecret === undefined) delete process.env.CONTROL_PLANE_ADMIN_SECRET;
+    else process.env.CONTROL_PLANE_ADMIN_SECRET = previousSecret;
+  }
+});

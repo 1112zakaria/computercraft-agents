@@ -15,7 +15,7 @@ local function error_payload(code, message, retryable, details)
   }
 end
 
-function M.new(config, client, state, cancellation, movement, observation, inventory, fuel, cache, protocol, id, logger)
+function M.new(config, client, state, cancellation, movement, observation, inventory, fuel, cache, protocol, id, logger, excavation)
   local executor = {
     config = config,
     client = client,
@@ -29,6 +29,7 @@ function M.new(config, client, state, cancellation, movement, observation, inven
     protocol = protocol,
     id = id,
     logger = logger,
+    excavation = excavation,
   }
 
   function executor:emit(command_id, event_type, payload)
@@ -66,6 +67,8 @@ function M.new(config, client, state, cancellation, movement, observation, inven
       return self.inventory:withdraw(self.config.container_side, args.itemKey, args.quantity, args.slot)
     elseif skill == "fuel.refuel" then
       return self.fuel:refuel(args.maxItems)
+    elseif skill == "mining.excavate" then
+      return self.excavation:run(args.width, args.height, args.depth)
     end
     return { status = "UNIMPLEMENTED", error = "skill is reserved for a later runtime slice" }
   end
@@ -111,7 +114,7 @@ function M.new(config, client, state, cancellation, movement, observation, inven
     elseif result.status == "BUDGET_EXHAUSTED" or result.status == "BLOCK_CHANGE_BUDGET_EXHAUSTED" then
       event_type = "command.failed"
       payload = error_payload("INVALID_ARGUMENTS", "command budget exhausted", false, result)
-    elseif result.status == "UNIMPLEMENTED" then
+    elseif result.status == "UNIMPLEMENTED" or result.status == "UNSUPPORTED_PATTERN" then
       event_type = "command.failed"
       payload = error_payload("UNKNOWN_SKILL", result.error, false)
     elseif result.status ~= "OK" then

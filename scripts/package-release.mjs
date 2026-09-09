@@ -36,9 +36,11 @@ function filesUnder(directory) {
 }
 
 const stableBootstrapFiles = new Set([
+  "computercraft/gateway/startup",
   "computercraft/gateway/startup.lua",
   "computercraft/gateway/update_bootstrap.lua",
   "computercraft/gateway/update_manager.lua",
+  "computercraft/turtle/startup",
   "computercraft/turtle/startup.lua",
   "computercraft/turtle/compat.lua",
   "computercraft/turtle/update_bootstrap.lua",
