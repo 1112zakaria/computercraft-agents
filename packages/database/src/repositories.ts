@@ -1478,11 +1478,18 @@ export class GatewayRuntimeRepository {
         );
         await client.query(
           `
-            UPDATE tasks
-            SET status = 'PAUSED', assigned_worker_id = NULL,
-                last_error_json = $2
-            WHERE assigned_worker_id = (SELECT id FROM workers WHERE worker_key = $1)
-              AND status = 'RUNNING'
+            WITH paused AS (
+              UPDATE tasks
+              SET status = 'PAUSED', assigned_worker_id = NULL,
+                  last_error_json = $2
+              WHERE assigned_worker_id = (SELECT id FROM workers WHERE worker_key = $1)
+                AND status = 'RUNNING'
+              RETURNING job_id
+            )
+            UPDATE jobs
+            SET status = 'PAUSED'
+            WHERE id IN (SELECT DISTINCT job_id FROM paused)
+              AND status IN ('READY', 'RUNNING')
           `,
           [worker.worker_key, asJson({ reason: "worker became stale; explicit resume required" })],
         );
@@ -1552,13 +1559,20 @@ export class GatewayRuntimeRepository {
         await client.query(`UPDATE workers SET online = FALSE WHERE online = TRUE`);
         await client.query(
           `
-            UPDATE tasks
-            SET status = 'PAUSED', assigned_worker_id = NULL,
-                last_error_json = $2
-            WHERE assigned_worker_id IN (
-              SELECT id FROM workers WHERE worker_key = ANY($1::text[])
+            WITH paused AS (
+              UPDATE tasks
+              SET status = 'PAUSED', assigned_worker_id = NULL,
+                  last_error_json = $2
+              WHERE assigned_worker_id IN (
+                SELECT id FROM workers WHERE worker_key = ANY($1::text[])
+              )
+                AND status = 'RUNNING'
+              RETURNING job_id
             )
-              AND status = 'RUNNING'
+            UPDATE jobs
+            SET status = 'PAUSED'
+            WHERE id IN (SELECT DISTINCT job_id FROM paused)
+              AND status IN ('READY', 'RUNNING')
           `,
           [workerKeys, asJson({ reason: "control plane restarted; explicit resume required" })],
         );
@@ -1844,13 +1858,20 @@ export class GatewayRuntimeRepository {
     if (workerKeys.length > 0) {
       await client.query(
         `
-          UPDATE tasks
-          SET status = 'PAUSED', assigned_worker_id = NULL,
-              last_error_json = $2
-          WHERE assigned_worker_id IN (
-            SELECT id FROM workers WHERE gateway_id = $1
+          WITH paused AS (
+            UPDATE tasks
+            SET status = 'PAUSED', assigned_worker_id = NULL,
+                last_error_json = $2
+            WHERE assigned_worker_id IN (
+              SELECT id FROM workers WHERE gateway_id = $1
+            )
+              AND status = 'RUNNING'
+            RETURNING job_id
           )
-            AND status = 'RUNNING'
+          UPDATE jobs
+          SET status = 'PAUSED'
+          WHERE id IN (SELECT DISTINCT job_id FROM paused)
+            AND status IN ('READY', 'RUNNING')
         `,
         [gatewayId, asJson({ reason: "gateway restarted; explicit resume required" })],
       );
@@ -1909,11 +1930,18 @@ export class GatewayRuntimeRepository {
   ): Promise<void> {
     await client.query(
       `
-        UPDATE tasks
-        SET status = 'PAUSED', assigned_worker_id = NULL,
-            last_error_json = $2
-        WHERE assigned_worker_id = (SELECT id FROM workers WHERE worker_key = $1)
-          AND status = 'RUNNING'
+        WITH paused AS (
+          UPDATE tasks
+          SET status = 'PAUSED', assigned_worker_id = NULL,
+              last_error_json = $2
+          WHERE assigned_worker_id = (SELECT id FROM workers WHERE worker_key = $1)
+            AND status = 'RUNNING'
+          RETURNING job_id
+        )
+        UPDATE jobs
+        SET status = 'PAUSED'
+        WHERE id IN (SELECT DISTINCT job_id FROM paused)
+          AND status IN ('READY', 'RUNNING')
       `,
       [workerKey, asJson({ reason: "worker restarted; explicit resume required" })],
     );
@@ -3041,6 +3069,13 @@ export class TaskRepository {
         [taskId, nextState, reason ? asJson({ reason }) : null],
       );
 
+      if (nextState === "PAUSED") {
+        await client.query(
+          `UPDATE jobs SET status = 'PAUSED' WHERE id = $1 AND status IN ('READY', 'RUNNING')`,
+          [current.job_id],
+        );
+      }
+
       if (current.status === "PAUSED" && nextState === "READY") {
         await client.query(
           `
@@ -3058,6 +3093,8 @@ export class TaskRepository {
           `,
           [taskId],
         );
+      }
+      if (nextState === "READY") {
         await client.query(`UPDATE jobs SET status = 'READY' WHERE id = $1 AND status = 'PAUSED'`, [
           current.job_id,
         ]);

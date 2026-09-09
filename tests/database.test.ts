@@ -204,6 +204,20 @@ test("control-plane restart recovery invalidates online work before reconnect", 
   assert.match(repositories, /UPDATE gateways SET status = 'OFFLINE'/);
 });
 
+test("recovery and explicit task transitions keep job status aligned", () => {
+  const repositories = readFileSync(
+    join(__dirname, "../packages/database/src/repositories.ts"),
+    "utf8",
+  );
+  assert.match(repositories, /UPDATE jobs\s+SET status = 'PAUSED'/);
+  assert.match(repositories, /WITH paused AS \(\s+UPDATE tasks/s);
+  assert.match(repositories, /RETURNING job_id/);
+  assert.match(
+    repositories,
+    /UPDATE jobs SET status = 'READY' WHERE id = \$1 AND status = 'PAUSED'/,
+  );
+});
+
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 if (testDatabaseUrl) {
   test("database migrations apply and are idempotent in the configured test database", async () => {
