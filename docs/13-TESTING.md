@@ -145,6 +145,7 @@ Acceptance:
 - scheduler assigns Alice;
 - Alice moves/mines with bounded logic;
 - inventory fullness is handled;
+- an inventory-full command pauses the workflow and explicit resume reactivates its current step;
 - Alice reaches deposit location;
 - 64 cobblestone are verified delivered;
 - project is marked complete;

@@ -899,10 +899,9 @@ Start with simple tunnel/box patterns; every operation bounded.
 **Status:** PARTIAL — a pure bounded gather workflow contract and persistent parent/step linkage
 now model targeted gather, known-cell destination navigation, allowlisted deposit, completion, and
 safe blocking. The scheduler can dispatch the first protocol step and command events advance the
-workflow idempotently; runtime inventory-full handling and resumable step state remain. Deposit
-completion now requires the reported moved quantity to meet the requested quantity. The runtime
-now stops safely before digging when no usable inventory slot remains; resumable inventory-full
-recovery and automatic delivery remain.
+workflow idempotently. Inventory-full failures now pause the gather step, parent task, and job with
+an explicit resume instruction; `resume-task` reactivates the paused workflow step after the operator
+deposits items. Automatic inventory delivery, capacity planning, and full live acceptance remain.
 
 ### CC-103 — Implement known-container deposit skill
 

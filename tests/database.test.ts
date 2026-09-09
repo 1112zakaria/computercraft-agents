@@ -5,6 +5,7 @@ import test from "node:test";
 
 import {
   createDatabasePool,
+  isInventoryFullFailure,
   migrationChecksum,
   readMigrationFiles,
   runMigrations,
@@ -12,6 +13,7 @@ import {
   transferMeetsQuantity,
   workflowStepEventCanAdvance,
 } from "../packages/database/src/index";
+import type { Event } from "../packages/protocol/src/index";
 
 const migrationDirectory = join(__dirname, "../packages/database/migrations");
 
@@ -108,6 +110,37 @@ test("workflow advancement ignores late or duplicate step events", () => {
   assert.equal(workflowStepEventCanAdvance("PAUSED", "command.completed"), false);
   assert.equal(workflowStepEventCanAdvance("RUNNING", "command.completed"), false);
   assert.equal(workflowStepEventCanAdvance("DONE", "command.failed"), false);
+});
+
+test("inventory-full failures are identified as resumable workflow pauses", () => {
+  const event = {
+    protocolVersion: 1,
+    eventId: "event-1",
+    workerId: "alice",
+    commandId: "command-1",
+    sequence: 1,
+    occurredAt: new Date().toISOString(),
+    type: "command.failed",
+    payload: {
+      error: {
+        code: "INVALID_ARGUMENTS",
+        message: "worker inventory is full",
+        retryable: true,
+        details: { status: "INVENTORY_FULL" },
+      },
+    },
+  } as Event;
+  assert.equal(isInventoryFullFailure(event), true);
+
+  const repositories = readFileSync(
+    join(__dirname, "../packages/database/src/repositories.ts"),
+    "utf8",
+  );
+  assert.match(repositories, /explicitly resume the gather task/);
+  assert.match(
+    repositories,
+    /UPDATE jobs SET status = 'READY' WHERE id = \$1 AND status = 'PAUSED'/,
+  );
 });
 
 test("stale recovery keeps command delivery behind an explicit resume boundary", () => {

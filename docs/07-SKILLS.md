@@ -111,7 +111,9 @@ inspects and digs one block ahead at a time, and stops with `TARGET_NOT_REACHED`
 bound is exhausted. Bare item names are canonicalized to the `minecraft:` namespace at both the
 CLI and turtle runtime boundaries. It is intentionally not yet the full location-aware gather state machine
 described above. Before digging a discovered block, the turtle requires a usable non-reserved
-inventory slot and fails safely with `INVENTORY_FULL` when none is available.
+inventory slot and fails safely with `INVENTORY_FULL` when none is available. The control plane pauses
+the gather workflow on this result; after depositing items, an operator can run `resume-task` to retry
+the paused gather step without losing the workflow context.
 
 The domain package now contains a pure gather workflow contract with the phases
 `CHECK_INVENTORY`, `GATHER`, `NAVIGATE_DESTINATION`, `DEPOSIT`, `VERIFY`, `COMPLETED`, and

@@ -272,6 +272,18 @@ export function transferMeetsQuantity(result: unknown, requestedQuantity: number
   return Number.isSafeInteger(result.moved) && result.moved >= requestedQuantity;
 }
 
+export function isInventoryFullFailure(event: Event): boolean {
+  if (event.type !== "command.failed") return false;
+  const payloadValue: unknown = event.payload;
+  const payload = isRecord(payloadValue) ? payloadValue : undefined;
+  if (!payload) return false;
+  const error = payload.error;
+  if (!isRecord(error) || !isRecord(error.details)) return false;
+  if (error.details.status === "INVENTORY_FULL") return true;
+  const result = error.details.result;
+  return isRecord(result) && result.status === "INVENTORY_FULL";
+}
+
 export function workflowStepEventCanAdvance(taskStatus: string, eventType: Event["type"]): boolean {
   return (
     (eventType === "command.completed" && taskStatus === "DONE") ||
@@ -2055,7 +2067,13 @@ export class GatewayRuntimeRepository {
       [event.commandId],
     );
     const task = taskResult.rows[0];
-    if (!task?.parent_task_id || !workflowStepEventCanAdvance(task.status, event.type)) return;
+    const inventoryFull = isInventoryFullFailure(event) && task?.workflow_phase === "GATHER";
+    if (
+      !task?.parent_task_id ||
+      (!workflowStepEventCanAdvance(task.status, event.type) && !inventoryFull)
+    ) {
+      return;
+    }
 
     const parentResult = await client.query<{ arguments_json: unknown }>(
       `SELECT arguments_json FROM tasks WHERE id = $1`,
@@ -2080,6 +2098,23 @@ export class GatewayRuntimeRepository {
     };
 
     if (event.type === "command.failed") {
+      if (inventoryFull) {
+        const reason =
+          "worker inventory is full; deposit items, then explicitly resume the gather task";
+        await client.query(
+          `
+            UPDATE tasks
+            SET status = 'PAUSED', assigned_worker_id = NULL, last_error_json = $2
+            WHERE id = $1 AND status IN ('READY', 'RUNNING', 'PAUSED')
+          `,
+          [task.parent_task_id, asJson({ reason, resumable: true })],
+        );
+        await client.query(
+          `UPDATE jobs SET status = 'PAUSED' WHERE id = $1 AND status IN ('READY', 'RUNNING', 'PAUSED')`,
+          [task.job_id],
+        );
+        return;
+      }
       await block(`workflow step failed: ${task.workflow_phase ?? "unknown"}`);
       return;
     }
@@ -2494,6 +2529,7 @@ export class GatewayRuntimeRepository {
       );
       const taskStatus = taskStatusForCommandEvent(event.type);
       if (taskStatus) {
+        const inventoryFull = isInventoryFullFailure(event);
         await client.query(
           `
             UPDATE tasks
@@ -2504,8 +2540,16 @@ export class GatewayRuntimeRepository {
           `,
           [
             event.commandId,
-            taskStatus,
-            taskStatus === "DONE" ? null : asJson({ reason: event.type }),
+            inventoryFull ? "PAUSED" : taskStatus,
+            taskStatus === "DONE"
+              ? null
+              : inventoryFull
+                ? asJson({
+                    reason:
+                      "worker inventory is full; deposit items, then explicitly resume the gather task",
+                    resumable: true,
+                  })
+                : asJson({ reason: event.type }),
           ],
         );
         await this.advanceGatherWorkflow(client, event);
@@ -2996,6 +3040,28 @@ export class TaskRepository {
         `,
         [taskId, nextState, reason ? asJson({ reason }) : null],
       );
+
+      if (current.status === "PAUSED" && nextState === "READY") {
+        await client.query(
+          `
+            UPDATE tasks
+            SET status = 'READY', assigned_worker_id = NULL, last_error_json = NULL
+            WHERE id = (
+              SELECT id
+              FROM tasks
+              WHERE parent_task_id = $1
+                AND workflow_phase IS NOT NULL
+                AND status = 'PAUSED'
+              ORDER BY id DESC
+              LIMIT 1
+            )
+          `,
+          [taskId],
+        );
+        await client.query(`UPDATE jobs SET status = 'READY' WHERE id = $1 AND status = 'PAUSED'`, [
+          current.job_id,
+        ]);
+      }
 
       if (requiresStop) {
         const controlId = `task-stop-${taskId}-${randomUUID()}`.slice(0, 128);
