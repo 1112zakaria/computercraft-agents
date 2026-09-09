@@ -411,10 +411,12 @@ test("planner trigger failures remain retryable behind the outage gate", async (
     }),
   });
   await assert.rejects(service.handle(trigger), /provider unavailable/);
-  assert.equal(await service.handle(trigger), undefined);
+  assert.equal(service.pendingRetryCount(), 1);
+  assert.deepEqual(await service.retryPending(new Date("2026-09-09T00:00:00.000Z")), []);
   outage.recordSuccess();
-  const retry = await service.handle(trigger);
+  const retry = (await service.retryPending()).at(0);
   assert.equal(retry?.decision.kind, "replan");
+  assert.equal(service.pendingRetryCount(), 0);
   assert.equal(attempts, 2);
   assert.equal(await service.handle(trigger), undefined);
 });

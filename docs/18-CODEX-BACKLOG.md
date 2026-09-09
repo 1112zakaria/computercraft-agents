@@ -1173,6 +1173,10 @@ Test whether turtles can continue intended work with humans offline and across r
 **Priority:** P0  
 **Dependencies:** CC-089, CC-160
 
+**Status:** PARTIAL — failed planner triggers are retained in a bounded retry queue and can be
+replayed through a recovery sweep after the outage gate opens; the production planner loop still
+needs to call that sweep and persist trigger state across control-plane restarts.
+
 ---
 
 ## Epic R — Operational tooling

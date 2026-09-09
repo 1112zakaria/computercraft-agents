@@ -234,6 +234,7 @@ export interface PlannerTriggerServiceOptions {
 export class PlannerTriggerService {
   private readonly seen = new Set<string>();
   private readonly inFlight = new Set<string>();
+  private readonly pendingRetries = new Map<string, PlannerTrigger>();
   private readonly maxRememberedTriggers: number;
 
   public constructor(private readonly options: PlannerTriggerServiceOptions) {
@@ -262,6 +263,7 @@ export class PlannerTriggerService {
       });
       this.options.outage?.recordSuccess();
       this.seen.add(trigger.triggerId);
+      this.pendingRetries.delete(trigger.triggerId);
       while (this.seen.size > this.maxRememberedTriggers) {
         const oldest = this.seen.values().next().value as string | undefined;
         if (oldest === undefined) break;
@@ -269,11 +271,36 @@ export class PlannerTriggerService {
       }
       return result;
     } catch (error) {
+      this.pendingRetries.set(trigger.triggerId, trigger);
+      while (this.pendingRetries.size > this.maxRememberedTriggers) {
+        const oldest = this.pendingRetries.keys().next().value as string | undefined;
+        if (oldest === undefined) break;
+        this.pendingRetries.delete(oldest);
+      }
       this.options.outage?.recordFailure();
       throw error;
     } finally {
       this.inFlight.delete(trigger.triggerId);
     }
+  }
+
+  public pendingRetryCount(): number {
+    return this.pendingRetries.size;
+  }
+
+  /** Retry failed triggers after the outage gate opens, stopping after the first new failure. */
+  public async retryPending(now = new Date()): Promise<readonly ReasoningResult[]> {
+    if (this.options.outage && !this.options.outage.canAttempt(now)) return [];
+    const results: ReasoningResult[] = [];
+    for (const trigger of this.pendingRetries.values()) {
+      try {
+        const result = await this.handle(trigger);
+        if (result) results.push(result);
+      } catch {
+        break;
+      }
+    }
+    return results;
   }
 }
 
