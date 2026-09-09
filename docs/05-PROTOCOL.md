@@ -167,6 +167,9 @@ boundary uses `FOR UPDATE SKIP LOCKED`, increments attempts, and accepts complet
 `PROCESSING`, so a future worker can safely run more than one control-plane instance. Claims carry
 a timestamp and stale `PROCESSING` claims can be returned to `PENDING` after a bounded lease,
 preventing a crashed planner worker from losing the trigger permanently.
+The reasoning package provides a runner that releases provider failures for retry and calls an
+explicit decision sink only after a validated result is returned; the production control-plane
+loop and decision sink remain opt-in follow-up work.
 
 The reasoning package now exposes a provider-neutral planner-trigger service. It accepts only the
 bounded causes `goal.created`, `command.completed`, `command.failed`, `worker.blocked`,

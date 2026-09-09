@@ -206,6 +206,25 @@ export const PlannerTriggerSchema = z
 
 export type PlannerTrigger = z.infer<typeof PlannerTriggerSchema>;
 
+export type DurablePlannerTrigger = PlannerTrigger;
+
+export interface PlannerTriggerQueue {
+  claim(limit: number): Promise<readonly DurablePlannerTrigger[]>;
+  complete(triggerId: string, status: "SUCCEEDED" | "FAILED", error?: unknown): Promise<boolean>;
+  release(triggerId: string, error?: unknown): Promise<boolean>;
+}
+
+export interface PlannerDecisionSink {
+  apply(trigger: DurablePlannerTrigger, result: ReasoningResult): Promise<void>;
+}
+
+export interface PlannerTriggerRunSummary {
+  readonly claimed: number;
+  readonly succeeded: number;
+  readonly failed: number;
+  readonly released: number;
+}
+
 /** Normalize an external event into the small set of planner causes supported by v1. */
 export function plannerTriggerFromEvent(input: {
   readonly triggerId: string;
@@ -301,6 +320,57 @@ export class PlannerTriggerService {
       }
     }
     return results;
+  }
+}
+
+function plannerError(error: unknown): { readonly message: string } {
+  return { message: error instanceof Error ? error.message : "unknown planner failure" };
+}
+
+/**
+ * Bridges the durable trigger queue to reasoning while keeping decision application explicit.
+ * Provider outages release work back to the queue; only a successful sink application completes
+ * a trigger.
+ */
+export class PlannerTriggerRunner {
+  public constructor(
+    private readonly queue: PlannerTriggerQueue,
+    private readonly service: PlannerTriggerService,
+    private readonly sink: PlannerDecisionSink,
+    private readonly batchSize = 1,
+  ) {
+    if (!Number.isSafeInteger(batchSize) || batchSize < 1 || batchSize > 64) {
+      throw new Error("planner runner batchSize must be an integer between 1 and 64");
+    }
+  }
+
+  public async runOnce(): Promise<PlannerTriggerRunSummary> {
+    const triggers = await this.queue.claim(this.batchSize);
+    const summary = { claimed: triggers.length, succeeded: 0, failed: 0, released: 0 };
+    for (const trigger of triggers) {
+      let result: ReasoningResult | undefined;
+      try {
+        result = await this.service.handle(trigger);
+      } catch (error) {
+        await this.queue.release(trigger.triggerId, plannerError(error));
+        summary.released += 1;
+        continue;
+      }
+      if (!result) {
+        await this.queue.release(trigger.triggerId);
+        summary.released += 1;
+        continue;
+      }
+      try {
+        await this.sink.apply(trigger, result);
+        await this.queue.complete(trigger.triggerId, "SUCCEEDED");
+        summary.succeeded += 1;
+      } catch (error) {
+        await this.queue.complete(trigger.triggerId, "FAILED", plannerError(error));
+        summary.failed += 1;
+      }
+    }
+    return summary;
   }
 }
 

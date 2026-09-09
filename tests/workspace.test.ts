@@ -18,6 +18,7 @@ import {
   assemblePlanningContext,
   CodexCliProvider,
   FakeReasoningProvider,
+  PlannerTriggerRunner,
   PlannerTriggerService,
   plannerTriggerFromEvent,
   PlannerDecisionSchema,
@@ -419,6 +420,117 @@ test("planner trigger failures remain retryable behind the outage gate", async (
   assert.equal(service.pendingRetryCount(), 0);
   assert.equal(attempts, 2);
   assert.equal(await service.handle(trigger), undefined);
+});
+
+test("planner trigger runner completes only after the decision sink succeeds", async () => {
+  const trigger = plannerTriggerFromEvent({
+    triggerId: "runner-trigger",
+    cause: "goal.created",
+    subjectId: "task-runner",
+    occurredAt: "2026-09-09T00:00:00.000Z",
+  });
+  assert.ok(trigger);
+  const provider = new FakeReasoningProvider([
+    { kind: "report", status: "PROGRESS", summary: "ready" },
+  ]);
+  const service = new PlannerTriggerService({
+    provider,
+    tier: "fast",
+    timeoutMs: 1000,
+    assembleContext: async () => ({
+      goalText: "runner",
+      skills: [],
+      worldKnowledge: [],
+      memories: [],
+      recentConversation: [],
+    }),
+  });
+  const completed: string[] = [];
+  const released: string[] = [];
+  let applied = 0;
+  const runner = new PlannerTriggerRunner(
+    {
+      async claim() {
+        return completed.length === 0 ? [trigger] : [];
+      },
+      async complete(triggerId) {
+        completed.push(triggerId);
+        return true;
+      },
+      async release(triggerId) {
+        released.push(triggerId);
+        return true;
+      },
+    },
+    service,
+    {
+      async apply(received, result) {
+        assert.equal(received.triggerId, trigger.triggerId);
+        assert.equal(result.decision.kind, "report");
+        applied += 1;
+      },
+    },
+  );
+
+  assert.deepEqual(await runner.runOnce(), {
+    claimed: 1,
+    succeeded: 1,
+    failed: 0,
+    released: 0,
+  });
+  assert.equal(applied, 1);
+  assert.deepEqual(completed, [trigger.triggerId]);
+  assert.deepEqual(released, []);
+});
+
+test("planner trigger runner releases provider failures for retry", async () => {
+  const trigger = plannerTriggerFromEvent({
+    triggerId: "runner-failure",
+    cause: "replan.required",
+    subjectId: "task-runner",
+    occurredAt: "2026-09-09T00:00:00.000Z",
+  });
+  assert.ok(trigger);
+  const service = new PlannerTriggerService({
+    provider: {
+      async decide() {
+        throw new Error("provider unavailable");
+      },
+    },
+    tier: "fast",
+    timeoutMs: 1000,
+    assembleContext: async () => ({
+      goalText: "runner",
+      skills: [],
+      worldKnowledge: [],
+      memories: [],
+      recentConversation: [],
+    }),
+  });
+  let releasedError: unknown;
+  const runner = new PlannerTriggerRunner(
+    {
+      async claim() {
+        return [trigger];
+      },
+      async complete() {
+        return false;
+      },
+      async release(_triggerId, error) {
+        releasedError = error;
+        return true;
+      },
+    },
+    service,
+    { async apply() {} },
+  );
+  assert.deepEqual(await runner.runOnce(), {
+    claimed: 1,
+    succeeded: 0,
+    failed: 0,
+    released: 1,
+  });
+  assert.deepEqual(releasedError, { message: "provider unavailable" });
 });
 
 test("reasoning outage pauses provider work without coupling deterministic execution", () => {

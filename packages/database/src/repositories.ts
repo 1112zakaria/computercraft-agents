@@ -598,6 +598,19 @@ export class GatewayRuntimeRepository {
     return (result.rowCount ?? 0) > 0;
   }
 
+  public async releasePlannerTrigger(triggerId: string, lastError?: unknown): Promise<boolean> {
+    const result = await this.pool.query(
+      `
+        UPDATE planner_triggers
+        SET status = 'PENDING', claimed_at = NULL,
+            last_error_json = $2, processed_at = NULL
+        WHERE trigger_id = $1 AND status = 'PROCESSING'
+      `,
+      [triggerId, lastError === undefined ? null : asJson(lastError)],
+    );
+    return (result.rowCount ?? 0) > 0;
+  }
+
   public async requeueStalePlannerTriggers(staleAfterSeconds = 300): Promise<number> {
     if (!Number.isSafeInteger(staleAfterSeconds) || staleAfterSeconds < 1) {
       throw new Error("staleAfterSeconds must be a positive integer");

@@ -786,7 +786,9 @@ control plane now persists idempotent `goal.created`, task-correlated command co
 and `worker.blocked` triggers and exposes bounded operator inspection; consuming triggers,
 decision application and outage transitions remain. The repository also provides a transactional
 claim/complete boundary with stale-claim recovery for a future planner worker without enabling
-model execution yet.
+model execution yet. A tested runner now releases provider failures for retry and requires an
+explicit decision sink before completing a trigger; production loop wiring and decision
+application remain.
 
 Trigger on new goal, meaningful completion/failure, unexpected state, delegation need, replan.
 
