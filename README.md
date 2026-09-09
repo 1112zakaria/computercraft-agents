@@ -81,6 +81,7 @@ npm run cli -- excavate alice 1 1 8
 npm run cli -- path alice N N E
 npm run cli -- path-to alice "Test Chest"
 npm run cli -- go-to alice "Test Chest"
+npm run cli -- observe alice front
 npm run cli -- set-location "Test Chest" 0 10 64 -2 E --approach 0 9 64 -2 N
 npm run cli -- gather alice minecraft:cobblestone 8 12
 npm run cli -- deposit alice 8 --container-id test-chest --item-key cobblestone
