@@ -541,7 +541,8 @@ gateway-backed workers and fleet rollouts remain unchanged.
 **Dependencies:** CC-020, CC-044
 
 **Status:** PARTIAL — bounded in-memory sparse walkability model and deterministic tests exist;
-persistent observation ingestion remains.
+persistent `world_cells` storage and block-observation event ingestion now exist; planner loading
+and freshness/reconciliation remain.
 
 Represent observed cells and freshness/worker source.
 

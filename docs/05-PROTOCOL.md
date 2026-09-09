@@ -111,6 +111,11 @@ POST /v1/tasks/:taskId
 The claim request contains `workerId`. The database rejects claims for offline workers, unmet
 dependencies, already-claimed tasks, and workers with another active task.
 
+After a successful `observation.block` command, the turtle emits a `block.observed` event. The
+control plane derives the inspected cell from the worker position/facing and persists it in the
+dimension-namespaced world-cell model. This is observation storage only; path planning still uses
+known walkable cells and must be integrated with persistence separately.
+
 ## 3. Gateway registration
 
 Example:

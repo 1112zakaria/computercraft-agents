@@ -67,3 +67,9 @@ test("gateway and turtle include extensionless CraftOS startup hooks", () => {
     assert.match(source, /shell\.run\("startup\.lua"\)/, relativePath);
   }
 });
+
+test("turtle executor emits a world observation event after block inspection", () => {
+  const source = readFileSync(join(runtimeRoot, "turtle/executor.lua"), "utf8");
+  assert.match(source, /command\.skill == "observation\.block"/);
+  assert.match(source, /self:emit\(command\.commandId, "block\.observed"/);
+});

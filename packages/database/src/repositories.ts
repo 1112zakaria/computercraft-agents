@@ -1493,6 +1493,61 @@ export class GatewayRuntimeRepository {
       );
     }
 
+    if (event.type === "block.observed" && event.workerId) {
+      const payload = event.payload as {
+        readonly direction: "front" | "up" | "down";
+        readonly block: { readonly name: string; readonly metadata?: number } | null;
+        readonly position?: {
+          readonly dimension: number;
+          readonly x: number;
+          readonly y: number;
+          readonly z: number;
+          readonly facing: "N" | "E" | "S" | "W";
+        };
+      };
+      if (payload.position) {
+        let xOffset = 0;
+        let zOffset = 0;
+        if (payload.direction === "front") {
+          if (payload.position.facing === "N") zOffset = -1;
+          if (payload.position.facing === "E") xOffset = 1;
+          if (payload.position.facing === "S") zOffset = 1;
+          if (payload.position.facing === "W") xOffset = -1;
+        }
+        const yOffset = payload.direction === "up" ? 1 : payload.direction === "down" ? -1 : 0;
+        const worker = await client.query<{ id: string }>(
+          `SELECT id::text FROM workers WHERE worker_key = $1`,
+          [event.workerId],
+        );
+        await client.query(
+          `
+            INSERT INTO world_cells (
+              dimension, x, y, z, block_name, block_metadata, walkable, observed_at, source_worker_id
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            ON CONFLICT (dimension, x, y, z) DO UPDATE SET
+              block_name = EXCLUDED.block_name,
+              block_metadata = EXCLUDED.block_metadata,
+              walkable = EXCLUDED.walkable,
+              observed_at = EXCLUDED.observed_at,
+              source_worker_id = EXCLUDED.source_worker_id
+            WHERE world_cells.observed_at <= EXCLUDED.observed_at
+          `,
+          [
+            payload.position.dimension,
+            payload.position.x + xOffset,
+            payload.position.y + yOffset,
+            payload.position.z + zOffset,
+            payload.block?.name ?? null,
+            payload.block?.metadata ?? null,
+            payload.block === null,
+            new Date(event.occurredAt),
+            worker.rows[0]?.id ?? null,
+          ],
+        );
+      }
+    }
+
     const commandStatus = commandStatusForEvent(event.type);
     if (commandStatus && event.commandId) {
       await client.query(

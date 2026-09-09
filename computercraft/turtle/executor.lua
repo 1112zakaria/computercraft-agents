@@ -94,6 +94,13 @@ function M.new(config, client, state, cancellation, movement, observation, inven
     self.client:set_execution("EXECUTING", command.commandId)
     self:emit(command.commandId, "command.started", { skill = command.skill })
     local result = self:run_skill(command)
+    if command.skill == "observation.block" and result.status == "OK" then
+      self:emit(command.commandId, "block.observed", {
+        direction = command.arguments.direction,
+        block = result.block,
+        position = self.state:position(),
+      })
+    end
     local event_type = "command.completed"
     local payload = { result = result, position = self.state:position() }
 
