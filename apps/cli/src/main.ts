@@ -429,7 +429,7 @@ export async function runCli(args: readonly string[]): Promise<void> {
       skill: "inventory.withdraw" as const,
       arguments: {
         ...(containerId === undefined ? {} : { containerId }),
-        itemKey: second,
+        itemKey: normalizeItemKey(second),
         quantity,
         ...(slot === undefined ? {} : { slot }),
       },

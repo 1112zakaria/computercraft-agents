@@ -114,3 +114,9 @@ test("turtle gathering stops safely before digging with no usable inventory slot
   assert.match(excavation, /status = "INVENTORY_FULL"/);
   assert.match(executor, /worker inventory is full; deposit items before gathering/);
 });
+
+test("turtle inventory normalizes bare item keys for count and withdrawal", () => {
+  const inventory = readFileSync(join(runtimeRoot, "turtle/inventory.lua"), "utf8");
+  assert.match(inventory, /function normalize_item_key\(item_key\)/);
+  assert.match(inventory, /item_key = normalize_item_key\(item_key\)/);
+});

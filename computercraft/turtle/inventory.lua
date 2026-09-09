@@ -1,5 +1,12 @@
 local M = {}
 
+local function normalize_item_key(item_key)
+  if string.find(item_key, ":", 1, true) then
+    return item_key
+  end
+  return "minecraft:" .. string.lower(item_key)
+end
+
 local function is_reserved(reserved_slots, slot)
   return reserved_slots[slot] == true or reserved_slots[tostring(slot)] == true
 end
@@ -54,6 +61,7 @@ function M.new(api, config, cancellation)
   end
 
   function inventory:count(item_key)
+    item_key = normalize_item_key(item_key)
     local total = 0
     for slot = 1, 16 do
       if not is_reserved(self.reserved_slots, slot) and self.api.getItemDetail then
@@ -77,6 +85,7 @@ function M.new(api, config, cancellation)
   end
 
   function inventory:find(item_key, minimum)
+    item_key = normalize_item_key(item_key)
     local needed = minimum or 1
     for slot = 1, 16 do
       if not is_reserved(self.reserved_slots, slot) and self.api.getItemDetail then
@@ -139,6 +148,7 @@ function M.new(api, config, cancellation)
   end
 
   function inventory:withdraw(direction, item_key, quantity, slot)
+    item_key = normalize_item_key(item_key)
     local selected = self:selected_slot()
     local target_slot = slot or self:find(item_key, 1)
     if not target_slot then

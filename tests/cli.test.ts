@@ -218,15 +218,7 @@ test("CLI constructs a named-container withdraw command", async () => {
     return new Response(JSON.stringify({ accepted: true }), { status: 200 });
   };
   try {
-    await runCli([
-      "withdraw",
-      "alice",
-      "minecraft:cobblestone",
-      "8",
-      "2",
-      "--container-id",
-      "test-chest",
-    ]);
+    await runCli(["withdraw", "alice", "cobblestone", "8", "2", "--container-id", "test-chest"]);
     const body = JSON.parse(String(capturedInit?.body)) as {
       skill: string;
       arguments: { containerId: string; itemKey: string; quantity: number; slot: number };
