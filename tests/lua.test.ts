@@ -159,7 +159,8 @@ test("turtle gathering stops safely before digging with no usable inventory slot
   const excavation = readFileSync(join(runtimeRoot, "turtle/excavation.lua"), "utf8");
   const executor = readFileSync(join(runtimeRoot, "turtle/executor.lua"), "utf8");
   assert.match(inventory, /function inventory:free_slots\(\)/);
-  assert.match(excavation, /self\.inventory:free_slots\(\) == 0/);
+  assert.match(inventory, /function inventory:free_capacity\(item_key\)/);
+  assert.match(excavation, /self\.inventory:free_capacity\(item_key\) == 0/);
   assert.match(excavation, /status = "INVENTORY_FULL"/);
   assert.match(executor, /worker inventory is full; deposit items before gathering/);
   assert.match(executor, /self:emit\(command\.commandId, "inventory\.full"/);

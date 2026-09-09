@@ -86,7 +86,7 @@ function M.new(movement, observation, inventory)
       inspected_depth = step
 
       if inspected.block then
-        if self.inventory:free_slots() == 0 then
+        if self.inventory:free_capacity(item_key) == 0 then
           return {
             status = "INVENTORY_FULL",
             itemKey = item_key,

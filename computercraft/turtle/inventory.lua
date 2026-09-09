@@ -20,6 +20,13 @@ local function total_count(api)
   return total
 end
 
+local function stack_capacity(detail)
+  if detail and type(detail.maxCount) == "number" and detail.maxCount >= 1 then
+    return detail.maxCount
+  end
+  return 64
+end
+
 function M.new(api, config, cancellation)
   local inventory = {
     api = api or turtle,
@@ -80,6 +87,25 @@ function M.new(api, config, cancellation)
     for slot = 1, 16 do
       if not is_reserved(self.reserved_slots, slot) and (self.api.getItemCount(slot) or 0) == 0 then
         free = free + 1
+      end
+    end
+    return free
+  end
+
+  function inventory:free_capacity(item_key)
+    item_key = normalize_item_key(item_key)
+    local free = 0
+    for slot = 1, 16 do
+      if not is_reserved(self.reserved_slots, slot) then
+        local count = self.api.getItemCount(slot) or 0
+        if count == 0 then
+          free = free + 64
+        elseif self.api.getItemDetail then
+          local detail = self.api.getItemDetail(slot)
+          if detail and detail.name == item_key then
+            free = free + math.max(0, stack_capacity(detail) - count)
+          end
+        end
       end
     end
     return free

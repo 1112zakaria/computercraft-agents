@@ -933,8 +933,10 @@ now model targeted gather, known-cell destination navigation, allowlisted deposi
 safe blocking. The scheduler can dispatch the first protocol step and command events advance the
 workflow idempotently. Inventory-full failures now attempt a bounded return to the named container,
 deposit the collected quantity, and queue a fresh gather step; if the route or evidence is
-insufficient, the workflow pauses with an explicit resume instruction. Capacity planning,
-destination-content postcondition verification, and full live acceptance remain.
+insufficient, the workflow pauses with an explicit resume instruction. Target-stack-aware local
+capacity checks now avoid false inventory-full failures when an existing item stack still has room;
+full capacity planning, destination-content postcondition verification, and full live acceptance
+remain.
 
 ### CC-103 — Implement known-container deposit skill
 
