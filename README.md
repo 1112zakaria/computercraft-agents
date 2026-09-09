@@ -74,6 +74,7 @@ npm run cli -- goal "@alice get 64 cobblestone and deposit it in Test Chest"
 npm run cli -- locations
 npm run cli -- location "Test Chest"
 npm run cli -- tasks
+npm run cli -- task <task-id>
 npm run cli -- planning-context <task-id>
 npm run cli -- runnable-tasks
 npm run cli -- dispatch-task <task-id> <worker-id>

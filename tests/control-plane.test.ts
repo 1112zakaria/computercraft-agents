@@ -219,6 +219,10 @@ class FakeGatewayStore implements GatewayServiceStore {
     return this.tasks;
   }
 
+  public async getTask(taskId: string): Promise<Record<string, unknown> | undefined> {
+    return this.tasks.find((task) => task.taskId === taskId);
+  }
+
   public async listRunnableTasks(): Promise<readonly Record<string, unknown>[]> {
     return this.runnableTasks;
   }
@@ -383,6 +387,25 @@ test("operator task API lists and claims tasks", async () => {
       taskId: "task-test",
       workerKey: "alice",
       status: "RUNNING",
+    });
+  } finally {
+    await server.close();
+  }
+});
+
+test("operator task API returns one task by ID", async () => {
+  const store = new FakeGatewayStore();
+  store.tasks.push({ taskId: "task-detail", status: "BLOCKED", lastError: { reason: "no path" } });
+  const server = await startServer(store);
+  try {
+    const response = await fetch(`${server.baseUrl}/v1/tasks/task-detail`, {
+      headers: adminHeaders(),
+    });
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), {
+      taskId: "task-detail",
+      status: "BLOCKED",
+      lastError: { reason: "no path" },
     });
   } finally {
     await server.close();

@@ -212,9 +212,9 @@ Implement agents, workers, gateways, projects, jobs, tasks, dependencies, conver
 
 **Priority:** P0  
 **Dependencies:** CC-020
-**Status:** PARTIAL — project/job/task creation, goal persistence, task inspection, restart-safe
-database claims, and explicit command-task dispatch are implemented; multi-step workflow dispatch
-remains.
+**Status:** PARTIAL — project/job/task creation, goal persistence, task inspection (including
+single-task detail), restart-safe database claims, explicit command-task dispatch, and the first
+bounded multi-step workflow are implemented; broader dependency and recovery semantics remain.
 
 Implement state transitions and task dependencies.
 

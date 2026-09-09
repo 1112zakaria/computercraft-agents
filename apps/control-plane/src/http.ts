@@ -168,6 +168,16 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
           return;
         }
         if (taskPathMatch) {
+          if (method === "GET" && taskPathMatch[1]) {
+            let taskId: string;
+            try {
+              taskId = decodeURIComponent(taskPathMatch[1]);
+            } catch {
+              throw new HttpError(400, "INVALID_PAYLOAD", "task id is not valid URL encoding");
+            }
+            sendJson(response, 200, await options.service.getTask(taskId));
+            return;
+          }
           if (method === "GET" && !taskPathMatch[1]) {
             sendJson(response, 200, { tasks: await options.service.listTasks() });
             return;

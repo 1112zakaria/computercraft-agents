@@ -20,6 +20,7 @@ export function usage(): string {
     `${cliName} diagnose`,
     `${cliName} goal <@worker get ... and deposit it in ...>`,
     `${cliName} tasks`,
+    `${cliName} task <task-id>`,
     `${cliName} planning-context <task-id>`,
     `${cliName} runnable-tasks`,
     `${cliName} scheduler-tick`,
@@ -156,6 +157,11 @@ export async function runCli(args: readonly string[]): Promise<void> {
   if (command === "tasks") {
     if (first) throw new Error(`usage: ${cliName} tasks`);
     console.log(JSON.stringify(await request("/v1/tasks"), null, 2));
+    return;
+  }
+  if (command === "task") {
+    if (!first || second) throw new Error(`usage: ${cliName} task <task-id>`);
+    console.log(JSON.stringify(await request(`/v1/tasks/${encodeURIComponent(first)}`), null, 2));
     return;
   }
   if (command === "planning-context") {

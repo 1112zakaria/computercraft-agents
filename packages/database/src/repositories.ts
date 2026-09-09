@@ -406,6 +406,10 @@ export class GatewayRuntimeRepository {
     return new TaskRepository(this.pool).listTasks();
   }
 
+  public async getTask(taskId: string): Promise<Record<string, unknown> | undefined> {
+    return new TaskRepository(this.pool).getTask(taskId);
+  }
+
   public async listRunnableTasks(): Promise<readonly Record<string, unknown>[]> {
     return new TaskRepository(this.pool).listRunnableTasks();
   }
@@ -2195,23 +2199,38 @@ const taskTransitions: Record<string, readonly string[]> = {
 export class TaskRepository {
   public constructor(private readonly pool: Pool) {}
 
+  private static readonly taskProjection = `
+    SELECT t.id::text AS "taskId", t.job_id::text AS "jobId",
+           t.parent_task_id::text AS "parentTaskId", t.workflow_phase AS "workflowPhase",
+           t.kind, t.status, t.skill_name AS "skillName", t.arguments_json AS arguments,
+           t.assigned_worker_id::text AS "assignedWorkerId", t.claimed_at AS "claimedAt",
+           t.started_at AS "startedAt", t.attempt_count AS "attemptCount",
+           j.priority, j.required_capabilities_json AS "requiredCapabilities",
+           p.goal_text AS "goalText", t.last_error_json AS "lastError"
+    FROM tasks t
+    JOIN jobs j ON j.id = t.job_id
+    JOIN projects p ON p.id = j.project_id
+  `;
+
   public async listTasks(): Promise<readonly Record<string, unknown>[]> {
     const result = await this.pool.query(
       `
-        SELECT t.id::text AS "taskId", t.job_id::text AS "jobId",
-               t.parent_task_id::text AS "parentTaskId", t.workflow_phase AS "workflowPhase",
-               t.kind, t.status, t.skill_name AS "skillName", t.arguments_json AS arguments,
-               t.assigned_worker_id::text AS "assignedWorkerId", t.claimed_at AS "claimedAt",
-               t.started_at AS "startedAt", t.attempt_count AS "attemptCount",
-               j.priority, j.required_capabilities_json AS "requiredCapabilities",
-               p.goal_text AS "goalText", t.last_error_json AS "lastError"
-        FROM tasks t
-        JOIN jobs j ON j.id = t.job_id
-        JOIN projects p ON p.id = j.project_id
+        ${TaskRepository.taskProjection}
         ORDER BY t.id DESC
       `,
     );
     return result.rows;
+  }
+
+  public async getTask(taskId: string): Promise<Record<string, unknown> | undefined> {
+    const result = await this.pool.query(
+      `
+        ${TaskRepository.taskProjection}
+        WHERE t.id = $1
+      `,
+      [taskId],
+    );
+    return result.rows[0];
   }
 
   public async claimReadyTask(taskId: string, workerKey: string): Promise<Record<string, unknown>> {
