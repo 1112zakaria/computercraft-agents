@@ -78,6 +78,8 @@ For a bounded target-aware mining canary, use the operator CLI only after the wo
 
 ```bash
 npm run cli -- set-location "Test Chest" 0 10 64 -2 E --approach 0 9 64 -2 N
+npm run cli -- path-to alice "Test Chest"
+npm run cli -- go-to alice "Test Chest"
 npm run cli -- gather alice minecraft:cobblestone 8 12
 npm run cli -- deposit alice 8 --container-id test-chest
 ```

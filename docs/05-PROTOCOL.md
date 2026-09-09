@@ -115,6 +115,7 @@ POST /v1/locations
 GET  /v1/locations
 GET  /v1/locations/:name
 GET  /v1/workers/:workerId/path-to/:locationName
+POST /v1/workers/:workerId/path-to/:locationName
 ```
 
 Location writes are idempotent by name and store dimension, coordinates, an optional facing, an
@@ -125,6 +126,10 @@ resolution is case-insensitive. The route-plan endpoint returns a bounded determ
 through known walkable cells from the worker's latest observed position; it never moves a worker
 and fails safely when position, dimension, or path knowledge is insufficient. Ready tasks can be
 inspected and claimed with:
+
+`GET path-to` is read-only. `POST path-to` performs the same bounded plan, then queues one
+`navigate.path` command for the worker (or returns `ALREADY_AT_LOCATION`); it never explores
+unknown cells or silently truncates a path.
 
 When a turtle reports `movement.blocked`, the control plane records the one attempted destination
 cell as non-walkable using the event timestamp. This is a bounded contradiction update: it does not

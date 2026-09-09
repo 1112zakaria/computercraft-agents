@@ -48,6 +48,7 @@ export function usage(): string {
     `${cliName} move <worker-id> <N|E|S|W|UP|DOWN> [--dry-run]`,
     `${cliName} path <worker-id> <N|E|S|W|UP|DOWN>... [--dry-run]`,
     `${cliName} path-to <worker-id> <location-name>`,
+    `${cliName} go-to <worker-id> <location-name>`,
     `${cliName} excavate <worker-id> <width> <height> <depth> [--dry-run]`,
     `${cliName} gather <worker-id> <item-key> <quantity> <max-depth> [--dry-run]`,
     `${cliName} deposit <worker-id> [quantity] [slot] [--container-id <id>] [--dry-run]`,
@@ -521,6 +522,25 @@ export async function runCli(args: readonly string[]): Promise<void> {
       JSON.stringify(
         await request(
           `/v1/workers/${encodeURIComponent(first)}/path-to/${encodeURIComponent(locationName)}`,
+        ),
+        null,
+        2,
+      ),
+    );
+    return;
+  }
+  if (command === "go-to") {
+    const locationName = positionalArgs.slice(2).join(" ").trim();
+    if (!first || !locationName) {
+      throw new Error(`usage: ${cliName} go-to <worker-id> <location-name>`);
+    }
+    console.log(
+      JSON.stringify(
+        await request(
+          `/v1/workers/${encodeURIComponent(first)}/path-to/${encodeURIComponent(locationName)}`,
+          {
+            method: "POST",
+          },
         ),
         null,
         2,

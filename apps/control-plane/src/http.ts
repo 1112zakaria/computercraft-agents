@@ -124,6 +124,22 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
           sendJson(response, 200, await options.service.planPathToLocation(workerId, locationName));
           return;
         }
+        if (method === "POST" && workerPathPlanMatch) {
+          let workerId: string;
+          let locationName: string;
+          try {
+            workerId = decodeURIComponent(workerPathPlanMatch[1]!);
+            locationName = decodeURIComponent(workerPathPlanMatch[2]!);
+          } catch {
+            throw new HttpError(400, "INVALID_PAYLOAD", "path target is not valid URL encoding");
+          }
+          sendJson(
+            response,
+            202,
+            await options.service.executePathToLocation(workerId, locationName),
+          );
+          return;
+        }
         if (method === "POST" && workerAnchorPathMatch) {
           let workerId: string;
           try {

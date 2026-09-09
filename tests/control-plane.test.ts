@@ -852,6 +852,53 @@ test("operator path API uses a named location approach coordinate when configure
   }
 });
 
+test("operator path API queues a bounded navigation command", async () => {
+  const store = new FakeGatewayStore();
+  for (const [x, y, z] of [
+    [0, 0, 0],
+    [1, 0, 0],
+    [2, 0, 0],
+  ]) {
+    store.worldCells.push({
+      dimension: 0,
+      x,
+      y,
+      z,
+      walkable: true,
+      observedAt: "2026-09-09T00:00:00.000Z",
+      sourceWorkerId: "path-worker",
+    });
+  }
+  store.resolveNamedLocation = async () => ({
+    locationId: "location-test",
+    name: "Test Chest",
+    dimension: 0,
+    x: 2,
+    y: 0,
+    z: 0,
+  });
+  const server = await startServer(store);
+  try {
+    const response = await fetch(
+      `${server.baseUrl}/v1/workers/path-worker/path-to/${encodeURIComponent("Test Chest")}`,
+      { method: "POST", headers: adminHeaders() },
+    );
+    assert.equal(response.status, 202);
+    const body = (await response.json()) as {
+      accepted: boolean;
+      status: string;
+      command: { skill: string; arguments: { steps: string[] } };
+    };
+    assert.equal(body.accepted, true);
+    assert.equal(body.status, "QUEUED");
+    assert.equal(body.command.skill, "navigate.path");
+    assert.deepEqual(body.command.arguments.steps, ["E", "E"]);
+    assert.equal(store.commands.at(-1)?.skill, "navigate.path");
+  } finally {
+    await server.close();
+  }
+});
+
 test("operator world-cell API is bounded and read-only", async () => {
   const store = new FakeGatewayStore();
   const server = await startServer(store);

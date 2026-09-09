@@ -576,9 +576,9 @@ named-location route-plan API and CLI; runtime path execution/replanning remains
 **Dependencies:** CC-042, CC-043, CC-061
 
 **Status:** PARTIAL — the turtle executor already performs bounded `navigate.path` execution with
-per-step cancellation and blocked-step reporting, and the operator CLI now exposes bounded `path`
-and read-only `path-to` commands; loading persistent paths and replanning around newly observed
-cells remain.
+per-step cancellation and blocked-step reporting, and the operator CLI now exposes bounded `path`,
+read-only `path-to`, and queued `go-to` commands; loading persistent paths and replanning around
+newly observed cells remain.
 
 **Acceptance criteria**
 

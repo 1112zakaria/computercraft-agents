@@ -753,6 +753,32 @@ export class GatewayService {
     };
   }
 
+  public async executePathToLocation(
+    workerId: string,
+    locationName: string,
+  ): Promise<Record<string, unknown>> {
+    const plan = await this.planPathToLocation(workerId, locationName);
+    const directions = plan.directions;
+    if (!Array.isArray(directions) || directions.length === 0) {
+      return { accepted: true, status: "ALREADY_AT_LOCATION", plan };
+    }
+    if (directions.length > 1024) {
+      throw new HttpError(409, "PATH_TOO_LONG", "planned path exceeds the command step limit");
+    }
+    const command = CommandSchema.parse({
+      protocolVersion: 1,
+      commandId: `path-${randomUUID()}`,
+      workerId,
+      issuedAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
+      budget: { maxPrimitives: directions.length, maxBlockChanges: 0 },
+      skill: "navigate.path",
+      arguments: { steps: directions },
+    });
+    await this.store.enqueueCommand(command);
+    return { accepted: true, status: "QUEUED", command, plan };
+  }
+
   public async listWorldCells(): Promise<readonly Record<string, unknown>[]> {
     return this.store.listWorldCells();
   }
