@@ -1354,14 +1354,70 @@ export class GatewayRuntimeRepository {
     const workerCutoff = new Date(
       now.getTime() - this.config.workerTimeoutSeconds * 1000,
     ).toISOString();
-    await this.pool.query(
-      `UPDATE gateways SET status = 'OFFLINE' WHERE last_seen_at IS NULL OR last_seen_at < $1`,
-      [gatewayCutoff],
-    );
-    await this.pool.query(
-      `UPDATE workers SET online = FALSE WHERE last_seen_at IS NULL OR last_seen_at < $1 OR gateway_id IN (SELECT id FROM gateways WHERE status = 'OFFLINE')`,
-      [workerCutoff],
-    );
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        `UPDATE gateways SET status = 'OFFLINE' WHERE last_seen_at IS NULL OR last_seen_at < $1`,
+        [gatewayCutoff],
+      );
+      const staleWorkers = await client.query<{ worker_key: string }>(
+        `
+          UPDATE workers
+          SET online = FALSE
+          WHERE online = TRUE
+            AND (last_seen_at IS NULL OR last_seen_at < $1
+              OR gateway_id IN (SELECT id FROM gateways WHERE status = 'OFFLINE'))
+          RETURNING worker_key
+        `,
+        [workerCutoff],
+      );
+
+      for (const worker of staleWorkers.rows) {
+        await client.query(
+          `
+            UPDATE tasks
+            SET status = 'PAUSED', assigned_worker_id = NULL,
+                last_error_json = $2
+            WHERE assigned_worker_id = (SELECT id FROM workers WHERE worker_key = $1)
+              AND status = 'RUNNING'
+          `,
+          [worker.worker_key, asJson({ reason: "worker became stale; explicit resume required" })],
+        );
+        await client.query(
+          `
+            UPDATE gateway_commands
+            SET status = 'CANCELLED', completed_at = NOW()
+            WHERE worker_key = $1
+              AND status IN ('QUEUED', 'DELIVERED', 'RUNNING')
+          `,
+          [worker.worker_key],
+        );
+        const controlId = `reconcile-stop-${worker.worker_key}`.slice(0, 128);
+        const control = {
+          protocolVersion: 1,
+          controlId,
+          issuedAt: now.toISOString(),
+          type: "worker.stop",
+          workerId: worker.worker_key,
+          reason: "worker became stale; stop before explicit resume",
+        } satisfies StopControl;
+        await client.query(
+          `
+            INSERT INTO gateway_stop_controls (control_id, worker_key, payload_json, transport_type)
+            VALUES ($1, $2, $3, (SELECT transport_type FROM workers WHERE worker_key = $2))
+            ON CONFLICT (control_id) DO NOTHING
+          `,
+          [controlId, worker.worker_key, asJson(control)],
+        );
+      }
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   public async listWorkers(): Promise<readonly Record<string, unknown>[]> {

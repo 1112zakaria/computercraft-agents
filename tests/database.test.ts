@@ -110,6 +110,17 @@ test("workflow advancement ignores late or duplicate step events", () => {
   assert.equal(workflowStepEventCanAdvance("DONE", "command.failed"), false);
 });
 
+test("stale recovery keeps command delivery behind an explicit resume boundary", () => {
+  const repositories = readFileSync(
+    join(__dirname, "../packages/database/src/repositories.ts"),
+    "utf8",
+  );
+  assert.match(repositories, /status = 'PAUSED'/);
+  assert.match(repositories, /worker became stale; explicit resume required/);
+  assert.match(repositories, /status = 'CANCELLED'/);
+  assert.match(repositories, /worker became stale; stop before explicit resume/);
+});
+
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 if (testDatabaseUrl) {
   test("database migrations apply and are idempotent in the configured test database", async () => {

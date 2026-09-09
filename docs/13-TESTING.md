@@ -24,6 +24,7 @@ Test:
 - project-planner escalation;
 - protocol schema validation;
 - event deduplication;
+- stale-worker recovery pauses and cancels work before explicit resume;
 - outage transitions.
 
 ### Unit tests — Lua

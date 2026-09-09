@@ -1124,6 +1124,10 @@ Verify high-retention audit, feature gate, bounded canary action.
 **Priority:** P0  
 **Dependencies:** CC-023, CC-012
 
+**Status:** PARTIAL — stale-worker recovery now pauses assigned tasks, cancels persisted command
+delivery, and queues an independent stop control in one transaction. Boot-aware reconciliation,
+command outcome inspection, and explicit recovery audit records remain.
+
 Persist jobs, rediscover gateway/workers, refresh observations, resume/replan.
 
 ### CC-161 — Gateway restart reconciliation
@@ -1137,6 +1141,10 @@ Use boot/session IDs to avoid assuming prior in-flight command state.
 
 **Priority:** P0  
 **Dependencies:** CC-041, CC-047
+
+**Status:** PARTIAL — the control plane now prevents stale assigned work from being silently
+redelivered and requires explicit task resumption after a worker stop. Turtle-side command recovery
+and runtime-specific resume state remain.
 
 ### CC-163 — No-human-online/chunk-loading spike
 

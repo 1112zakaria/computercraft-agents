@@ -263,6 +263,12 @@ The control plane also supports an opt-in bounded background scheduler loop. Set
 reviewing the task set. Each interval performs at most one non-overlapping scheduler tick; the
 loop is disabled by default so deployment does not silently begin dispatching queued work.
 
+Every stale-worker check is also a recovery boundary. When a worker transitions from online to
+stale, the control plane pauses its assigned task, cancels queued or in-flight command delivery,
+and queues an independent worker stop control. The task is not automatically retried; after
+confirming the turtle is safe, inspect it with `task <task-id>` and explicitly resume it with
+`task-status <task-id> READY`.
+
 ## 10. Releases
 
 GitHub Actions SHOULD eventually build/test TypeScript and package:
