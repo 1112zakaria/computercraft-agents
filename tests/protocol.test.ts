@@ -294,3 +294,45 @@ test("direct worker transport schemas require worker-scoped identity", () => {
     false,
   );
 });
+
+test("clear-space block observations accept explicit or legacy omitted null", () => {
+  const baseEvent = {
+    protocolVersion: 1,
+    eventId: "event-observation-clear",
+    workerId: "alice",
+    sequence: 3,
+    type: "block.observed" as const,
+    occurredAt: "2026-09-08T12:00:00.000Z",
+    payload: {
+      direction: "front" as const,
+      position: {
+        dimension: 0,
+        x: 0,
+        y: 64,
+        z: 0,
+        facing: "N" as const,
+        confidence: "UNCERTAIN" as const,
+      },
+    },
+  };
+  assert.equal(
+    DirectWorkerEventBatchSchema.safeParse({
+      protocolVersion: 1,
+      workerId: "alice",
+      workerBootId: "worker-boot-1",
+      batchId: "batch-observation-omitted",
+      events: [baseEvent],
+    }).success,
+    true,
+  );
+  assert.equal(
+    DirectWorkerEventBatchSchema.safeParse({
+      protocolVersion: 1,
+      workerId: "alice",
+      workerBootId: "worker-boot-1",
+      batchId: "batch-observation-null",
+      events: [{ ...baseEvent, payload: { ...baseEvent.payload, block: null } }],
+    }).success,
+    true,
+  );
+});

@@ -875,7 +875,8 @@ const BlockObservedPayloadSchema = z
         metadata: z.number().int().nonnegative().optional(),
       })
       .strict()
-      .nullable(),
+      .nullable()
+      .optional(),
     position: PositionSchema.optional(),
   })
   .strict();
