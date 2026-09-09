@@ -871,7 +871,9 @@ export class GatewayRuntimeRepository {
             400,
           );
         }
-        const unsupportedCapabilities = proposal.requiredCapabilities.filter(
+        const effectiveCapabilities =
+          proposal.requiredCapabilities.length > 0 ? proposal.requiredCapabilities : [skill.data];
+        const unsupportedCapabilities = effectiveCapabilities.filter(
           (capability) => !jobCapabilities.has(capability),
         );
         if (unsupportedCapabilities.length > 0) {
