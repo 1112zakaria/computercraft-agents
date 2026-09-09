@@ -737,6 +737,10 @@ implemented. Production enablement remains separate.
 **Priority:** P1  
 **Dependencies:** CC-082
 
+**Status:** DONE — `fast`, `standard`, and `strong` are selectable logical tiers, and each tier
+can optionally map to a deployment-provided Codex model/profile through environment variables.
+Blank overrides preserve the Codex CLI default.
+
 Implement `fast`, `standard`, `strong` logical tiers mapped by configuration.
 
 ### CC-084 — Reasoning concurrency limiter

@@ -8,6 +8,12 @@ export const reasoningVersion = "0.1.0" as const;
 
 export type ReasoningTier = "fast" | "standard" | "strong";
 
+/** Optional provider settings selected by a logical reasoning tier. */
+export interface ReasoningTierSettings {
+  readonly model?: string;
+  readonly profile?: string;
+}
+
 const IdentifierSchema = z
   .string()
   .min(1)

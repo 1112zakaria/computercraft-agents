@@ -12,6 +12,8 @@ import {
   ReasoningConcurrencyLimiter,
   ReasoningOutageStateMachine,
   type ReasoningOutageSnapshot,
+  type ReasoningTier,
+  type ReasoningTierSettings,
   type PlannerTriggerQueue,
 } from "@computercraft-agents/reasoning";
 
@@ -24,7 +26,8 @@ interface PlannerRuntimeConfig {
   readonly plannerClaimLeaseSeconds: number;
   readonly plannerFailureThreshold: number;
   readonly plannerRetryAfterSeconds: number;
-  readonly plannerReasoningTier: "fast" | "standard" | "strong";
+  readonly plannerReasoningTier: ReasoningTier;
+  readonly plannerTierSettings: Readonly<Record<ReasoningTier, ReasoningTierSettings>>;
   readonly codexCommand: string;
 }
 
@@ -67,7 +70,10 @@ export async function createPlannerRunner(
     },
   });
   const provider = new ReasoningConcurrencyLimiter(
-    new CodexCliProvider({ executable: config.codexCommand }),
+    new CodexCliProvider({
+      executable: config.codexCommand,
+      ...config.plannerTierSettings[config.plannerReasoningTier],
+    }),
     config.plannerMaxConcurrent,
   );
   const service = new PlannerTriggerService({

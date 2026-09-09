@@ -1,4 +1,5 @@
 import { SkillNameSchema, type SkillName } from "@computercraft-agents/protocol";
+import type { ReasoningTier, ReasoningTierSettings } from "@computercraft-agents/reasoning";
 
 export interface ControlPlaneConfig {
   readonly nodeEnv: string;
@@ -25,7 +26,8 @@ export interface ControlPlaneConfig {
   readonly plannerClaimLeaseSeconds: number;
   readonly plannerFailureThreshold: number;
   readonly plannerRetryAfterSeconds: number;
-  readonly plannerReasoningTier: "fast" | "standard" | "strong";
+  readonly plannerReasoningTier: ReasoningTier;
+  readonly plannerTierSettings: Readonly<Record<ReasoningTier, ReasoningTierSettings>>;
   readonly codexCommand: string;
 }
 
@@ -63,6 +65,28 @@ function reasoningTier(): "fast" | "standard" | "strong" {
     throw new Error("PLANNER_REASONING_TIER must be fast, standard, or strong");
   }
   return value;
+}
+
+function optionalText(name: string): string | undefined {
+  const value = process.env[name]?.trim();
+  return value ? value : undefined;
+}
+
+function plannerTierSettings(): Readonly<Record<ReasoningTier, ReasoningTierSettings>> {
+  return {
+    fast: {
+      model: optionalText("PLANNER_FAST_MODEL"),
+      profile: optionalText("PLANNER_FAST_PROFILE"),
+    },
+    standard: {
+      model: optionalText("PLANNER_STANDARD_MODEL"),
+      profile: optionalText("PLANNER_STANDARD_PROFILE"),
+    },
+    strong: {
+      model: optionalText("PLANNER_STRONG_MODEL"),
+      profile: optionalText("PLANNER_STRONG_PROFILE"),
+    },
+  };
 }
 
 function enabledSkills(): readonly SkillName[] {
@@ -104,6 +128,7 @@ export function loadConfig(): ControlPlaneConfig {
     plannerFailureThreshold: positiveInteger("PLANNER_FAILURE_THRESHOLD", 1),
     plannerRetryAfterSeconds: positiveInteger("PLANNER_RETRY_AFTER_SECONDS", 30),
     plannerReasoningTier: reasoningTier(),
+    plannerTierSettings: plannerTierSettings(),
     codexCommand: process.env.CODEX_COMMAND?.trim() || "codex",
   };
 }

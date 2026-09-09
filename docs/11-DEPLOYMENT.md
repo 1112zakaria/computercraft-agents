@@ -303,8 +303,20 @@ PLANNER_CLAIM_LEASE_SECONDS=300
 PLANNER_FAILURE_THRESHOLD=1
 PLANNER_RETRY_AFTER_SECONDS=30
 PLANNER_REASONING_TIER=fast
+# Optional per-tier Codex CLI overrides. Leave blank to use the CLI default.
+PLANNER_FAST_MODEL=
+PLANNER_FAST_PROFILE=
+PLANNER_STANDARD_MODEL=
+PLANNER_STANDARD_PROFILE=
+PLANNER_STRONG_MODEL=
+PLANNER_STRONG_PROFILE=
 CODEX_COMMAND=codex
 ```
+
+`PLANNER_REASONING_TIER` selects one logical tier. The corresponding optional model/profile
+variables are passed only to the Codex CLI invocation for that tier; they do not change the
+validated decision schema or enable decision application. Keeping all six override variables
+blank is valid and uses the locally configured Codex default.
 
 The loop claims durable planner triggers, invokes Codex in its read-only ephemeral boundary, and
 records validated decisions as HIGH-retention audit events. It does not create tasks, dispatch
