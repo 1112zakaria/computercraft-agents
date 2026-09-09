@@ -1209,6 +1209,7 @@ Goal/task planning previews and feature-gate integration remain.
 
 **Status:** DONE — control-plane lifecycle, scheduler/recovery failures, and HTTP requests emit
 JSON logs with request correlation IDs and safe lineage fields; secret-like values are redacted.
+Recent persisted audit events are also available through protected API/CLI inspection.
 
 ### CC-174 — Implement retention cleanup jobs
 

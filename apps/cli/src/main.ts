@@ -23,6 +23,7 @@ export function usage(): string {
     `${cliName} agent <name>`,
     `${cliName} projects`,
     `${cliName} feature-gates`,
+    `${cliName} audit [limit]`,
     `${cliName} goal <@worker get ... and deposit it in ...>`,
     `${cliName} tasks`,
     `${cliName} task <task-id>`,
@@ -177,6 +178,14 @@ export async function runCli(args: readonly string[]): Promise<void> {
   if (command === "feature-gates") {
     if (first) throw new Error(`usage: ${cliName} feature-gates`);
     console.log(JSON.stringify(await request("/v1/feature-gates"), null, 2));
+    return;
+  }
+  if (command === "audit") {
+    if (second || (first !== undefined && !/^\d+$/.test(first))) {
+      throw new Error(`usage: ${cliName} audit [limit]`);
+    }
+    const path = first ? `/v1/audit?limit=${encodeURIComponent(first)}` : "/v1/audit";
+    console.log(JSON.stringify(await request(path), null, 2));
     return;
   }
   if (command === "goal") {

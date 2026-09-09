@@ -123,6 +123,16 @@ ID for support diagnostics; a safe caller-supplied ID is preserved, otherwise on
 Request bodies, bearer credentials, authorization headers, and secret-like fields are never logged.
 Secret-like keys are redacted defensively if they are passed to the logger in future code.
 
+Recent persisted audit records can be inspected without direct database access:
+
+```bash
+npm run cli -- audit
+npm run cli -- audit 100
+```
+
+This is an operator-only view and includes category, worker, lineage, retention, action, and
+result fields for the bounded result set.
+
 Audit cleanup runs on the control plane using these defaults:
 
 - STANDARD: 30 days;

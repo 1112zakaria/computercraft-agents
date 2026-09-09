@@ -79,6 +79,7 @@ export interface GatewayServiceStore {
   getWorker(workerId: string): Promise<Record<string, unknown> | undefined>;
   anchorWorker(workerId: string, input: WorkerAnchorRequest): Promise<Record<string, unknown>>;
   listGateways(): Promise<readonly Record<string, unknown>[]>;
+  listAuditEvents(limit: number): Promise<readonly Record<string, unknown>[]>;
   provisionDirectWorker(payload: DirectWorkerProvision): Promise<Record<string, unknown>>;
   registerDirectWorker(payload: DirectWorkerRegistration): Promise<{
     readonly workerId: string;
@@ -423,6 +424,18 @@ export class GatewayService {
       gateways,
       workers,
     };
+  }
+
+  public async listAuditEvents(input: string | null): Promise<readonly Record<string, unknown>[]> {
+    const limit = input === null || input.trim() === "" ? 50 : Number(input);
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 200) {
+      throw new HttpError(
+        400,
+        "INVALID_PAYLOAD",
+        "audit limit must be an integer between 1 and 200",
+      );
+    }
+    return this.store.listAuditEvents(limit);
   }
 
   public listFeatureGates(): readonly Record<string, unknown>[] {

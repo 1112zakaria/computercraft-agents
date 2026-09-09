@@ -562,6 +562,10 @@ export class GatewayRuntimeRepository {
     return result.rows;
   }
 
+  public async listAuditEvents(limit: number): Promise<readonly Record<string, unknown>[]> {
+    return new AuditEventRepository(this.pool).listRecent(limit);
+  }
+
   public async register(
     payload: Omit<GatewayRegistration, "capabilities"> & { readonly capabilities?: unknown },
   ): Promise<GatewayIdentity> {
@@ -2948,6 +2952,27 @@ export class TaskRepository {
 
 export class AuditEventRepository {
   public constructor(private readonly pool: Pool) {}
+
+  public async listRecent(limit: number): Promise<readonly Record<string, unknown>[]> {
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 200) {
+      throw new Error("audit event limit must be an integer between 1 and 200");
+    }
+    const result = await this.pool.query(
+      `
+        SELECT audit.id::text AS "auditId", audit.occurred_at AS "occurredAt",
+               audit.category, audit.principal_id AS "principalId",
+               worker.worker_key AS "workerId", audit.skill_name AS "skillName",
+               audit.action_json AS action, audit.result_json AS result,
+               audit.retention_class AS "retentionClass"
+        FROM audit_events audit
+        LEFT JOIN workers worker ON worker.id = audit.worker_id
+        ORDER BY audit.occurred_at DESC, audit.id DESC
+        LIMIT $1
+      `,
+      [limit],
+    );
+    return result.rows;
+  }
 
   public async append(input: {
     readonly category: string;

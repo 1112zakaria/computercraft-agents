@@ -303,6 +303,7 @@ npm run cli -- agents
 npm run cli -- agent alice
 npm run cli -- projects
 npm run cli -- feature-gates
+npm run cli -- audit 50
 ```
 
 Use `pause-task`, `resume-task`, and `cancel-task` for explicit lifecycle control. Pausing or

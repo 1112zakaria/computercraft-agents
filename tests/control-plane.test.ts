@@ -177,6 +177,17 @@ class FakeGatewayStore implements GatewayServiceStore {
     return [];
   }
 
+  public async listAuditEvents(limit: number): Promise<readonly Record<string, unknown>[]> {
+    return [
+      {
+        auditId: "audit-test",
+        category: "worker.recovery.stale",
+        retentionClass: "HIGH",
+        limit,
+      },
+    ];
+  }
+
   public async provisionDirectWorker(
     payload: DirectWorkerProvision,
   ): Promise<Record<string, unknown>> {
@@ -876,6 +887,29 @@ test("operator inspection API exposes agents and project summaries", async () =>
     const projects = await fetch(`${server.baseUrl}/v1/projects`, { headers: adminHeaders() });
     assert.equal(projects.status, 200);
     assert.deepEqual(await projects.json(), { projects: store.projects });
+  } finally {
+    await server.close();
+  }
+});
+
+test("operator audit API returns bounded persisted recovery history", async () => {
+  const store = new FakeGatewayStore();
+  const server = await startServer(store);
+  try {
+    const response = await fetch(`${server.baseUrl}/v1/audit?limit=25`, {
+      headers: adminHeaders(),
+    });
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), {
+      events: [
+        {
+          auditId: "audit-test",
+          category: "worker.recovery.stale",
+          retentionClass: "HIGH",
+          limit: 25,
+        },
+      ],
+    });
   } finally {
     await server.close();
   }

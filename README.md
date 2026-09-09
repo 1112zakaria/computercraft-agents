@@ -67,6 +67,7 @@ npm run cli -- agents
 npm run cli -- agent alice
 npm run cli -- projects
 npm run cli -- feature-gates
+npm run cli -- audit 50
 npm run cli -- update --target worker:alice --version v0.4.0
 npm run cli -- excavate alice 1 1 8
 npm run cli -- path alice N N E
