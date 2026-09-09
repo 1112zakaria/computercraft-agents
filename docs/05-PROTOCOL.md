@@ -176,6 +176,29 @@ Direct workers use the corresponding `X-Agent-Worker-Id` header with the same be
 
 Every mutation command SHALL carry a globally unique command ID.
 
+### 5a. Bounded gathering command
+
+The first target-aware mining primitive is deliberately narrower than the full
+`resource.gather` task state machine. It accepts an item key, a requested quantity, and a maximum
+forward depth:
+
+```json
+{
+  "skill": "mining.gather",
+  "arguments": {
+    "itemKey": "minecraft:cobblestone",
+    "quantity": 8,
+    "maxDepth": 12
+  }
+}
+```
+
+The turtle checks its current inventory first, then inspects/digs one block ahead and advances
+until the quantity is present or the depth bound is exhausted. It returns `TARGET_NOT_REACHED`
+with partial progress when the bound is reached. It does not select a source location, navigate
+to a named destination, or claim that the overall gather-and-deposit goal is complete; those
+behaviors remain scheduler/task-state work.
+
 ## 6. Event envelope
 
 ```json

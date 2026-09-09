@@ -63,6 +63,15 @@ over ComputerCraft's outbound HTTPS API, so no gateway computer or modem is requ
 Do not set `modem_side`, `gateway_rednet_id`, or `rednet_protocol` for this transport. Verify the
 worker with `npm run cli -- workers alice` after its registration and heartbeat arrive.
 
+For a bounded target-aware mining canary, use the operator CLI only after the worker is online:
+
+```bash
+npm run cli -- gather alice minecraft:cobblestone 8 12
+```
+
+The final argument is the maximum forward depth. This command gathers only up to the explicit
+bound; it does not yet navigate to or deposit into a named destination.
+
 Use only the smallest read-only/registration canary first. Do not issue movement, mining, or
 placement commands until the worker appears online in `computercraft-agents workers`.
 
