@@ -17,7 +17,8 @@ Direct HTTP canary status (the modem-less primary path):
 - [ ] One turtle registers over Rednet.
 - [ ] Worker heartbeat/state visible from CLI.
 - [ ] One bounded movement command works end-to-end.
-- [ ] `stop alice` works without Codex.
+- [x] Direct HTTP `stop alice` control delivery works without Codex.
+- [ ] Gateway-Rednet `stop alice` works without Codex.
 - [ ] Events persist in PostgreSQL.
 
 ## B. Turtle runtime
