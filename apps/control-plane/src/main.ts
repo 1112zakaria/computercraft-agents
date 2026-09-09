@@ -147,6 +147,10 @@ async function main(): Promise<void> {
     // ComputerCraft clients may keep an otherwise-idle HTTP connection alive. Close those
     // sockets before waiting for the server so systemd restarts do not fall through to SIGKILL.
     server.closeIdleConnections();
+    // A poll or event request can still be active when an operator restarts the service. The
+    // ComputerCraft clients retry bounded requests and persist their event outboxes, so aborting
+    // those in-flight sockets is safer than allowing systemd to force-kill the process later.
+    server.closeAllConnections();
     await new Promise<void>((resolve, reject) => {
       server.close((error) => (error ? reject(error) : resolve()));
     });

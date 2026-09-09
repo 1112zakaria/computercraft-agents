@@ -19,3 +19,9 @@ test("control-plane shutdown closes idle HTTP connections before waiting", () =>
   assert.match(source, /server\.closeIdleConnections\(\)/);
   assert.match(source, /closeIdleConnections\(\);[\s\S]*?server\.close\(/);
 });
+
+test("control-plane shutdown aborts active HTTP connections before waiting", () => {
+  const source = readFileSync(join(__dirname, "../apps/control-plane/src/main.ts"), "utf8");
+  assert.match(source, /server\.closeAllConnections\(\)/);
+  assert.match(source, /closeAllConnections\(\);[\s\S]*?server\.close\(/);
+});
