@@ -120,6 +120,8 @@ test("database migration set is ordered and contains the core relational model",
   assert.match(repositorySql, /active_task\.task_id AS "currentTaskId"/);
   assert.match(repositorySql, /w\.minecraft_server_id AS "minecraftServerId"/);
   assert.match(repositorySql, /w\.runtime_version AS "runtimeVersion"/);
+  assert.match(repositorySql, /observation\.inventory_json AS "inventory"/);
+  assert.match(repositorySql, /inventory_json, current_command_id/);
   assert.match(repositorySql, /t\.status IN \('RUNNING', 'PAUSED'\)/);
   assert.match(repositorySql, /getPlannerRuntimeState/);
   assert.match(repositorySql, /savePlannerRuntimeState/);

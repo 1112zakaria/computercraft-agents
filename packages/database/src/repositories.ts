@@ -2478,6 +2478,7 @@ export class GatewayRuntimeRepository {
                observation.dimension, observation.x, observation.y, observation.z,
                observation.facing, observation.position_confidence AS "positionConfidence",
                observation.fuel_level AS "fuelLevel",
+               observation.inventory_json AS "inventory",
                observation.current_command_id AS "currentCommandId",
                observation.status AS "observedStatus",
                anchor."anchorDimension", anchor."anchorX", anchor."anchorY", anchor."anchorZ",
@@ -2494,7 +2495,7 @@ export class GatewayRuntimeRepository {
         ) active_task ON TRUE
         LEFT JOIN LATERAL (
           SELECT observed_at, dimension, x, y, z, facing, position_confidence,
-                 fuel_level, current_command_id, status
+                 fuel_level, inventory_json, current_command_id, status
           FROM worker_observations
           WHERE worker_id = w.id
           ORDER BY observed_at DESC, id DESC
@@ -2522,6 +2523,7 @@ export class GatewayRuntimeRepository {
           facing?: string | null;
           positionConfidence?: string | null;
           fuelLevel?: number | null;
+          inventory?: unknown;
           observedAt?: Date | null;
           anchorDimension?: number | null;
           anchorX?: number | null;
@@ -2546,6 +2548,7 @@ export class GatewayRuntimeRepository {
       facing,
       positionConfidence,
       fuelLevel,
+      inventory,
       observedAt,
       currentTaskId,
       currentCommandId,
@@ -2579,6 +2582,7 @@ export class GatewayRuntimeRepository {
               ? { dimension, x, y, z, facing, confidence: effectiveConfidence }
               : null,
             fuel: fuelLevel === null || fuelLevel === undefined ? null : { level: fuelLevel },
+            inventory: inventory ?? null,
           }
         : null,
     };
