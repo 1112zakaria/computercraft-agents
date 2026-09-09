@@ -314,9 +314,10 @@ Before creating the first live gather goal, run the read-only preflight:
 npm run cli -- goal-preflight "@alice get 64 cobblestone and deposit it in Test Chest"
 ```
 
-Resolve every reported blocker. In particular, the worker must advertise `mining.gather`,
-`navigate.path`, `inventory.deposit`, and `peripheral.inspect`, and its position must be
-re-anchored after manual
+Resolve every reported blocker. For this gather workflow, the worker must advertise
+`mining.gather`, `navigate.path`, and `inventory.deposit`; `peripheral.inspect` is a recommended
+read-only capability for inspecting attached chests and other peripherals, but is not required
+for the gather/deposit command path. The worker position must be re-anchored after manual
 relocation. If the capability blocker is reported for an existing install, run
 `lua enable-gather.lua` on the turtle and then `startup`; this updates `worker.conf` with a
 backup and re-registers the capability list. The preflight cannot inspect the turtle's local

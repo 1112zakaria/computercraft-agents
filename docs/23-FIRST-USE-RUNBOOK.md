@@ -39,14 +39,23 @@ or local state. Confirm the turtle has re-registered before continuing:
 CONTROL_PLANE_URL=http://172.18.0.1:8787 npm run cli -- workers alice
 ```
 
-The worker should be `online: true` and advertise at least:
+The worker should be `online: true` and advertise the capabilities required by the bounded
+gather workflow:
 
 ```text
 mining.gather
 navigate.path
 inventory.deposit
+```
+
+The migration also enables the recommended read-only peripheral discovery capability:
+
+```text
 peripheral.inspect
 ```
+
+It is not a blocker for the gather/deposit workflow, but it is useful for verifying attached
+chests and other peripherals before configuring a named destination.
 
 ## Establish the bounded world preconditions
 
