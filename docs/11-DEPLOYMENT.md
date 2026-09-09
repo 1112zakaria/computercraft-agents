@@ -182,9 +182,10 @@ npm run cli -- workers alice
 npm run cli -- inspect alice
 ```
 
-Worker inspection includes the current runtime state and, when a task is active, its
-`currentTaskId`. The scheduler uses that same value to avoid selecting a worker that is already
-executing another task; the database remains the final atomic one-task-per-worker guard.
+Worker inspection includes the current runtime state, the latest bounded inventory snapshot when
+one has been reported, and, when a task is active, its `currentTaskId`. The scheduler uses that
+same value to avoid selecting a worker that is already executing another task; the database remains
+the final atomic one-task-per-worker guard.
 
 ### Re-anchor a worker after manual relocation
 
