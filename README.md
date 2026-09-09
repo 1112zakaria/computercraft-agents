@@ -89,6 +89,7 @@ npm run cli -- pause-task <task-id> "operator review"
 npm run cli -- resume-task <task-id>
 npm run cli -- cancel-task <task-id> "operator cancelled"
 npm run cli -- move alice N --dry-run
+npm run cli -- set-location "Test Chest" 0 10 64 -2 E
 ```
 
 See [architecture](docs/02-ARCHITECTURE.md), [protocol](docs/05-PROTOCOL.md), and

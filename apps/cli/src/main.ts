@@ -5,6 +5,7 @@ import {
   DirectionSchema,
   DirectWorkerProvisionSchema,
   IdentifierSchema,
+  NamedLocationCreateRequestSchema,
   ReleaseVersionSchema,
   UpdateRequestSchema,
   UpdateTargetSchema,
@@ -38,6 +39,7 @@ export function usage(): string {
     `${cliName} cancel-task <task-id> [reason]`,
     `${cliName} locations`,
     `${cliName} location <name>`,
+    `${cliName} set-location <name> <dimension> <x> <y> <z> [N|E|S|W]`,
     `${cliName} world-cells`,
     `${cliName} anchor <worker-id> <dimension> <x> <y> <z> [N|E|S|W]`,
     `${cliName} move <worker-id> <N|E|S|W|UP|DOWN> [--dry-run]`,
@@ -339,6 +341,43 @@ export async function runCli(args: readonly string[]): Promise<void> {
     if (!first || second) throw new Error(`usage: ${cliName} location <name>`);
     console.log(
       JSON.stringify(await request(`/v1/locations/${encodeURIComponent(first)}`), null, 2),
+    );
+    return;
+  }
+  if (command === "set-location") {
+    const dimension = Number(positionalArgs[2]);
+    const x = Number(positionalArgs[3]);
+    const y = Number(positionalArgs[4]);
+    const z = Number(positionalArgs[5]);
+    const facing = positionalArgs[6];
+    if (
+      !first ||
+      ![dimension, x, y, z].every((value) => Number.isInteger(value)) ||
+      (facing !== undefined && !["N", "E", "S", "W"].includes(facing))
+    ) {
+      throw new Error(`usage: ${cliName} set-location <name> <dimension> <x> <y> <z> [N|E|S|W]`);
+    }
+    const locationRequest = NamedLocationCreateRequestSchema.parse({
+      protocolVersion: 1,
+      name: first,
+      dimension,
+      x,
+      y,
+      z,
+      ...(facing === undefined ? {} : { facing }),
+      source: "operator",
+      confidence: "CONFIRMED_ANCHOR",
+      metadata: {},
+    });
+    console.log(
+      JSON.stringify(
+        await request("/v1/locations", {
+          method: "POST",
+          body: JSON.stringify(locationRequest),
+        }),
+        null,
+        2,
+      ),
     );
     return;
   }

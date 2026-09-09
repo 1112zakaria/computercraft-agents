@@ -406,6 +406,44 @@ test("CLI resolves a named location", async () => {
   }
 });
 
+test("CLI creates a confirmed named location", async () => {
+  const previousFetch = globalThis.fetch;
+  const previousUrl = process.env.CONTROL_PLANE_URL;
+  const previousSecret = process.env.CONTROL_PLANE_ADMIN_SECRET;
+  let capturedUrl = "";
+  let capturedInit: RequestInit | undefined;
+  process.env.CONTROL_PLANE_URL = "http://control-plane.test";
+  process.env.CONTROL_PLANE_ADMIN_SECRET = "test-admin-secret";
+  globalThis.fetch = async (input, init) => {
+    capturedUrl = String(input);
+    capturedInit = init;
+    return new Response(JSON.stringify({ name: "Test Chest" }), { status: 200 });
+  };
+  try {
+    await runCli(["set-location", "Test Chest", "0", "10", "64", "-2", "E"]);
+    assert.equal(capturedUrl, "http://control-plane.test/v1/locations");
+    assert.equal(capturedInit?.method, "POST");
+    assert.deepEqual(JSON.parse(String(capturedInit?.body)), {
+      protocolVersion: 1,
+      name: "Test Chest",
+      dimension: 0,
+      x: 10,
+      y: 64,
+      z: -2,
+      facing: "E",
+      source: "operator",
+      confidence: "CONFIRMED_ANCHOR",
+      metadata: {},
+    });
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousUrl === undefined) delete process.env.CONTROL_PLANE_URL;
+    else process.env.CONTROL_PLANE_URL = previousUrl;
+    if (previousSecret === undefined) delete process.env.CONTROL_PLANE_ADMIN_SECRET;
+    else process.env.CONTROL_PLANE_ADMIN_SECRET = previousSecret;
+  }
+});
+
 test("CLI requests a bounded path to a named location", async () => {
   const previousFetch = globalThis.fetch;
   const previousUrl = process.env.CONTROL_PLANE_URL;
