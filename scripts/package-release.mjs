@@ -27,6 +27,7 @@ for (const directory of ["gateway", "turtle"]) {
   });
 }
 cpSync(join(root, "deploy", "minecraft", "README.md"), join(staging, "DEPLOYMENT.md"));
+cpSync(join(root, "deploy", "minecraft", "enable-gather.lua"), join(staging, "enable-gather.lua"));
 
 function filesUnder(directory) {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -57,8 +58,10 @@ const persistentRuntimeFiles = new Set([
   "worker-update-journal.json",
   "worker-clock.txt",
 ]);
+const deploymentUtilityFiles = new Set(["enable-gather.lua"]);
 const runtimeFiles = filesUnder(staging)
   .filter((path) => path.endsWith(".lua"))
+  .filter((path) => !deploymentUtilityFiles.has(path))
   .filter((path) => !persistentRuntimeFiles.has(path.split("/").pop()))
   .filter((path) => !stableBootstrapFiles.has(path))
   .sort();
@@ -79,6 +82,7 @@ const manifest = {
   archiveUrl: `https://github.com/${repository}/releases/download/${requestedVersion}/computercraft-lua.zip`,
   manifestUrl: `https://github.com/${repository}/releases/download/${requestedVersion}/release-manifest.json`,
   stableBootstrapFiles: [...stableBootstrapFiles].sort(),
+  deploymentUtilityFiles: [...deploymentUtilityFiles].sort(),
   excludedPersistentFiles: [...persistentRuntimeFiles].sort(),
   generatedBy: "npm run release:lua",
 };

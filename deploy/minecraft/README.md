@@ -46,7 +46,8 @@ over ComputerCraft's outbound HTTPS API, so no gateway computer or modem is requ
    npm run cli -- provision-worker --id alice --server friends-server --computer-id 21 --version v0.4.1
    ```
 
-2. Copy the contents of `computercraft/turtle/` to the turtle filesystem.
+2. Copy the contents of `computercraft/turtle/` to the turtle filesystem. If using the release
+   ZIP, also copy the root-level `enable-gather.lua` deployment utility to the turtle filesystem.
 3. Copy `worker.conf.example` to `worker.conf` and set:
 
    ```lua
