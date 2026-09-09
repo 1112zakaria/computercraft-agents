@@ -1158,8 +1158,8 @@ export class GatewayRuntimeRepository {
                t.attempt_count AS "attemptCount", t.last_error_json AS "lastError",
                command.command_id AS "commandId", command.status AS "commandStatus",
                command.completed_at AS "commandCompletedAt",
-               event.event_id AS "lastEventId", event.event_type AS "lastEventType",
-               event.occurred_at AS "lastEventAt", event.payload_json AS "lastEventPayload"
+               last_event.event_id AS "lastEventId", last_event.event_type AS "lastEventType",
+               last_event.occurred_at AS "lastEventAt", last_event.payload_json AS "lastEventPayload"
         FROM tasks t
         LEFT JOIN LATERAL (
           SELECT c.command_id, c.status, c.completed_at
@@ -1175,7 +1175,7 @@ export class GatewayRuntimeRepository {
           WHERE c.task_id = t.id
           ORDER BY e.occurred_at DESC, e.event_id DESC
           LIMIT 1
-        ) event ON TRUE
+        ) last_event ON TRUE
         WHERE t.job_id = $1
         ORDER BY t.id
       `,
