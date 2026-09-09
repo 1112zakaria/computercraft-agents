@@ -116,6 +116,7 @@ insufficient. Ready tasks can be inspected and claimed with:
 ```text
 GET  /v1/tasks
 GET  /v1/tasks/runnable
+GET  /v1/tasks/:taskId/planning-context
 POST /v1/tasks/:taskId
 POST /v1/tasks/:taskId/dispatch
 POST /v1/tasks/:taskId/transition
@@ -142,6 +143,10 @@ The transition request contains `{ "protocolVersion": 1, "status": "...", "reaso
 and is checked against the persisted task transition graph. When supplied, the reason is stored
 in the task's error/context field for auditability. It is an explicit operator control path; it
 does not itself dispatch a command or mark a physical action successful.
+
+The planning-context endpoint assembles a bounded, read-only context from the persisted task,
+target worker observation, advertised capabilities, and known world cells. It explicitly labels
+the resulting prompt as untrusted data and does not invoke a reasoning provider.
 
 After a successful `observation.block` command, the turtle emits a `block.observed` event. The
 control plane derives the inspected cell from the worker position/facing and persists it in the

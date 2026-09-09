@@ -19,6 +19,7 @@ export function usage(): string {
     `${cliName} diagnose`,
     `${cliName} goal <@worker get ... and deposit it in ...>`,
     `${cliName} tasks`,
+    `${cliName} planning-context <task-id>`,
     `${cliName} runnable-tasks`,
     `${cliName} scheduler-tick`,
     `${cliName} claim-task <task-id> <worker-id>`,
@@ -154,6 +155,17 @@ export async function runCli(args: readonly string[]): Promise<void> {
   if (command === "tasks") {
     if (first) throw new Error(`usage: ${cliName} tasks`);
     console.log(JSON.stringify(await request("/v1/tasks"), null, 2));
+    return;
+  }
+  if (command === "planning-context") {
+    if (!first || second) throw new Error(`usage: ${cliName} planning-context <task-id>`);
+    console.log(
+      JSON.stringify(
+        await request(`/v1/tasks/${encodeURIComponent(first)}/planning-context`),
+        null,
+        2,
+      ),
+    );
     return;
   }
   if (command === "runnable-tasks") {

@@ -27,6 +27,7 @@ import {
 import { selectDispatchableTasks } from "@computercraft-agents/scheduler";
 import { findKnownPath, SparseWorldModel, type Coordinate } from "@computercraft-agents/navigation";
 import { parseAddressedGatherGoal } from "@computercraft-agents/domain";
+import { assemblePlanningContext } from "@computercraft-agents/reasoning";
 import type {
   CommandPollResponse,
   Command,
@@ -436,6 +437,34 @@ export class GatewayService {
 
   public async listTasks(): Promise<readonly Record<string, unknown>[]> {
     return this.store.listTasks();
+  }
+
+  public async planningContext(taskId: string): Promise<Record<string, unknown>> {
+    if (!IdentifierSchema.safeParse(taskId).success) {
+      throw new HttpError(400, "INVALID_PAYLOAD", "task id is invalid");
+    }
+    const task = (await this.store.listTasks()).find((row) => row.taskId === taskId);
+    if (!task) {
+      throw new HttpError(404, "UNKNOWN_TASK", "task was not found");
+    }
+    const argumentsValue = isRecord(task.arguments) ? task.arguments : {};
+    const workerId =
+      typeof task.assignedWorkerId === "string"
+        ? task.assignedWorkerId
+        : typeof argumentsValue.targetWorkerId === "string"
+          ? argumentsValue.targetWorkerId
+          : undefined;
+    const worker = workerId ? await this.store.getWorker(workerId) : undefined;
+    const assembled = assemblePlanningContext({
+      goalText: typeof task.goalText === "string" ? task.goalText : String(task.skillName ?? ""),
+      task,
+      worker: worker ?? null,
+      skills: stringList(task.requiredCapabilities),
+      worldKnowledge: await this.store.listWorldCells(),
+      memories: [],
+      recentConversation: [],
+    });
+    return { taskId, workerId: workerId ?? null, ...assembled };
   }
 
   public async listRunnableTasks(): Promise<readonly Record<string, unknown>[]> {

@@ -455,3 +455,28 @@ test("CLI submits the first addressed gather goal", async () => {
     else process.env.CONTROL_PLANE_PRINCIPAL = previousPrincipal;
   }
 });
+
+test("CLI requests bounded planning context for a task", async () => {
+  const previousFetch = globalThis.fetch;
+  const previousUrl = process.env.CONTROL_PLANE_URL;
+  const previousSecret = process.env.CONTROL_PLANE_ADMIN_SECRET;
+  let capturedUrl = "";
+  process.env.CONTROL_PLANE_URL = "http://control-plane.test";
+  process.env.CONTROL_PLANE_ADMIN_SECRET = "test-admin-secret";
+  globalThis.fetch = async (input) => {
+    capturedUrl = String(input);
+    return new Response(JSON.stringify({ taskId: "task-test", prompt: "context" }), {
+      status: 200,
+    });
+  };
+  try {
+    await runCli(["planning-context", "task-test"]);
+    assert.equal(capturedUrl, "http://control-plane.test/v1/tasks/task-test/planning-context");
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousUrl === undefined) delete process.env.CONTROL_PLANE_URL;
+    else process.env.CONTROL_PLANE_URL = previousUrl;
+    if (previousSecret === undefined) delete process.env.CONTROL_PLANE_ADMIN_SECRET;
+    else process.env.CONTROL_PLANE_ADMIN_SECRET = previousSecret;
+  }
+});

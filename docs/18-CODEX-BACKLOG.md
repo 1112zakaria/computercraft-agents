@@ -761,8 +761,9 @@ Define decisions for plan/create-task/delegate/report/refuse/replan.
 **Dependencies:** CC-064, CC-085
 
 **Status:** PARTIAL — a bounded, untrusted-data-aware prompt assembler is implemented for goal,
-task, worker, skill, world, memory, and conversation context; persistence-backed context queries
-and relevance selection remain.
+task, worker, skill, world, memory, and conversation context, and the protected planning-context
+endpoint now loads task/worker/world records; persistence-backed memory/conversation retrieval and
+relevance selection remain.
 
 Assemble goal, current job/task, relevant worker observation, skills, world knowledge, memories, recent conversation.
 

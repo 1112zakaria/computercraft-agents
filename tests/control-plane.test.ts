@@ -63,6 +63,7 @@ class FakeGatewayStore implements GatewayServiceStore {
   ];
   public readonly availableWorkers: Record<string, unknown>[] = [];
   public readonly worldCells: Record<string, unknown>[] = [];
+  public readonly tasks: Record<string, unknown>[] = [];
 
   public async register(payload: GatewayRegistration): Promise<void> {
     this.registrations.push(payload);
@@ -215,7 +216,7 @@ class FakeGatewayStore implements GatewayServiceStore {
   }
 
   public async listTasks(): Promise<readonly Record<string, unknown>[]> {
-    return [];
+    return this.tasks;
   }
 
   public async listRunnableTasks(): Promise<readonly Record<string, unknown>[]> {
@@ -383,6 +384,37 @@ test("operator task API lists and claims tasks", async () => {
       workerKey: "alice",
       status: "RUNNING",
     });
+  } finally {
+    await server.close();
+  }
+});
+
+test("operator planning-context API assembles bounded persisted records", async () => {
+  const store = new FakeGatewayStore();
+  store.tasks.push({
+    taskId: "task-context",
+    skillName: "movement.step",
+    goalText: "move Alice safely",
+    arguments: { targetWorkerId: "worker-test" },
+    requiredCapabilities: ["movement.step"],
+  });
+  const server = await startServer(store);
+  try {
+    const response = await fetch(`${server.baseUrl}/v1/tasks/task-context/planning-context`, {
+      headers: adminHeaders(),
+    });
+    assert.equal(response.status, 200);
+    const body = (await response.json()) as {
+      taskId: string;
+      workerId: string;
+      prompt: string;
+      counts: { skills: number; worldKnowledge: number };
+    };
+    assert.equal(body.taskId, "task-context");
+    assert.equal(body.workerId, "worker-test");
+    assert.match(body.prompt, /untrusted data/);
+    assert.equal(body.counts.skills, 1);
+    assert.equal(body.counts.worldKnowledge, 0);
   } finally {
     await server.close();
   }
