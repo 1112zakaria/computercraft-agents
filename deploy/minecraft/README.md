@@ -13,20 +13,29 @@ this deployment guide. It does not contain populated configuration or secrets.
 
 ## Gateway computer
 
-1. Extract the archive and copy the contents of `computercraft/gateway/` to the ComputerCraft
-   computer filesystem. The archive includes the extensionless `startup` file at the filesystem
-   root; CraftOS uses it as the automatic boot hook and it launches `startup.lua`.
-2. Copy `gateway.conf.example` to `gateway.conf` and fill in the VPS URL, gateway ID, server ID,
-   modem side, and the bearer secret locally.
+1. For a fresh or damaged installation, copy `install-gateway.lua` to the computer and run it
+   with a reviewed immutable commit, for example:
+
+   ```lua
+   lua install-gateway.lua d6ab3881197ae7998e16e88db472b9a1dcc2ea03
+   ```
+
+   The installer downloads the pinned gateway files, preserves existing files in a backup
+   directory, keeps `gateway.conf` and the outbox local, and repairs the extensionless CraftOS
+   startup hook. If using the release ZIP, the installer is at the archive root.
+2. Copy `gateway.conf.example` to `gateway.conf` if it does not exist and fill in the VPS URL,
+   gateway ID, server ID, modem side, and the bearer secret locally.
 3. Ensure a wired or wireless modem is attached on the configured side. The gateway cannot talk
    to turtles without a modem.
 4. Reboot or run `startup`.
 
 ## Gateway-backed turtle
 
-1. Copy the contents of `computercraft/turtle/` to the turtle filesystem. The archive includes
-   the extensionless `startup` file at the filesystem root; CraftOS uses it as the automatic boot
-   hook and it launches `startup.lua`.
+1. For a fresh or damaged installation, copy `install-direct.lua` to the turtle and run it with
+   a reviewed immutable commit. The installer downloads the pinned turtle files, preserves
+   existing files in a backup directory, keeps `worker.conf` and state local, and repairs the
+   extensionless CraftOS startup hook. If using the release ZIP, the installer is at the archive
+   root.
 2. Copy `worker.conf.example` to `worker.conf` and set a stable worker ID, the gateway computer
    ID, the modem side, and the Rednet protocol.
    For named-container transfers, add local IDs under `container_sides`, for example

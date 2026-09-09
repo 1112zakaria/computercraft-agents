@@ -28,6 +28,14 @@ for (const directory of ["gateway", "turtle"]) {
 }
 cpSync(join(root, "deploy", "minecraft", "README.md"), join(staging, "DEPLOYMENT.md"));
 cpSync(join(root, "deploy", "minecraft", "enable-gather.lua"), join(staging, "enable-gather.lua"));
+cpSync(
+  join(root, "deploy", "minecraft", "install-direct.lua"),
+  join(staging, "install-direct.lua"),
+);
+cpSync(
+  join(root, "deploy", "minecraft", "install-gateway.lua"),
+  join(staging, "install-gateway.lua"),
+);
 
 function filesUnder(directory) {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -58,7 +66,11 @@ const persistentRuntimeFiles = new Set([
   "worker-update-journal.json",
   "worker-clock.txt",
 ]);
-const deploymentUtilityFiles = new Set(["enable-gather.lua"]);
+const deploymentUtilityFiles = new Set([
+  "enable-gather.lua",
+  "install-direct.lua",
+  "install-gateway.lua",
+]);
 const runtimeFiles = filesUnder(staging)
   .filter((path) => path.endsWith(".lua"))
   .filter((path) => !deploymentUtilityFiles.has(path))

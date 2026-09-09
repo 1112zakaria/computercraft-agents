@@ -17,7 +17,13 @@ control plane is already reachable over HTTPS.
 ## Prepare the turtle once
 
 Install the pinned direct runtime from a reviewed commit or release, preserving `worker.conf` and
-local state. On the turtle, run:
+local state. If using a release ZIP, copy `install-direct.lua` from its root. On the turtle, run:
+
+```lua
+lua install-direct.lua <40-character-commit>
+```
+
+Then run the first-use capability migration:
 
 ```lua
 lua enable-gather.lua

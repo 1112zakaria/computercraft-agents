@@ -43,6 +43,8 @@ const luaFiles = [
   "turtle/update_manager.lua",
   "turtle/state.lua",
   "../deploy/minecraft/enable-gather.lua",
+  "../deploy/minecraft/install-direct.lua",
+  "../deploy/minecraft/install-gateway.lua",
 ];
 
 test("ComputerCraft runtime modules parse as Lua 5.1", () => {
@@ -97,6 +99,19 @@ test("stable update bootstraps repair a missing CraftOS startup hook", () => {
   assert.match(installer, /worker\.conf\.example/);
   assert.match(installer, /enable-gather\.lua/);
   assert.match(installer, /deployment_root/);
+});
+
+test("gateway installer preserves local configuration and repairs startup", () => {
+  const installer = readFileSync(
+    join(runtimeRoot, "../deploy/minecraft/install-gateway.lua"),
+    "utf8",
+  );
+  assert.match(installer, /gateway\.conf\.example/);
+  assert.match(installer, /startup_hook/);
+  assert.match(installer, /valid_startup_hook/);
+  assert.match(installer, /startup\.previous/);
+  assert.match(installer, /gateway\.conf and gateway outbox/);
+  assert.match(installer, /expected pinned 40-character commit/);
 });
 
 test("gather capability migration preserves configuration with a backup", () => {

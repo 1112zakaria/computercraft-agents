@@ -246,7 +246,8 @@ Implement state transitions and task dependencies.
 
 **Priority:** P0  
 **Dependencies:** CC-010
-**Status:** DONE
+**Status:** DONE — the runtime and release bundle now include a pinned gateway bootstrap installer
+that preserves local configuration/outbox files and repairs the CraftOS startup hook.
 
 Implement `startup.lua`, validated local config, logging, and gateway identity.
 

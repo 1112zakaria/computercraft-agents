@@ -119,12 +119,18 @@ without changing control-plane domain architecture.
 Target experience:
 
 1. friend clones repository or downloads release bundle;
-2. obtains `computercraft/gateway` files;
-3. places them into the selected ComputerCraft computer's filesystem/disk workflow;
+2. copies `install-gateway.lua` from the release root (or a reviewed commit) to the selected
+   ComputerCraft computer;
+3. runs the installer with the same pinned 40-character commit used for the runtime;
 4. sets `gateway.conf` values such as VPS URL and server/gateway ID;
 5. secret is provided privately and entered locally;
 6. starts/reboots gateway computer;
 7. sees connection diagnostic.
+
+The pinned installer downloads and parses the gateway files before activation, preserves local
+configuration and outbox files, and repairs the extensionless CraftOS `startup` hook. It leaves a
+unique backup directory on the computer for recovery. A release bundle contains the installer at
+its root; the installer does not contain or request any secret.
 
 Because direct filesystem paths for ComputerCraft worlds vary, the repo SHOULD include both:
 
@@ -143,7 +149,10 @@ worker config:
   gateway_rednet_id/channel
 ```
 
-A bootstrap disk/program SHOULD eventually automate this for new turtles.
+A release bundle contains `install-direct.lua` at its root. Run that pinned installer before
+creating `worker.conf`; it downloads and parses the turtle files, preserves local configuration
+and state, repairs the extensionless CraftOS `startup` hook, and leaves a unique backup directory.
+This is the initial bootstrap path; later runtime changes should use the tagged OTA flow.
 
 ### Direct HTTP turtle installation
 
@@ -216,11 +225,11 @@ The turtle's cursor, authenticated UTC clock handoff, and event outbox are local
 configuration or secret.
 
 For a reviewed development build, download `deploy/minecraft/install-direct.lua` from a pinned
-40-character Git commit, then run `install-direct <same-commit>`. It downloads and parses all
-runtime files before replacing them, and retains root files (including configuration/state)
-in a unique `manual-install-backup-*` directory. It also installs the safe
-`worker.conf.example` template; copy it to `worker.conf`, configure it locally, and run `startup`.
-This manual bootstrap is separate from tagged-release OTA; it does not create a release.
+40-character Git commit, then run `lua install-direct.lua <same-commit>`. It downloads and parses
+all runtime files before replacing them, and retains root files (including configuration/state)
+in a unique `manual-install-backup-*` directory. It also installs the safe `worker.conf.example`
+template; copy it to `worker.conf`, configure it locally, and run `startup`. This manual bootstrap
+is separate from tagged-release OTA; it does not create a release.
 
 Legacy ComputerCraft 1.75 lacks `os.date`, `os.epoch`, and `textutils.unserializeJSON`.
 The turtle bootstrap installs a non-executing JSON decoder and synchronizes UTC from authenticated
