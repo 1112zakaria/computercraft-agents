@@ -120,6 +120,11 @@ peripheral-specific hardening step. If the worker position, named location, or k
 insufficient, it pauses the workflow and an operator can run `resume-task` after checking the turtle
 and depositing items manually.
 
+Before a gather workflow advances to navigation, the control plane also requires the completed
+command result to report `status: OK`, the canonical requested `itemKey`, and a `collected` quantity
+at least as large as the requested target. Mismatched or incomplete result evidence blocks the
+workflow instead of attempting a deposit for unverified material.
+
 The domain package now contains a pure gather workflow contract with the phases
 `CHECK_INVENTORY`, `GATHER`, `NAVIGATE_DESTINATION`, `DEPOSIT`, `VERIFY`, `COMPLETED`, and
 `BLOCKED`. It emits at most one next action per observation and treats an exhausted gathering

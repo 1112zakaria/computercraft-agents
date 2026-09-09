@@ -339,6 +339,21 @@ export function transferMeetsQuantity(
   return Number.isSafeInteger(result.moved) && result.moved >= requestedQuantity;
 }
 
+export function gatherResultMeetsTarget(
+  result: unknown,
+  expectedItemKey: string,
+  requestedQuantity: number,
+): boolean {
+  if (!isRecord(result)) return false;
+  return (
+    result.status === "OK" &&
+    result.itemKey === expectedItemKey &&
+    typeof result.collected === "number" &&
+    Number.isSafeInteger(result.collected) &&
+    result.collected >= requestedQuantity
+  );
+}
+
 export function isInventoryFullFailure(event: Event): boolean {
   if (event.type !== "command.failed") return false;
   const payloadValue: unknown = event.payload;
@@ -3133,9 +3148,12 @@ export class GatewayRuntimeRepository {
         typeof itemKey !== "string" ||
         typeof quantity !== "number" ||
         !Number.isSafeInteger(quantity) ||
-        !position
+        !position ||
+        !gatherResultMeetsTarget(eventPayload.result, itemKey, quantity)
       ) {
-        await block("gather workflow lacks a complete worker or goal position");
+        await block(
+          "gather workflow lacks verified requested item, quantity, worker, or goal position",
+        );
         return;
       }
 

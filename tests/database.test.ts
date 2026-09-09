@@ -7,6 +7,7 @@ import {
   createDatabasePool,
   blockedMovementForReplan,
   effectivePositionConfidence,
+  gatherResultMeetsTarget,
   inventorySlotsFromCommandEvent,
   inventoryFullRecoveryPlan,
   isInventoryFullFailure,
@@ -133,6 +134,7 @@ test("database migration set is ordered and contains the core relational model",
   assert.match(repositorySql, /event_type = 'inventory\.changed'/);
   assert.match(repositorySql, /inventorySlotsFromCommandEvent/);
   assert.match(repositorySql, /recordInventorySnapshot/);
+  assert.match(repositorySql, /gatherResultMeetsTarget\(eventPayload\.result, itemKey, quantity\)/);
 });
 
 test("migration checksum variants accept newline-only deployment differences", () => {
@@ -263,6 +265,41 @@ test("workflow deposit requires the complete transfer quantity", () => {
   );
   assert.equal(transferMeetsQuantity({ moved: 7 }, 8), false);
   assert.equal(transferMeetsQuantity({ status: "OK" }, 8), false);
+});
+
+test("gather workflow requires matching item and quantity evidence", () => {
+  assert.equal(
+    gatherResultMeetsTarget(
+      { status: "OK", itemKey: "minecraft:cobblestone", collected: 8 },
+      "minecraft:cobblestone",
+      8,
+    ),
+    true,
+  );
+  assert.equal(
+    gatherResultMeetsTarget(
+      { status: "OK", itemKey: "minecraft:dirt", collected: 8 },
+      "minecraft:cobblestone",
+      8,
+    ),
+    false,
+  );
+  assert.equal(
+    gatherResultMeetsTarget(
+      { status: "OK", itemKey: "minecraft:cobblestone", collected: 7 },
+      "minecraft:cobblestone",
+      8,
+    ),
+    false,
+  );
+  assert.equal(
+    gatherResultMeetsTarget(
+      { status: "TARGET_NOT_REACHED", itemKey: "minecraft:cobblestone", collected: 8 },
+      "minecraft:cobblestone",
+      8,
+    ),
+    false,
+  );
 });
 
 test("workflow advancement ignores late or duplicate step events", () => {
