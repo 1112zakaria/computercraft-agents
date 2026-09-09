@@ -13,6 +13,7 @@ CREATE TABLE planner_triggers (
   priority INTEGER NOT NULL DEFAULT 0,
   status TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'PROCESSING', 'SUCCEEDED', 'FAILED')),
   attempts INTEGER NOT NULL DEFAULT 0,
+  claimed_at TIMESTAMPTZ,
   last_error_json JSONB,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   processed_at TIMESTAMPTZ

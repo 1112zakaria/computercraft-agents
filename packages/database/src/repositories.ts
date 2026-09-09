@@ -77,6 +77,7 @@ export interface PlannerTriggerRecord {
   readonly priority: number;
   readonly status: string;
   readonly attempts: number;
+  readonly claimedAt?: Date | string | null;
   readonly lastError?: unknown;
   readonly createdAt: Date | string;
   readonly processedAt?: Date | string | null;
@@ -542,7 +543,7 @@ export class GatewayRuntimeRepository {
       `
         SELECT trigger_id AS "triggerId", cause, subject_id AS "subjectId",
                occurred_at AS "occurredAt", priority, status, attempts,
-               last_error_json AS "lastError", created_at AS "createdAt",
+               claimed_at AS "claimedAt", last_error_json AS "lastError", created_at AS "createdAt",
                processed_at AS "processedAt"
         FROM planner_triggers
         ORDER BY CASE WHEN status = 'PENDING' THEN 0 ELSE 1 END,
@@ -566,13 +567,14 @@ export class GatewayRuntimeRepository {
           LIMIT $1
         )
         UPDATE planner_triggers trigger
-        SET status = 'PROCESSING', attempts = trigger.attempts + 1
+        SET status = 'PROCESSING', attempts = trigger.attempts + 1, claimed_at = NOW()
         FROM eligible
         WHERE trigger.trigger_id = eligible.trigger_id
         RETURNING trigger.trigger_id AS "triggerId", trigger.cause,
                   trigger.subject_id AS "subjectId", trigger.occurred_at AS "occurredAt",
                   trigger.priority, trigger.status, trigger.attempts,
-                  trigger.last_error_json AS "lastError", trigger.created_at AS "createdAt",
+                  trigger.claimed_at AS "claimedAt", trigger.last_error_json AS "lastError",
+                  trigger.created_at AS "createdAt",
                   trigger.processed_at AS "processedAt"
       `,
       [limit],
@@ -588,12 +590,28 @@ export class GatewayRuntimeRepository {
     const result = await this.pool.query(
       `
         UPDATE planner_triggers
-        SET status = $2, last_error_json = $3, processed_at = NOW()
+        SET status = $2, claimed_at = NULL, last_error_json = $3, processed_at = NOW()
         WHERE trigger_id = $1 AND status = 'PROCESSING'
       `,
       [triggerId, status, lastError === undefined ? null : asJson(lastError)],
     );
     return (result.rowCount ?? 0) > 0;
+  }
+
+  public async requeueStalePlannerTriggers(staleAfterSeconds = 300): Promise<number> {
+    if (!Number.isSafeInteger(staleAfterSeconds) || staleAfterSeconds < 1) {
+      throw new Error("staleAfterSeconds must be a positive integer");
+    }
+    const result = await this.pool.query(
+      `
+        UPDATE planner_triggers
+        SET status = 'PENDING', claimed_at = NULL
+        WHERE status = 'PROCESSING'
+          AND claimed_at < NOW() - ($1::text || ' seconds')::interval
+      `,
+      [staleAfterSeconds],
+    );
+    return result.rowCount ?? 0;
   }
 
   private async recordPlannerTrigger(client: PoolClient, event: Event): Promise<void> {

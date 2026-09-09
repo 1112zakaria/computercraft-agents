@@ -164,7 +164,9 @@ originating goal or event, so retries and duplicate transport events do not crea
 planner work. v1 persists these triggers as `PENDING`; consuming them and applying a validated
 planner decision remains a separate, explicitly bounded control-plane loop. The repository claim
 boundary uses `FOR UPDATE SKIP LOCKED`, increments attempts, and accepts completion only from
-`PROCESSING`, so a future worker can safely run more than one control-plane instance.
+`PROCESSING`, so a future worker can safely run more than one control-plane instance. Claims carry
+a timestamp and stale `PROCESSING` claims can be returned to `PENDING` after a bounded lease,
+preventing a crashed planner worker from losing the trigger permanently.
 
 The reasoning package now exposes a provider-neutral planner-trigger service. It accepts only the
 bounded causes `goal.created`, `command.completed`, `command.failed`, `worker.blocked`,

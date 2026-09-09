@@ -99,6 +99,7 @@ test("database migration set is ordered and contains the core relational model",
   );
   assert.match(repositorySql, /FOR UPDATE SKIP LOCKED/);
   assert.match(repositorySql, /status = 'PROCESSING'/);
+  assert.match(repositorySql, /requeueStalePlannerTriggers/);
 });
 
 test("urgent command cancellation pauses the logical task", () => {

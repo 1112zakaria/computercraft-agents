@@ -785,7 +785,8 @@ bounded context, invokes the configured provider, and suppresses duplicate trigg
 control plane now persists idempotent `goal.created`, task-correlated command completion/failure,
 and `worker.blocked` triggers and exposes bounded operator inspection; consuming triggers,
 decision application and outage transitions remain. The repository also provides a transactional
-claim/complete boundary for a future planner worker without enabling model execution yet.
+claim/complete boundary with stale-claim recovery for a future planner worker without enabling
+model execution yet.
 
 Trigger on new goal, meaningful completion/failure, unexpected state, delegation need, replan.
 
