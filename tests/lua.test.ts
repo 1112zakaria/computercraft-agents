@@ -87,3 +87,12 @@ test("turtle runtime exposes bounded target-aware gathering", () => {
     /self\.excavation:gather\(args\.itemKey, args\.quantity, args\.maxDepth\)/,
   );
 });
+
+test("turtle runtime supports allowlisted named container sides", () => {
+  const config = readFileSync(join(runtimeRoot, "turtle/config.lua"), "utf8");
+  const executor = readFileSync(join(runtimeRoot, "turtle/executor.lua"), "utf8");
+  assert.match(config, /container_sides/);
+  assert.match(config, /must be front, up, or down/);
+  assert.match(executor, /function executor:container_direction\(container_id\)/);
+  assert.match(executor, /container is not configured/);
+});

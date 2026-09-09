@@ -164,6 +164,11 @@ Execution SHALL:
 
 Generic container interaction SHOULD first attempt turtle `suck`/`drop` semantics.
 
+The runtime supports an optional `containerId` on deposit/withdraw commands. The turtle resolves
+that stable ID through the local `container_sides` allowlist in `worker.conf`; unknown IDs fail
+before any transfer. The mapping currently supports `front`, `up`, and `down`, and does not
+silently choose a different container.
+
 Higher-level inventory knowledge MAY come from peripherals.
 
 All transfer skills SHALL verify postconditions when possible.

@@ -884,6 +884,10 @@ need to consume it.
 **Priority:** P0  
 **Dependencies:** CC-045, CC-064
 
+**Status:** PARTIAL — deposit/withdraw commands now accept a validated container ID and resolve it
+through a local front/up/down allowlist; named-location approach/docking and postcondition
+verification remain.
+
 ### CC-104 — Implement known-container withdraw skill
 
 **Priority:** P1  

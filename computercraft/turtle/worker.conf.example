@@ -26,6 +26,8 @@ return {
   receive_timeout_seconds = 1,
   fuel_low_threshold = 100,
   container_side = "front",
+  -- Optional stable IDs for known containers used by inventory.deposit/withdraw.
+  container_sides = { ["test-chest"] = "front" },
   reserved_slots = { [1] = true },
   acceptable_fuel_items = { "minecraft:coal", "minecraft:charcoal" },
 }

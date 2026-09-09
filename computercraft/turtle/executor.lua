@@ -62,9 +62,17 @@ function M.new(config, client, state, cancellation, movement, observation, inven
     elseif skill == "inventory.inspect" then
       return { status = "OK", inventory = self.inventory:snapshot() }
     elseif skill == "inventory.deposit" then
-      return self.inventory:deposit(self.config.container_side, args.quantity, args.slot)
+      local direction, direction_error = self:container_direction(args.containerId)
+      if not direction then
+        return { status = "UNKNOWN_CONTAINER", containerId = args.containerId, error = direction_error }
+      end
+      return self.inventory:deposit(direction, args.quantity, args.slot)
     elseif skill == "inventory.withdraw" then
-      return self.inventory:withdraw(self.config.container_side, args.itemKey, args.quantity, args.slot)
+      local direction, direction_error = self:container_direction(args.containerId)
+      if not direction then
+        return { status = "UNKNOWN_CONTAINER", containerId = args.containerId, error = direction_error }
+      end
+      return self.inventory:withdraw(direction, args.itemKey, args.quantity, args.slot)
     elseif skill == "fuel.refuel" then
       return self.fuel:refuel(args.maxItems)
     elseif skill == "mining.excavate" then
@@ -73,6 +81,17 @@ function M.new(config, client, state, cancellation, movement, observation, inven
       return self.excavation:gather(args.itemKey, args.quantity, args.maxDepth)
     end
     return { status = "UNIMPLEMENTED", error = "skill is reserved for a later runtime slice" }
+  end
+
+  function executor:container_direction(container_id)
+    if container_id == nil then
+      return self.config.container_side
+    end
+    local direction = self.config.container_sides and self.config.container_sides[container_id]
+    if not direction then
+      return nil, "container is not configured"
+    end
+    return direction
   end
 
   function executor:execute(command)
@@ -126,6 +145,9 @@ function M.new(config, client, state, cancellation, movement, observation, inven
     elseif result.status == "UNIMPLEMENTED" or result.status == "UNSUPPORTED_PATTERN" then
       event_type = "command.failed"
       payload = error_payload("UNKNOWN_SKILL", result.error, false)
+    elseif result.status == "UNKNOWN_CONTAINER" then
+      event_type = "command.failed"
+      payload = error_payload("INVALID_ARGUMENTS", result.error or "container is not configured", false, result)
     elseif result.status ~= "OK" then
       event_type = "command.failed"
       payload = error_payload("INTERNAL_ERROR", result.error or result.status, true, result)

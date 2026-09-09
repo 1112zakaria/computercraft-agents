@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import {
   DirectionSchema,
   DirectWorkerProvisionSchema,
+  IdentifierSchema,
   ReleaseVersionSchema,
   UpdateRequestSchema,
   UpdateTargetSchema,
@@ -29,7 +30,7 @@ export function usage(): string {
     `${cliName} path <worker-id> <N|E|S|W|UP|DOWN>...`,
     `${cliName} excavate <worker-id> <width> <height> <depth>`,
     `${cliName} gather <worker-id> <item-key> <quantity> <max-depth>`,
-    `${cliName} deposit <worker-id> [quantity] [slot]`,
+    `${cliName} deposit <worker-id> [quantity] [slot] [--container-id <id>]`,
     `${cliName} stop <worker-id|all>`,
     `${cliName} update --target <gateway:id|worker:id|fleet:gateway-id> --version <vX.Y.Z>`,
     `${cliName} update-status <update-id>`,
@@ -309,14 +310,24 @@ export async function runCli(args: readonly string[]): Promise<void> {
   if (command === "deposit") {
     const quantity = args[2] === undefined ? undefined : Number(args[2]);
     const slot = args[3] === undefined ? undefined : Number(args[3]);
+    const containerId = flag(args, "--container-id");
     if (
       !first ||
       (quantity !== undefined && (!Number.isInteger(quantity) || quantity < 1 || quantity > 64))
     ) {
-      throw new Error(`usage: ${cliName} deposit <worker-id> [quantity] [slot]`);
+      throw new Error(
+        `usage: ${cliName} deposit <worker-id> [quantity] [slot] [--container-id <id>]`,
+      );
     }
     if (slot !== undefined && (!Number.isInteger(slot) || slot < 1 || slot > 16)) {
-      throw new Error(`usage: ${cliName} deposit <worker-id> [quantity] [slot]`);
+      throw new Error(
+        `usage: ${cliName} deposit <worker-id> [quantity] [slot] [--container-id <id>]`,
+      );
+    }
+    if (containerId !== undefined && !IdentifierSchema.safeParse(containerId).success) {
+      throw new Error(
+        `usage: ${cliName} deposit <worker-id> [quantity] [slot] [--container-id <id>]`,
+      );
     }
     const body = {
       protocolVersion: 1,
@@ -327,6 +338,7 @@ export async function runCli(args: readonly string[]): Promise<void> {
       budget: { maxPrimitives: 1, maxBlockChanges: 0, maxInventoryTransfers: 1 },
       skill: "inventory.deposit" as const,
       arguments: {
+        ...(containerId === undefined ? {} : { containerId }),
         ...(quantity === undefined ? {} : { quantity }),
         ...(slot === undefined ? {} : { slot }),
       },

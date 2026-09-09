@@ -30,6 +30,8 @@ this deployment guide. It does not contain populated configuration or secrets.
    automatic boot hook and it launches the versioned `startup.lua` runtime.
 2. Copy `worker.conf.example` to `worker.conf` and set a stable worker ID, the gateway computer
    ID, the modem side, and the Rednet protocol.
+   For named-container transfers, add local IDs under `container_sides`, for example
+   `container_sides = { ["test-chest"] = "front" }`.
 3. Ensure the turtle has a compatible modem upgrade installed and fuel for any later movement
    canary.
 4. Reboot or run `startup`.
@@ -57,6 +59,12 @@ over ComputerCraft's outbound HTTPS API, so no gateway computer or modem is requ
    runtime_version = "v0.4.0",
    ```
 
+   Optionally configure named transfer sides, for example:
+
+   ```lua
+   container_sides = { ["test-chest"] = "front" },
+   ```
+
 4. Ensure the ComputerCraft HTTP allowlist permits the VPS hostname over HTTPS.
 5. Reboot or run `startup`.
 
@@ -67,6 +75,7 @@ For a bounded target-aware mining canary, use the operator CLI only after the wo
 
 ```bash
 npm run cli -- gather alice minecraft:cobblestone 8 12
+npm run cli -- deposit alice 8 --container-id test-chest
 ```
 
 The final argument is the maximum forward depth. This command gathers only up to the explicit

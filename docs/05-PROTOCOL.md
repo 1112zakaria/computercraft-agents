@@ -362,6 +362,9 @@ self-update uses the corresponding `gateway.update.*` events.
 
 Commands SHOULD reference large blueprints/path batches by IDs/chunks rather than transmitting enormous objects repeatedly.
 
+`inventory.deposit` and `inventory.withdraw` may carry a `containerId`. The worker must resolve
+that ID through its local configured container allowlist and reject unknown IDs without a transfer.
+
 Building execution MAY use paged/chunked blueprint segments:
 
 ```text
