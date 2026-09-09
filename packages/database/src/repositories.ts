@@ -1510,6 +1510,109 @@ export class GatewayRuntimeRepository {
     }
   }
 
+  public async reconcileControlPlaneRestart(now = new Date()): Promise<{
+    readonly workerCount: number;
+    readonly commandCount: number;
+  }> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const affected = await client.query<{
+        worker_key: string;
+        transport_type: WorkerTransport;
+      }>(
+        `
+          SELECT DISTINCT w.worker_key, w.transport_type
+          FROM workers w
+          LEFT JOIN tasks task
+            ON task.assigned_worker_id = w.id AND task.status = 'RUNNING'
+          LEFT JOIN gateway_commands command
+            ON command.worker_key = w.worker_key
+           AND command.status IN ('QUEUED', 'DELIVERED', 'RUNNING')
+          WHERE w.online = TRUE OR task.id IS NOT NULL OR command.id IS NOT NULL
+          ORDER BY w.worker_key
+        `,
+      );
+      const workerKeys = affected.rows.map((row) => row.worker_key);
+      let commandCount = 0;
+      if (workerKeys.length > 0) {
+        await client.query(`UPDATE gateways SET status = 'OFFLINE' WHERE status <> 'OFFLINE'`);
+        await client.query(`UPDATE workers SET online = FALSE WHERE online = TRUE`);
+        await client.query(
+          `
+            UPDATE tasks
+            SET status = 'PAUSED', assigned_worker_id = NULL,
+                last_error_json = $2
+            WHERE assigned_worker_id IN (
+              SELECT id FROM workers WHERE worker_key = ANY($1::text[])
+            )
+              AND status = 'RUNNING'
+          `,
+          [workerKeys, asJson({ reason: "control plane restarted; explicit resume required" })],
+        );
+        const cancelled = await client.query(
+          `
+            UPDATE gateway_commands
+            SET status = 'CANCELLED', completed_at = NOW()
+            WHERE worker_key = ANY($1::text[])
+              AND status IN ('QUEUED', 'DELIVERED', 'RUNNING')
+          `,
+          [workerKeys],
+        );
+        commandCount = cancelled.rowCount ?? 0;
+
+        for (const worker of affected.rows) {
+          const control = {
+            protocolVersion: 1,
+            controlId: `reconcile-stop-control-plane-${worker.worker_key}-${now.getTime()}`.slice(
+              0,
+              128,
+            ),
+            issuedAt: now.toISOString(),
+            type: "worker.stop",
+            workerId: worker.worker_key,
+            reason: "control plane restarted; stop before explicit resume",
+          } satisfies StopControl;
+          await client.query(
+            `
+              INSERT INTO gateway_stop_controls (control_id, worker_key, payload_json, transport_type)
+              VALUES ($1, $2, $3, $4)
+              ON CONFLICT (control_id) DO NOTHING
+            `,
+            [control.controlId, worker.worker_key, asJson(control), worker.transport_type],
+          );
+          await client.query(
+            `
+              INSERT INTO audit_events (
+                category, worker_id, action_json, result_json, retention_class
+              )
+              VALUES (
+                'control_plane.recovery.restart',
+                (SELECT id FROM workers WHERE worker_key = $1),
+                $2, $3, 'HIGH'
+              )
+            `,
+            [
+              worker.worker_key,
+              asJson({ action: "reconcile-control-plane-restart", workerId: worker.worker_key }),
+              asJson({ outcome: "paused-cancelled-stopped", explicitResumeRequired: true }),
+            ],
+          );
+        }
+      } else {
+        await client.query(`UPDATE gateways SET status = 'OFFLINE' WHERE status <> 'OFFLINE'`);
+        await client.query(`UPDATE workers SET online = FALSE WHERE online = TRUE`);
+      }
+      await client.query("COMMIT");
+      return { workerCount: workerKeys.length, commandCount };
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   public async listWorkers(): Promise<readonly Record<string, unknown>[]> {
     const result = await this.pool.query(
       `

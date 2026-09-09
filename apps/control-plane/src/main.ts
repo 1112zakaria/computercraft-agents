@@ -27,6 +27,12 @@ async function main(): Promise<void> {
     gatewayTimeoutSeconds: config.gatewayTimeoutSeconds,
     workerTimeoutSeconds: config.workerTimeoutSeconds,
   });
+  const restartRecovery = await repository.reconcileControlPlaneRestart();
+  logger.info("control_plane.recovery.reconciled", {
+    workerCount: restartRecovery.workerCount,
+    commandCount: restartRecovery.commandCount,
+    outcome: "success",
+  });
   const service = createRepositoryService(
     repository,
     config.gatewayBearerSecret,

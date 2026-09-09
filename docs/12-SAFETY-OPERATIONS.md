@@ -94,6 +94,13 @@ Gateway:
 - tells turtles to finish safe primitive/current bounded command then idle;
 - does not autonomously invent new goals.
 
+### Control-plane restart
+
+On control-plane startup, persisted online gateways/workers and uncertain active deliveries are
+treated as unsafe until they reconnect. The service marks them offline, pauses assigned tasks,
+cancels active command delivery, queues transport-aware stop controls, and requires explicit task
+resume after inspection.
+
 ### Codex unavailable, VPS healthy
 
 - deterministic in-flight bounded action may finish;

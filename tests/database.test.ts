@@ -159,6 +159,18 @@ test("gateway restart recovery cancels uncertain work behind an explicit resume 
   assert.match(repositories, /status IN \('QUEUED', 'DELIVERED', 'RUNNING'\)/);
 });
 
+test("control-plane restart recovery invalidates online work before reconnect", () => {
+  const repositories = readFileSync(
+    join(__dirname, "../packages/database/src/repositories.ts"),
+    "utf8",
+  );
+  assert.match(repositories, /reconcileControlPlaneRestart/);
+  assert.match(repositories, /control plane restarted; explicit resume required/);
+  assert.match(repositories, /control plane restarted; stop before explicit resume/);
+  assert.match(repositories, /control_plane\.recovery\.restart/);
+  assert.match(repositories, /UPDATE gateways SET status = 'OFFLINE'/);
+});
+
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 if (testDatabaseUrl) {
   test("database migrations apply and are idempotent in the configured test database", async () => {

@@ -1133,9 +1133,10 @@ Verify high-retention audit, feature gate, bounded canary action.
 **Priority:** P0  
 **Dependencies:** CC-023, CC-012
 
-**Status:** PARTIAL — stale-worker recovery now pauses assigned tasks, cancels persisted command
-delivery, queues an independent stop control, and writes a high-retention recovery audit record in
-one transaction. Boot-aware reconciliation and command outcome inspection remain.
+**Status:** DONE — control-plane startup marks gateways/workers offline, cancels uncertain command
+delivery, pauses assigned tasks behind explicit resume, queues transport-aware worker stops, and
+writes high-retention recovery audit records. Stale-worker and gateway/turtle boot recovery use the
+same explicit-resume boundary.
 
 Persist jobs, rediscover gateway/workers, refresh observations, resume/replan.
 

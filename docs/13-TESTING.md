@@ -32,6 +32,7 @@ Test:
 - retention cleanup deletes only expired STANDARD/HIGH audit events and preserves IMMUTABLE history;
 - gateway restart recovery cancels uncertain delivery, pauses assigned work, and queues stops;
 - turtle boot changes cancel uncertain delivery for both direct and gateway transports;
+- control-plane startup invalidates online work before reconnect and explicit resume;
 - operator pause/cancel stops active delivery atomically and resume returns work to `READY`;
 - agent and project inspection API/CLI responses;
 - environment-backed feature-gate inspection and disabled-skill rejection;
