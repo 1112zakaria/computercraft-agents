@@ -6,8 +6,9 @@ This backlog is written for a coding agent working incrementally in the reposito
 
 As of 2026-09-09, the direct HTTP transport has passed a live canary on worker `alice`, including
 registration, heartbeat, bounded movement, event submission, and a successful `v0.4.1` OTA
-activation/reboot. The existing turtle installation still requires a one-time extensionless
-CraftOS `startup` hook; automatic installation of that hook is tracked in GitHub issue #7.
+activation/reboot. The installer and stable bootstrap now create or repair the extensionless
+CraftOS `startup` hook; live post-reboot validation of that behavior remains tracked in GitHub
+issue #7.
 
 Gateway Rednet live validation remains pending because the gateway/turtle modem hardware is not
 available. It is not a blocker for the direct HTTP primary path.
@@ -510,8 +511,8 @@ attempt rollback after interrupted activation.
 
 **Priority:** P0
 **Dependencies:** CC-010, CC-020, CC-050, CC-053
-**Status:** LIVE CANARY COMPLETE on `main`/`v0.4.1`; automatic startup-hook installation remains
-open as issue #7
+**Status:** LIVE CANARY COMPLETE on `main`/`v0.4.1`; automatic startup-hook creation/repair is
+implemented and tested, while live post-reboot validation remains open as issue #7
 
 Add `direct-http` as a transport-aware alternative to `gateway-rednet`. Direct turtles register,
 heartbeat, poll commands/stop controls/updates, and submit durable event batches through the

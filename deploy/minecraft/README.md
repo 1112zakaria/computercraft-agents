@@ -14,9 +14,8 @@ this deployment guide. It does not contain populated configuration or secrets.
 ## Gateway computer
 
 1. Extract the archive and copy the contents of `computercraft/gateway/` to the ComputerCraft
-   computer filesystem.
-   Preserve the extensionless `startup` file at the filesystem root. CraftOS uses it as the
-   automatic boot hook and it launches the versioned `startup.lua` runtime.
+   computer filesystem. The archive includes the extensionless `startup` file at the filesystem
+   root; CraftOS uses it as the automatic boot hook and it launches `startup.lua`.
 2. Copy `gateway.conf.example` to `gateway.conf` and fill in the VPS URL, gateway ID, server ID,
    modem side, and the bearer secret locally.
 3. Ensure a wired or wireless modem is attached on the configured side. The gateway cannot talk
@@ -25,9 +24,9 @@ this deployment guide. It does not contain populated configuration or secrets.
 
 ## Gateway-backed turtle
 
-1. Copy the contents of `computercraft/turtle/` to the turtle filesystem.
-   Preserve the extensionless `startup` file at the filesystem root. CraftOS uses it as the
-   automatic boot hook and it launches the versioned `startup.lua` runtime.
+1. Copy the contents of `computercraft/turtle/` to the turtle filesystem. The archive includes
+   the extensionless `startup` file at the filesystem root; CraftOS uses it as the automatic boot
+   hook and it launches `startup.lua`.
 2. Copy `worker.conf.example` to `worker.conf` and set a stable worker ID, the gateway computer
    ID, the modem side, and the Rednet protocol.
    For named-container transfers, add local IDs under `container_sides`, for example
@@ -72,8 +71,8 @@ Do not set `modem_side`, `gateway_rednet_id`, or `rednet_protocol` for this tran
 worker with `npm run cli -- workers alice` after its registration and heartbeat arrive.
 
 The stable bootstrap checks for the extensionless CraftOS `startup` hook during recovery and
-recreates it if it is missing. It does not overwrite an existing hook or any configuration/state
-file.
+recreates it if it is missing. The pinned `install-direct.lua` installer also creates the hook
+when absent. Neither path overwrites an existing hook or any configuration/state file.
 
 For a bounded target-aware mining canary, use the operator CLI only after the worker is online:
 
