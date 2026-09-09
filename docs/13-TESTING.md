@@ -26,6 +26,7 @@ Test:
 - blocked navigation contradiction handling and the maximum-three-attempt gather replan boundary;
 - reasoning output validation;
 - project-planner escalation;
+- addressed gather-goal dry-run validation and explicit one-tick goal start behavior;
 - protocol schema validation;
 - event deduplication;
 - stale-worker recovery pauses and cancels work before explicit resume;
