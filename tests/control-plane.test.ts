@@ -211,6 +211,14 @@ class FakeGatewayStore implements GatewayServiceStore {
     return { taskId, workerKey, status: "RUNNING" };
   }
 
+  public async dispatchTask(
+    taskId: string,
+    workerKey: string,
+    commandId: string,
+  ): Promise<Command> {
+    return { ...command(), taskId, workerId: workerKey, commandId };
+  }
+
   public async transitionTask(taskId: string, nextState: string, reason?: string): Promise<void> {
     this.transitionedTask = { taskId, nextState, reason };
   }
@@ -376,6 +384,32 @@ test("operator task API validates and applies explicit task transitions", async 
       nextState: "BLOCKED",
       reason: "awaiting destination anchor",
     });
+  } finally {
+    await server.close();
+  }
+});
+
+test("operator task API dispatches a task as a correlated worker command", async () => {
+  const store = new FakeGatewayStore();
+  const server = await startServer(store);
+  try {
+    const response = await fetch(`${server.baseUrl}/v1/tasks/task-test/dispatch`, {
+      method: "POST",
+      headers: adminHeaders(),
+      body: JSON.stringify({ protocolVersion: 1, workerId: "alice" }),
+    });
+    assert.equal(response.status, 200);
+    const body = (await response.json()) as {
+      accepted: boolean;
+      taskId: string;
+      workerId: string;
+      command: Command;
+    };
+    assert.equal(body.accepted, true);
+    assert.equal(body.taskId, "task-test");
+    assert.equal(body.workerId, "alice");
+    assert.equal(body.command.taskId, "task-test");
+    assert.equal(body.command.workerId, "alice");
   } finally {
     await server.close();
   }

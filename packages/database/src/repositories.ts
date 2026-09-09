@@ -15,6 +15,7 @@ import type {
   UpdateStatus,
   WorkerTransport,
 } from "@computercraft-agents/protocol";
+import { CommandSchema } from "@computercraft-agents/protocol";
 import type { Pool, PoolClient, QueryResultRow } from "pg";
 import { storedPositionConfidence } from "./position-confidence";
 
@@ -141,6 +142,53 @@ function parseJson<T>(value: unknown): T {
     return JSON.parse(value) as T;
   }
   return value as T;
+}
+
+function capabilityNames(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (typeof entry === "string") return [entry];
+    if (typeof entry === "object" && entry !== null && "name" in entry) {
+      const name = (entry as { name?: unknown }).name;
+      return typeof name === "string" ? [name] : [];
+    }
+    return [];
+  });
+}
+
+function integerArgument(
+  argumentsJson: Record<string, unknown>,
+  name: string,
+  fallback: number,
+): number {
+  const value = argumentsJson[name];
+  return typeof value === "number" && Number.isSafeInteger(value) ? value : fallback;
+}
+
+function commandBudget(skill: string, argumentsJson: Record<string, unknown>) {
+  switch (skill) {
+    case "navigate.path": {
+      const steps = argumentsJson.steps;
+      const count = Array.isArray(steps) ? steps.length : 1;
+      return { maxPrimitives: Math.max(1, count), maxBlockChanges: 0 };
+    }
+    case "mining.excavate": {
+      const width = integerArgument(argumentsJson, "width", 1);
+      const height = integerArgument(argumentsJson, "height", 1);
+      const depth = integerArgument(argumentsJson, "depth", 1);
+      const blocks = Math.max(1, width * height * depth);
+      return { maxPrimitives: Math.max(1, blocks * 3), maxBlockChanges: blocks };
+    }
+    case "mining.gather": {
+      const depth = integerArgument(argumentsJson, "maxDepth", 1);
+      return { maxPrimitives: Math.max(1, depth * 4), maxBlockChanges: depth };
+    }
+    case "inventory.deposit":
+    case "inventory.withdraw":
+      return { maxPrimitives: 1, maxBlockChanges: 0, maxInventoryTransfers: 1 };
+    default:
+      return { maxPrimitives: 1, maxBlockChanges: 0 };
+  }
 }
 
 function commandStatusForEvent(type: Event["type"]): string | undefined {
@@ -275,6 +323,14 @@ export class GatewayRuntimeRepository {
 
   public async transitionTask(taskId: string, nextState: string, reason?: string): Promise<void> {
     return new TaskRepository(this.pool).transitionTask(taskId, nextState, reason);
+  }
+
+  public async dispatchTask(
+    taskId: string,
+    workerKey: string,
+    commandId: string,
+  ): Promise<Command> {
+    return new TaskRepository(this.pool).dispatchTask(taskId, workerKey, commandId);
   }
 
   public async upsertNamedLocation(input: NamedLocationInput): Promise<Record<string, unknown>> {
@@ -1131,16 +1187,17 @@ export class GatewayRuntimeRepository {
     await this.pool.query(
       `
         INSERT INTO gateway_commands (
-          command_id, worker_key, payload_json, issued_at, expires_at, transport_type
+          command_id, task_id, worker_key, payload_json, issued_at, expires_at, transport_type
         )
         VALUES (
-          $1, $2, $3, $4, $5,
-          COALESCE((SELECT transport_type FROM workers WHERE worker_key = $2), 'gateway-rednet')
+          $1, $2, $3, $4, $5, $6,
+          COALESCE((SELECT transport_type FROM workers WHERE worker_key = $3), 'gateway-rednet')
         )
         ON CONFLICT (command_id) DO NOTHING
       `,
       [
         command.commandId,
+        command.taskId ?? null,
         command.workerId,
         asJson(command),
         new Date(command.issuedAt),
@@ -1580,6 +1637,30 @@ export class GatewayRuntimeRepository {
         `,
         [event.commandId, commandStatus],
       );
+      const taskStatus =
+        commandStatus === "COMPLETED"
+          ? "DONE"
+          : commandStatus === "FAILED"
+            ? "FAILED"
+            : commandStatus === "CANCELLED"
+              ? "CANCELLED"
+              : undefined;
+      if (taskStatus) {
+        await client.query(
+          `
+            UPDATE tasks
+            SET status = $2, assigned_worker_id = NULL,
+                last_error_json = CASE WHEN $3::text IS NULL THEN last_error_json ELSE $3::jsonb END
+            WHERE id = (SELECT task_id FROM gateway_commands WHERE command_id = $1)
+              AND status = 'RUNNING'
+          `,
+          [
+            event.commandId,
+            taskStatus,
+            taskStatus === "DONE" ? null : asJson({ reason: event.type }),
+          ],
+        );
+      }
     }
 
     const updateStatus = updateStatusForEvent(event.type);
@@ -1816,6 +1897,152 @@ export class TaskRepository {
       );
       await client.query("COMMIT");
       return taskRow;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  public async dispatchTask(
+    taskId: string,
+    workerKey: string,
+    commandId: string,
+  ): Promise<Command> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const worker = await client.query<{
+        id: string;
+        online: boolean;
+        capabilities_json: unknown;
+        transport_type: WorkerTransport;
+      }>(
+        `
+          SELECT id::text, online, capabilities_json, transport_type
+          FROM workers
+          WHERE worker_key = $1
+          FOR UPDATE
+        `,
+        [workerKey],
+      );
+      const workerRow = worker.rows[0];
+      if (!workerRow) {
+        throw new RepositoryError("UNKNOWN_WORKER", "worker was not found", 404);
+      }
+      if (!workerRow.online) {
+        throw new RepositoryError("WORKER_OFFLINE", "worker is not online", 409);
+      }
+
+      const active = await client.query(
+        `
+          SELECT 1
+          FROM tasks
+          WHERE assigned_worker_id = $1
+            AND status IN ('RUNNING', 'PAUSED')
+          LIMIT 1
+        `,
+        [workerRow.id],
+      );
+      if (active.rowCount) {
+        throw new RepositoryError("WORKER_BUSY", "worker already has active task", 409);
+      }
+
+      const task = await client.query<{
+        id: string;
+        job_id: string;
+        skill_name: string;
+        arguments_json: unknown;
+        required_capabilities_json: unknown;
+      }>(
+        `
+          SELECT t.id::text, t.job_id::text, t.skill_name, t.arguments_json,
+                 j.required_capabilities_json
+          FROM tasks t
+          JOIN jobs j ON j.id = t.job_id
+          WHERE t.id = $1
+            AND t.status = 'READY'
+            AND t.assigned_worker_id IS NULL
+            AND NOT EXISTS (
+              SELECT 1
+              FROM task_dependencies dependency_link
+              JOIN tasks dependency ON dependency.id = dependency_link.depends_on_task_id
+              WHERE dependency_link.task_id = t.id
+                AND dependency.status <> 'DONE'
+            )
+          FOR UPDATE OF t
+        `,
+        [taskId],
+      );
+      const taskRow = task.rows[0];
+      if (!taskRow) {
+        throw new RepositoryError(
+          "TASK_NOT_RUNNABLE",
+          "task is not ready, is already assigned, or has unmet dependencies",
+          409,
+        );
+      }
+
+      const capabilities = new Set(
+        capabilityNames(parseJson<unknown>(workerRow.capabilities_json)),
+      );
+      const required = capabilityNames(parseJson<unknown>(taskRow.required_capabilities_json));
+      if (required.some((capability) => !capabilities.has(capability))) {
+        throw new RepositoryError(
+          "CAPABILITY_NOT_ENABLED",
+          "worker does not advertise all task capabilities",
+          409,
+        );
+      }
+
+      const argumentsJson = parseJson<Record<string, unknown>>(taskRow.arguments_json);
+      const issuedAt = new Date();
+      const expiresAt = new Date(issuedAt.getTime() + 10 * 60_000);
+      const command = CommandSchema.parse({
+        protocolVersion: 1,
+        commandId,
+        taskId,
+        workerId: workerKey,
+        issuedAt: issuedAt.toISOString(),
+        expiresAt: expiresAt.toISOString(),
+        budget: commandBudget(taskRow.skill_name, argumentsJson),
+        skill: taskRow.skill_name,
+        arguments: argumentsJson,
+      });
+
+      await client.query(
+        `
+          UPDATE tasks
+          SET status = 'RUNNING', assigned_worker_id = $2, claimed_at = NOW(),
+              started_at = NOW(), attempt_count = attempt_count + 1
+          WHERE id = $1
+        `,
+        [taskId, workerRow.id],
+      );
+      await client.query(
+        `
+          INSERT INTO gateway_commands (
+            command_id, task_id, worker_key, payload_json, issued_at, expires_at, transport_type
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
+        `,
+        [
+          command.commandId,
+          taskId,
+          workerKey,
+          asJson(command),
+          issuedAt,
+          expiresAt,
+          workerRow.transport_type,
+        ],
+      );
+      await client.query(
+        `UPDATE jobs SET status = 'RUNNING' WHERE id = $1 AND status IN ('PENDING', 'READY')`,
+        [taskRow.job_id],
+      );
+      await client.query("COMMIT");
+      return command;
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;

@@ -51,6 +51,7 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
       const goalsPath = url.pathname === "/v1/goals";
       const taskPathMatch = url.pathname.match(/^\/v1\/tasks(?:\/([^/]+))?$/);
       const taskTransitionPathMatch = url.pathname.match(/^\/v1\/tasks\/([^/]+)\/transition$/);
+      const taskDispatchPathMatch = url.pathname.match(/^\/v1\/tasks\/([^/]+)\/dispatch$/);
       const runnableTasksPath = url.pathname === "/v1/tasks/runnable";
       const locationsPath = url.pathname === "/v1/locations";
       const worldCellsPath = url.pathname === "/v1/world/cells";
@@ -67,6 +68,7 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
         goalsPath ||
         taskPathMatch ||
         taskTransitionPathMatch ||
+        taskDispatchPathMatch ||
         runnableTasksPath ||
         locationsPath ||
         worldCellsPath ||
@@ -169,6 +171,22 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
             await readBody(request, options.maxBodyBytes),
           );
           sendJson(response, 200, await options.service.transitionTask(taskId, transitionBody));
+          return;
+        }
+        if (taskDispatchPathMatch) {
+          if (method !== "POST") {
+            throw new HttpError(405, "INVALID_PAYLOAD", "method is not supported");
+          }
+          let taskId: string;
+          try {
+            taskId = decodeURIComponent(taskDispatchPathMatch[1]!);
+          } catch {
+            throw new HttpError(400, "INVALID_PAYLOAD", "task id is not valid URL encoding");
+          }
+          const dispatchBody = options.service.parseBody(
+            await readBody(request, options.maxBodyBytes),
+          );
+          sendJson(response, 200, await options.service.dispatchTask(taskId, dispatchBody));
           return;
         }
         if (locationsPath) {

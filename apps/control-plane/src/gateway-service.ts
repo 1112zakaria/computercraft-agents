@@ -1,4 +1,4 @@
-import { timingSafeEqual } from "node:crypto";
+import { randomUUID, timingSafeEqual } from "node:crypto";
 import type { IncomingHttpHeaders } from "node:http";
 
 import {
@@ -19,6 +19,7 @@ import {
   GatewayRegistrationSchema,
   IdentifierSchema,
   StopControlSchema,
+  TaskDispatchRequestSchema,
   TaskTransitionRequestSchema,
   UpdateRequestSchema,
 } from "@computercraft-agents/protocol";
@@ -93,6 +94,7 @@ export interface GatewayServiceStore {
   listTasks(): Promise<readonly Record<string, unknown>[]>;
   listRunnableTasks(): Promise<readonly Record<string, unknown>[]>;
   claimTask(taskId: string, workerKey: string): Promise<Record<string, unknown>>;
+  dispatchTask(taskId: string, workerKey: string, commandId: string): Promise<Command>;
   transitionTask(taskId: string, nextState: string, reason?: string): Promise<void>;
   upsertNamedLocation(input: {
     readonly name: string;
@@ -414,6 +416,15 @@ export class GatewayService {
     return { accepted: true, taskId, status: request.status, reason: request.reason ?? null };
   }
 
+  public async dispatchTask(taskId: string, input: unknown): Promise<object> {
+    if (!IdentifierSchema.safeParse(taskId).success) {
+      throw new HttpError(400, "INVALID_PAYLOAD", "task id is invalid");
+    }
+    const request = this.parsePayload(TaskDispatchRequestSchema, input);
+    const command = await this.store.dispatchTask(taskId, request.workerId, `task-${randomUUID()}`);
+    return { accepted: true, taskId, workerId: request.workerId, command };
+  }
+
   public async createNamedLocation(input: unknown): Promise<Record<string, unknown>> {
     const request = this.parsePayload(NamedLocationCreateRequestSchema, input);
     return this.store.upsertNamedLocation({ ...request, metadata: request.metadata ?? {} });
@@ -508,7 +519,14 @@ export function repositoryErrorToHttp(error: unknown): HttpError {
                   ? "INVALID_PAYLOAD"
                   : error.code === "UPDATE_OVERLAP" || error.code === "UPDATE_ID_REUSE"
                     ? "INVALID_PAYLOAD"
-                    : "INTERNAL_ERROR";
+                    : error.code === "CAPABILITY_NOT_ENABLED"
+                      ? "CAPABILITY_NOT_ENABLED"
+                      : error.code === "WORKER_OFFLINE" ||
+                          error.code === "WORKER_BUSY" ||
+                          error.code === "TASK_NOT_RUNNABLE" ||
+                          error.code === "INVALID_TASK_TRANSITION"
+                        ? "INVALID_PAYLOAD"
+                        : "INTERNAL_ERROR";
     return new HttpError(error.statusCode, protocolCode, error.message, error.statusCode >= 500);
   }
   return new HttpError(500, "INTERNAL_ERROR", "internal control-plane error", true);

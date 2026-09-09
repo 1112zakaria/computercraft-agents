@@ -238,6 +238,21 @@ reconcile active tasks
 resume/replan
 ```
 
+### Explicit task dispatch
+
+The control plane can atomically dispatch a ready task that already represents one protocol
+command. Inspect compatible work, then dispatch it to a specific online worker:
+
+```text
+npm run cli -- runnable-tasks
+npm run cli -- dispatch-task <task-id> <worker-id>
+```
+
+Dispatch persists the task claim and command together, includes the task ID in the command for
+event correlation, and enforces one active task per worker. Worker completion/failure/cancellation
+events update the linked task. Natural-language `resource.gather` goals remain multi-step workflow
+records and are not silently dispatched as a single command.
+
 ## 10. Releases
 
 GitHub Actions SHOULD eventually build/test TypeScript and package:

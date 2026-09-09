@@ -20,6 +20,7 @@ export function usage(): string {
     `${cliName} tasks`,
     `${cliName} runnable-tasks`,
     `${cliName} claim-task <task-id> <worker-id>`,
+    `${cliName} dispatch-task <task-id> <worker-id>`,
     `${cliName} task-status <task-id> <PENDING|READY|RUNNING|PAUSED|BLOCKED|DONE|FAILED|CANCELLED>`,
     `${cliName} locations`,
     `${cliName} world-cells`,
@@ -164,6 +165,22 @@ export async function runCli(args: readonly string[]): Promise<void> {
         await request(`/v1/tasks/${encodeURIComponent(first)}`, {
           method: "POST",
           body: JSON.stringify({ workerId: second }),
+        }),
+        null,
+        2,
+      ),
+    );
+    return;
+  }
+  if (command === "dispatch-task") {
+    if (!first || !second) {
+      throw new Error(`usage: ${cliName} dispatch-task <task-id> <worker-id>`);
+    }
+    console.log(
+      JSON.stringify(
+        await request(`/v1/tasks/${encodeURIComponent(first)}/dispatch`, {
+          method: "POST",
+          body: JSON.stringify({ protocolVersion: 1, workerId: second }),
         }),
         null,
         2,

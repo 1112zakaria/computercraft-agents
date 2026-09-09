@@ -283,6 +283,7 @@ const FuelRefuelArgumentsSchema = z
 const commandBaseShape = {
   protocolVersion: ProtocolVersionSchema,
   commandId: IdentifierSchema,
+  taskId: IdentifierSchema.optional(),
   workerId: IdentifierSchema,
   issuedAt: TimestampSchema,
   expiresAt: TimestampSchema,
@@ -401,6 +402,15 @@ export const TaskTransitionRequestSchema = z
 
 export type TaskStatus = z.infer<typeof TaskStatusSchema>;
 export type TaskTransitionRequest = z.infer<typeof TaskTransitionRequestSchema>;
+
+export const TaskDispatchRequestSchema = z
+  .object({
+    protocolVersion: ProtocolVersionSchema,
+    workerId: IdentifierSchema,
+  })
+  .strict();
+
+export type TaskDispatchRequest = z.infer<typeof TaskDispatchRequestSchema>;
 
 export const StoredPositionConfidenceSchema = z.enum([
   "CONFIRMED_ANCHOR",

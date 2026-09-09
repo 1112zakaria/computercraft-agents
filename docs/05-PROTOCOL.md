@@ -92,8 +92,8 @@ priority. In v1, `goalText` must match the deterministic form
 `@worker get <quantity> <item> and deposit it in <location>`. The control plane validates the
 sentence and persists a project, ready job, and ready task with the normalized resource arguments.
 The job advertises the required `mining.gather`, `navigate.path`, and `inventory.deposit`
-capabilities so future scheduler assignment can reject incompatible workers.
-It does not yet dispatch the task to a worker; persistent scheduler claiming is a later step.
+capabilities so scheduler assignment can reject incompatible workers. Goal tasks still require the
+multi-step gather workflow; they are not auto-dispatched by the bounded command-task endpoint.
 
 Named locations are managed through the protected operator API:
 
@@ -109,6 +109,7 @@ confidence, and metadata. Ready tasks can be inspected and claimed with:
 GET  /v1/tasks
 GET  /v1/tasks/runnable
 POST /v1/tasks/:taskId
+POST /v1/tasks/:taskId/dispatch
 POST /v1/tasks/:taskId/transition
 ```
 
@@ -116,6 +117,13 @@ The claim request contains `workerId`. The database rejects claims for offline w
 dependencies, already-claimed tasks, and workers with another active task.
 `GET /v1/tasks/runnable` is a read-only operator view that applies the same ready-state and
 dependency filters used by the database claim path.
+The explicit dispatch path accepts `{ "protocolVersion": 1, "workerId": "alice" }`. It
+atomically checks worker availability, task dependencies, required capabilities, and the
+one-active-task constraint, then creates a bounded command containing `taskId`. Completion,
+failure, or cancellation events correlate back to that task and move it to its terminal state.
+Only tasks whose `skillName` is already a protocol command skill are dispatchable through this
+path; the multi-step `resource.gather` workflow remains planner-owned until its orchestration is
+implemented.
 The transition request contains `{ "protocolVersion": 1, "status": "...", "reason": "..." }`
 and is checked against the persisted task transition graph. When supplied, the reason is stored
 in the task's error/context field for auditability. It is an explicit operator control path; it

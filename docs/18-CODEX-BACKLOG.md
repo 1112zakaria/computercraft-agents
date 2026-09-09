@@ -212,8 +212,9 @@ Implement agents, workers, gateways, projects, jobs, tasks, dependencies, conver
 
 **Priority:** P0  
 **Dependencies:** CC-020
-**Status:** PARTIAL — project/job/task creation, goal persistence, task inspection, and
-restart-safe database task claims are implemented; full scheduler dispatch remains.
+**Status:** PARTIAL — project/job/task creation, goal persistence, task inspection, restart-safe
+database claims, and explicit command-task dispatch are implemented; multi-step workflow dispatch
+remains.
 
 Implement state transitions and task dependencies.
 
@@ -623,9 +624,9 @@ Evaluate GPS/manual docking/other available approaches and implement the simples
 **Priority:** P0  
 **Dependencies:** CC-023, CC-022
 
-**Status:** PARTIAL — deterministic capability-aware, one-worker-per-task selection exists and
-dependency-filtered runnable tasks are exposed for inspection; persistent claim/dispatch loop
-remains.
+**Status:** PARTIAL — deterministic capability-aware selection, dependency-filtered runnable-task
+inspection, and an atomic explicit command-task dispatch path are implemented; an autonomous
+scheduler tick/claim loop remains.
 
 Select tasks based on dependencies, worker availability, required capabilities, and priority.
 
@@ -634,8 +635,9 @@ Select tasks based on dependencies, worker availability, required capabilities, 
 **Priority:** P0  
 **Dependencies:** CC-070
 
-**Status:** PARTIAL — scheduler selection reserves each worker once per decision; database claim
-and restart-safe enforcement remains.
+**Status:** PARTIAL — scheduler selection reserves each worker once per decision and the database
+dispatch path enforces one active command-task per worker; an autonomous scheduler loop and
+multi-step workflow ownership remain.
 
 **Acceptance criteria**
 

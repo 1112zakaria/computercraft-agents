@@ -92,6 +92,21 @@ test("bounded gather commands require a target and depth budget", () => {
   );
 });
 
+test("task-dispatched commands preserve task correlation", () => {
+  const command = CommandSchema.parse({
+    protocolVersion: 1,
+    commandId: "command-task-1",
+    taskId: "task-1",
+    workerId: "alice",
+    issuedAt: "2026-09-07T12:00:00.000Z",
+    expiresAt: "2026-09-07T12:05:00.000Z",
+    budget: { maxPrimitives: 1, maxBlockChanges: 0 },
+    skill: "movement.step",
+    arguments: { direction: "N" },
+  });
+  assert.equal(command.taskId, "task-1");
+});
+
 test("command events require command correlation and error responses are typed", () => {
   assert.equal(
     EventBatchSchema.safeParse(fixture("invalid/event-missing-command-id.json")).success,
