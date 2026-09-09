@@ -97,6 +97,7 @@ test("stable update bootstraps repair a missing CraftOS startup hook", () => {
   assert.match(installer, /if not valid_startup_hook\(\) then/);
   assert.match(installer, /valid_startup_hook/);
   assert.match(installer, /startup\.previous/);
+  assert.match(installer, /peripherals\.lua/);
   assert.match(installer, /worker\.conf\.example/);
   assert.match(installer, /enable-gather\.lua/);
   assert.match(installer, /deployment_root/);
