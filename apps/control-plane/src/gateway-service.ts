@@ -140,6 +140,11 @@ export interface WorkerRequestContext {
   readonly workerId: string;
 }
 
+export interface SchedulerTickResult {
+  readonly dispatched: readonly Record<string, unknown>[];
+  readonly skipped?: readonly Record<string, unknown>[];
+}
+
 export class HttpError extends Error {
   public constructor(
     public readonly statusCode: number,
@@ -572,11 +577,12 @@ export class GatewayService {
     return this.store.listRunnableTasks();
   }
 
-  public async dispatchRunnableTasks(): Promise<readonly Record<string, unknown>[]> {
+  public async dispatchRunnableTasks(): Promise<SchedulerTickResult> {
     const [taskRows, workerRows] = await Promise.all([
       this.store.listRunnableTasks(),
       this.store.listWorkers(),
     ]);
+    const skipped: Record<string, unknown>[] = [];
     const tasks = taskRows.flatMap((row) => {
       const taskId = typeof row.taskId === "string" ? row.taskId : undefined;
       const skillName = typeof row.skillName === "string" ? row.skillName : undefined;
@@ -584,6 +590,12 @@ export class GatewayService {
       if (
         !(this.config.enabledSkills ?? SkillNameSchema.options).includes(skillName as SkillName)
       ) {
+        skipped.push({
+          taskId,
+          status: "SKIPPED",
+          reason: "SKILL_DISABLED",
+          skillName,
+        });
         return [];
       }
       return [
@@ -611,6 +623,43 @@ export class GatewayService {
     });
     const assignments = selectDispatchableTasks(tasks, workers);
     const results: Record<string, unknown>[] = [];
+    const assignedTaskIds = new Set(assignments.map((assignment) => assignment.taskId));
+    for (const task of tasks) {
+      if (assignedTaskIds.has(task.taskId)) continue;
+      const candidates = workers.filter(
+        (worker) => !task.targetWorkerId || worker.workerId === task.targetWorkerId,
+      );
+      let reason = "WORKER_ALREADY_SELECTED";
+      const details: Record<string, unknown> = {};
+      if (candidates.length === 0) {
+        reason = task.targetWorkerId ? "TARGET_WORKER_NOT_FOUND" : "NO_WORKER";
+      } else {
+        const online = candidates.filter((worker) => worker.online);
+        if (online.length === 0) {
+          reason = "WORKER_OFFLINE";
+        } else {
+          const idle = online.filter((worker) => !worker.currentTaskId);
+          if (idle.length === 0) {
+            reason = "WORKER_BUSY";
+          } else {
+            const missingCapabilities = [
+              ...new Set(
+                idle.flatMap((worker) =>
+                  task.requiredCapabilities.filter(
+                    (capability) => !worker.capabilities.includes(capability),
+                  ),
+                ),
+              ),
+            ];
+            if (missingCapabilities.length > 0) {
+              reason = "MISSING_CAPABILITIES";
+              details.missingCapabilities = missingCapabilities;
+            }
+          }
+        }
+      }
+      skipped.push({ taskId: task.taskId, status: "SKIPPED", reason, ...details });
+    }
     for (const assignment of assignments) {
       try {
         const command = await this.store.dispatchTask(
@@ -634,7 +683,7 @@ export class GatewayService {
         });
       }
     }
-    return results;
+    return skipped.length > 0 ? { dispatched: results, skipped } : { dispatched: results };
   }
 
   public async claimTask(taskId: string, input: unknown): Promise<Record<string, unknown>> {

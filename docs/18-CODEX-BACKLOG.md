@@ -644,9 +644,9 @@ Evaluate GPS/manual docking/other available approaches and implement the simples
 **Dependencies:** CC-023, CC-022
 
 **Status:** PARTIAL — deterministic capability-aware and target-aware selection, dependency-filtered runnable-task
-inspection, an atomic explicit command-task dispatch path, a bounded operator scheduler tick, and
-an opt-in non-overlapping background scheduler loop are implemented; multi-step workflow dispatch
-remains.
+inspection, an atomic explicit command-task dispatch path, a bounded operator scheduler tick with
+explicit skip reasons, and an opt-in non-overlapping background scheduler loop are implemented;
+multi-step workflow dispatch remains.
 
 Select tasks based on dependencies, worker availability, required capabilities, and priority.
 

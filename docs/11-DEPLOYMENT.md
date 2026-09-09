@@ -347,8 +347,9 @@ addressing or spelling mistake before creating a persistent goal.
 
 When the scheduler background loop is disabled, `goal ... --start` is the explicit operator path
 to create a goal and perform exactly one bounded scheduler tick. It does not bypass capability,
-worker-availability, task-dependency, or one-active-task checks, and it reports an empty dispatch
-list when no worker is currently eligible. Omit `--start` to create the goal without dispatching.
+worker-availability, task-dependency, or one-active-task checks. If no worker is eligible, the
+response includes a `skipped` entry explaining whether the worker is offline, busy, unknown, or
+missing a required capability. Omit `--start` to create the goal without dispatching.
 
 The protected operator inspection commands are:
 

@@ -168,7 +168,10 @@ step and then an allowlisted `inventory.deposit` step. Missing destination ancho
 positions, or unknown paths set the parent workflow to `BLOCKED`; the system never guesses a route.
 The scheduler tick is an explicit bounded operator action that selects compatible online workers
 for those same protocol-level tasks and invokes the atomic dispatch path once per selected worker.
-It does not auto-dispatch multi-step goal workflows.
+It does not auto-dispatch multi-step goal workflows. Its response includes `skipped` entries when a
+ready task is not eligible, with bounded reasons such as `WORKER_OFFLINE`, `WORKER_BUSY`,
+`TARGET_WORKER_NOT_FOUND`, or `MISSING_CAPABILITIES`; missing-capability entries include the exact
+capability names the current idle workers do not advertise.
 The transition request contains `{ "protocolVersion": 1, "status": "...", "reason": "..." }`
 and is checked against the persisted task transition graph. When supplied, the reason is stored
 in the task's error/context field for auditability. It is an explicit operator control path; it

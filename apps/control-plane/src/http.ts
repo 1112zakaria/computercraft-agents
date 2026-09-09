@@ -278,7 +278,7 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
           if (method !== "POST") {
             throw new HttpError(405, "INVALID_PAYLOAD", "method is not supported");
           }
-          sendJson(response, 200, { dispatched: await options.service.dispatchRunnableTasks() });
+          sendJson(response, 200, await options.service.dispatchRunnableTasks());
           return;
         }
         if (taskPathMatch) {

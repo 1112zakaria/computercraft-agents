@@ -705,7 +705,47 @@ test("operator scheduler does not select a worker with an active task", async ()
       body: "{}",
     });
     assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), { dispatched: [] });
+    assert.deepEqual(await response.json(), {
+      dispatched: [],
+      skipped: [{ taskId: "task-waiting", status: "SKIPPED", reason: "WORKER_BUSY" }],
+    });
+  } finally {
+    await server.close();
+  }
+});
+
+test("operator scheduler explains missing worker capabilities", async () => {
+  const store = new FakeGatewayStore();
+  store.runnableTasks.splice(0, 1, {
+    taskId: "task-gather",
+    skillName: "mining.gather",
+    priority: 5,
+    requiredCapabilities: ["mining.gather", "inventory.deposit"],
+  });
+  store.availableWorkers.push({
+    workerId: "alice",
+    online: true,
+    capabilities: ["inventory.deposit"],
+  });
+  const server = await startServer(store);
+  try {
+    const response = await fetch(`${server.baseUrl}/v1/scheduler/tick`, {
+      method: "POST",
+      headers: adminHeaders(),
+      body: "{}",
+    });
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), {
+      dispatched: [],
+      skipped: [
+        {
+          taskId: "task-gather",
+          status: "SKIPPED",
+          reason: "MISSING_CAPABILITIES",
+          missingCapabilities: ["mining.gather"],
+        },
+      ],
+    });
   } finally {
     await server.close();
   }
