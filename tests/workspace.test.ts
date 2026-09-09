@@ -15,6 +15,7 @@ import {
 } from "../packages/navigation/src/index";
 import { selectDispatchableTasks, selectReadyTasks } from "../packages/scheduler/src/index";
 import {
+  assemblePlanningContext,
   CodexCliProvider,
   FakeReasoningProvider,
   PlannerDecisionSchema,
@@ -23,6 +24,43 @@ import {
 
 test("workspace exposes protocol version one", () => {
   assert.equal(protocolVersion, 1);
+});
+
+test("planning context assembler bounds sections and labels observations as untrusted", () => {
+  const context = assemblePlanningContext(
+    {
+      goalText: "get resources",
+      project: { id: "project-1" },
+      job: { id: "job-1" },
+      task: { id: "task-1" },
+      worker: { id: "alice" },
+      skills: ["mining.gather", "inventory.deposit"],
+      worldKnowledge: [{ block: "stone" }, { block: "dirt" }],
+      memories: [{ text: "anchor" }],
+      recentConversation: [{ speaker: "user", text: "continue" }],
+    },
+    { maxItemsPerSection: 1, maxPromptCharacters: 512 },
+  );
+  assert.deepEqual(context.counts, {
+    skills: 1,
+    worldKnowledge: 1,
+    memories: 1,
+    recentConversation: 1,
+  });
+  assert.match(context.prompt, /untrusted data/);
+  assert.match(context.prompt, /mining\.gather/);
+  assert.doesNotThrow(() =>
+    assemblePlanningContext(
+      {
+        goalText: "x",
+        skills: [],
+        worldKnowledge: [],
+        memories: [],
+        recentConversation: [],
+      },
+      { maxPromptCharacters: 256 },
+    ),
+  );
 });
 
 test("addressed gather goal parser produces a bounded structured goal", () => {

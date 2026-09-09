@@ -758,6 +758,10 @@ Define decisions for plan/create-task/delegate/report/refuse/replan.
 **Priority:** P0  
 **Dependencies:** CC-064, CC-085
 
+**Status:** PARTIAL — a bounded, untrusted-data-aware prompt assembler is implemented for goal,
+task, worker, skill, world, memory, and conversation context; persistence-backed context queries
+and relevance selection remain.
+
 Assemble goal, current job/task, relevant worker observation, skills, world knowledge, memories, recent conversation.
 
 ### CC-087 — Event-driven planner trigger service
