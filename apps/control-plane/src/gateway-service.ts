@@ -13,6 +13,7 @@ import {
   ErrorResponseSchema,
   EventAckSchema,
   GoalCreateRequestSchema,
+  NamedLocationCreateRequestSchema,
   EventBatchSchema,
   GatewayHeartbeatSchema,
   GatewayRegistrationSchema,
@@ -87,6 +88,20 @@ export interface GatewayServiceStore {
     readonly arguments: unknown;
   }): Promise<GoalTaskRecord>;
   listGoals(): Promise<readonly Record<string, unknown>[]>;
+  listTasks(): Promise<readonly Record<string, unknown>[]>;
+  claimTask(taskId: string, workerKey: string): Promise<Record<string, unknown>>;
+  upsertNamedLocation(input: {
+    readonly name: string;
+    readonly dimension: number;
+    readonly x: number;
+    readonly y: number;
+    readonly z: number;
+    readonly facing?: string | null;
+    readonly source: string;
+    readonly confidence: string;
+    readonly metadata: unknown;
+  }): Promise<Record<string, unknown>>;
+  listNamedLocations(): Promise<readonly Record<string, unknown>[]>;
 }
 
 export interface GatewayRequestContext {
@@ -360,6 +375,33 @@ export class GatewayService {
 
   public async listGoals(): Promise<readonly Record<string, unknown>[]> {
     return this.store.listGoals();
+  }
+
+  public async listTasks(): Promise<readonly Record<string, unknown>[]> {
+    return this.store.listTasks();
+  }
+
+  public async claimTask(taskId: string, input: unknown): Promise<Record<string, unknown>> {
+    if (!IdentifierSchema.safeParse(taskId).success) {
+      throw new HttpError(400, "INVALID_PAYLOAD", "task id is invalid");
+    }
+    if (typeof input !== "object" || input === null || !("workerId" in input)) {
+      throw new HttpError(400, "INVALID_PAYLOAD", "workerId is required");
+    }
+    const workerId = (input as { workerId?: unknown }).workerId;
+    if (typeof workerId !== "string" || !IdentifierSchema.safeParse(workerId).success) {
+      throw new HttpError(400, "INVALID_PAYLOAD", "workerId is invalid");
+    }
+    return this.store.claimTask(taskId, workerId);
+  }
+
+  public async createNamedLocation(input: unknown): Promise<Record<string, unknown>> {
+    const request = this.parsePayload(NamedLocationCreateRequestSchema, input);
+    return this.store.upsertNamedLocation({ ...request, metadata: request.metadata ?? {} });
+  }
+
+  public async listNamedLocations(): Promise<readonly Record<string, unknown>[]> {
+    return this.store.listNamedLocations();
   }
 
   public async enqueueStopControl(input: unknown): Promise<object> {

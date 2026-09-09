@@ -17,6 +17,9 @@ export function usage(): string {
     `${cliName} provision-worker --id <worker-id> --server <server-id> --computer-id <number> --version <version>`,
     `${cliName} diagnose`,
     `${cliName} goal <@worker get ... and deposit it in ...>`,
+    `${cliName} tasks`,
+    `${cliName} claim-task <task-id> <worker-id>`,
+    `${cliName} locations`,
     `${cliName} move <worker-id> <N|E|S|W|UP|DOWN>`,
     `${cliName} excavate <worker-id> <width> <height> <depth>`,
     `${cliName} deposit <worker-id> [quantity] [slot]`,
@@ -135,6 +138,32 @@ export async function runCli(args: readonly string[]): Promise<void> {
         2,
       ),
     );
+    return;
+  }
+  if (command === "tasks") {
+    if (first) throw new Error(`usage: ${cliName} tasks`);
+    console.log(JSON.stringify(await request("/v1/tasks"), null, 2));
+    return;
+  }
+  if (command === "claim-task") {
+    if (!first || !second) {
+      throw new Error(`usage: ${cliName} claim-task <task-id> <worker-id>`);
+    }
+    console.log(
+      JSON.stringify(
+        await request(`/v1/tasks/${encodeURIComponent(first)}`, {
+          method: "POST",
+          body: JSON.stringify({ workerId: second }),
+        }),
+        null,
+        2,
+      ),
+    );
+    return;
+  }
+  if (command === "locations") {
+    if (first) throw new Error(`usage: ${cliName} locations`);
+    console.log(JSON.stringify(await request("/v1/locations"), null, 2));
     return;
   }
   if (command === "move") {

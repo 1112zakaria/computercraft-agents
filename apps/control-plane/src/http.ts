@@ -49,6 +49,8 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
       const workerProvisionPath = url.pathname === "/v1/workers/provision";
       const updatePathMatch = url.pathname.match(/^\/v1\/updates(?:\/([^/]+))?$/);
       const goalsPath = url.pathname === "/v1/goals";
+      const taskPathMatch = url.pathname.match(/^\/v1\/tasks(?:\/([^/]+))?$/);
+      const locationsPath = url.pathname === "/v1/locations";
 
       if (method === "GET" && url.pathname === "/healthz") {
         sendJson(response, 200, options.service.health());
@@ -60,6 +62,8 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
         workerProvisionPath ||
         updatePathMatch ||
         goalsPath ||
+        taskPathMatch ||
+        locationsPath ||
         url.pathname === "/v1/diagnostics" ||
         url.pathname === "/v1/commands" ||
         url.pathname === "/v1/stop-controls"
@@ -116,6 +120,38 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
               await readBody(request, options.maxBodyBytes),
             );
             sendJson(response, 202, await options.service.createGoal(goalBody));
+            return;
+          }
+        }
+        if (taskPathMatch) {
+          if (method === "GET" && !taskPathMatch[1]) {
+            sendJson(response, 200, { tasks: await options.service.listTasks() });
+            return;
+          }
+          if (method === "POST" && taskPathMatch[1]) {
+            let taskId: string;
+            try {
+              taskId = decodeURIComponent(taskPathMatch[1]);
+            } catch {
+              throw new HttpError(400, "INVALID_PAYLOAD", "task id is not valid URL encoding");
+            }
+            const taskBody = options.service.parseBody(
+              await readBody(request, options.maxBodyBytes),
+            );
+            sendJson(response, 200, await options.service.claimTask(taskId, taskBody));
+            return;
+          }
+        }
+        if (locationsPath) {
+          if (method === "GET") {
+            sendJson(response, 200, { locations: await options.service.listNamedLocations() });
+            return;
+          }
+          if (method === "POST") {
+            const locationBody = options.service.parseBody(
+              await readBody(request, options.maxBodyBytes),
+            );
+            sendJson(response, 200, await options.service.createNamedLocation(locationBody));
             return;
           }
         }

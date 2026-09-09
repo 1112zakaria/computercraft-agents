@@ -73,6 +73,18 @@ export interface CreateGoalInput {
   readonly arguments: unknown;
 }
 
+export interface NamedLocationInput {
+  readonly name: string;
+  readonly dimension: number;
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+  readonly facing?: string | null;
+  readonly source: string;
+  readonly confidence: string;
+  readonly metadata: unknown;
+}
+
 interface GatewayRow extends QueryResultRow {
   id: string;
   gateway_key: string;
@@ -243,6 +255,61 @@ export class GatewayRuntimeRepository {
         JOIN jobs j ON j.project_id = p.id
         JOIN tasks t ON t.job_id = j.id
         ORDER BY p.created_at DESC, t.id DESC
+      `,
+    );
+    return result.rows;
+  }
+
+  public async listTasks(): Promise<readonly Record<string, unknown>[]> {
+    return new TaskRepository(this.pool).listTasks();
+  }
+
+  public async claimTask(taskId: string, workerKey: string): Promise<Record<string, unknown>> {
+    return new TaskRepository(this.pool).claimReadyTask(taskId, workerKey);
+  }
+
+  public async upsertNamedLocation(input: NamedLocationInput): Promise<Record<string, unknown>> {
+    const result = await this.pool.query(
+      `
+        INSERT INTO named_locations (
+          name, dimension, x, y, z, facing, source, confidence, observed_at, metadata_json
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), $9)
+        ON CONFLICT (name) DO UPDATE SET
+          dimension = EXCLUDED.dimension,
+          x = EXCLUDED.x,
+          y = EXCLUDED.y,
+          z = EXCLUDED.z,
+          facing = EXCLUDED.facing,
+          source = EXCLUDED.source,
+          confidence = EXCLUDED.confidence,
+          observed_at = EXCLUDED.observed_at,
+          metadata_json = EXCLUDED.metadata_json
+        RETURNING id::text AS "locationId", name, dimension, x, y, z, facing, source, confidence,
+                  observed_at AS "observedAt", metadata_json AS metadata
+      `,
+      [
+        input.name.trim(),
+        input.dimension,
+        input.x,
+        input.y,
+        input.z,
+        input.facing ?? null,
+        input.source.trim(),
+        input.confidence,
+        asJson(input.metadata),
+      ],
+    );
+    return result.rows[0]!;
+  }
+
+  public async listNamedLocations(): Promise<readonly Record<string, unknown>[]> {
+    const result = await this.pool.query(
+      `
+        SELECT id::text AS "locationId", name, dimension, x, y, z, facing, source, confidence,
+               observed_at AS "observedAt", metadata_json AS metadata
+        FROM named_locations
+        ORDER BY name
       `,
     );
     return result.rows;
@@ -1590,6 +1657,92 @@ const taskTransitions: Record<string, readonly string[]> = {
 export class TaskRepository {
   public constructor(private readonly pool: Pool) {}
 
+  public async listTasks(): Promise<readonly Record<string, unknown>[]> {
+    const result = await this.pool.query(
+      `
+        SELECT t.id::text AS "taskId", t.job_id::text AS "jobId",
+               t.kind, t.status, t.skill_name AS "skillName", t.arguments_json AS arguments,
+               t.assigned_worker_id::text AS "assignedWorkerId", t.claimed_at AS "claimedAt",
+               t.started_at AS "startedAt"
+        FROM tasks t
+        ORDER BY t.id DESC
+      `,
+    );
+    return result.rows;
+  }
+
+  public async claimReadyTask(taskId: string, workerKey: string): Promise<Record<string, unknown>> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const worker = await client.query<{ id: string; online: boolean }>(
+        `SELECT id::text, online FROM workers WHERE worker_key = $1 FOR UPDATE`,
+        [workerKey],
+      );
+      const workerRow = worker.rows[0];
+      if (!workerRow) {
+        throw new RepositoryError("UNKNOWN_WORKER", "worker was not found", 404);
+      }
+      if (!workerRow.online) {
+        throw new RepositoryError("WORKER_OFFLINE", "worker is not online", 409);
+      }
+
+      const active = await client.query(
+        `
+          SELECT 1 FROM tasks
+          WHERE assigned_worker_id = $1
+            AND status IN ('RUNNING', 'PAUSED')
+          LIMIT 1
+        `,
+        [workerRow.id],
+      );
+      if (active.rowCount) {
+        throw new RepositoryError("WORKER_BUSY", "worker already has active task", 409);
+      }
+
+      const task = await client.query(
+        `
+          UPDATE tasks t
+          SET status = 'RUNNING', assigned_worker_id = $2, claimed_at = NOW(), started_at = NOW(),
+              attempt_count = t.attempt_count + 1
+          WHERE t.id = $1
+            AND t.status = 'READY'
+            AND t.assigned_worker_id IS NULL
+            AND NOT EXISTS (
+              SELECT 1
+              FROM task_dependencies dependency_link
+              JOIN tasks dependency ON dependency.id = dependency_link.depends_on_task_id
+              WHERE dependency_link.task_id = t.id
+                AND dependency.status <> 'DONE'
+            )
+          RETURNING t.id::text AS "taskId", t.job_id::text AS "jobId", t.status,
+                    t.skill_name AS "skillName", t.arguments_json AS arguments,
+                    t.assigned_worker_id::text AS "assignedWorkerId"
+        `,
+        [taskId, workerRow.id],
+      );
+      const taskRow = task.rows[0] as Record<string, unknown> | undefined;
+      if (!taskRow) {
+        throw new RepositoryError(
+          "TASK_NOT_RUNNABLE",
+          "task is not ready, is already assigned, or has unmet dependencies",
+          409,
+        );
+      }
+      await client.query(
+        `UPDATE jobs SET status = 'RUNNING' WHERE id = $1 AND status IN ('PENDING', 'READY')`,
+        [taskRow.jobId],
+      );
+      await client.query("COMMIT");
+      return taskRow;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   public async transitionTask(taskId: string, nextState: string): Promise<void> {
     const result = await this.pool.query<{ status: string }>(
       `SELECT status FROM tasks WHERE id = $1`,
@@ -1606,7 +1759,15 @@ export class TaskRepository {
         409,
       );
     }
-    await this.pool.query(`UPDATE tasks SET status = $2 WHERE id = $1`, [taskId, nextState]);
+    await this.pool.query(
+      `
+        UPDATE tasks
+        SET status = $2,
+            assigned_worker_id = CASE WHEN $2 IN ('DONE', 'FAILED', 'CANCELLED') THEN NULL ELSE assigned_worker_id END
+        WHERE id = $1
+      `,
+      [taskId, nextState],
+    );
   }
 
   public async listRunnableTasks(): Promise<readonly Record<string, unknown>[]> {
@@ -1616,6 +1777,7 @@ export class TaskRepository {
                t.arguments_json AS arguments, t.status
         FROM tasks t
         WHERE t.status = 'READY'
+          AND t.assigned_worker_id IS NULL
           AND NOT EXISTS (
             SELECT 1
             FROM task_dependencies d

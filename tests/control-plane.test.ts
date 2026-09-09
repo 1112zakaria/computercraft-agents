@@ -196,6 +196,32 @@ class FakeGatewayStore implements GatewayServiceStore {
   public async listGoals(): Promise<readonly Record<string, unknown>[]> {
     return [];
   }
+
+  public async listTasks(): Promise<readonly Record<string, unknown>[]> {
+    return [];
+  }
+
+  public async claimTask(taskId: string, workerKey: string): Promise<Record<string, unknown>> {
+    return { taskId, workerKey, status: "RUNNING" };
+  }
+
+  public async upsertNamedLocation(input: {
+    readonly name: string;
+    readonly dimension: number;
+    readonly x: number;
+    readonly y: number;
+    readonly z: number;
+    readonly facing?: string | null;
+    readonly source: string;
+    readonly confidence: string;
+    readonly metadata: unknown;
+  }): Promise<Record<string, unknown>> {
+    return { locationId: "location-test", ...input };
+  }
+
+  public async listNamedLocations(): Promise<readonly Record<string, unknown>[]> {
+    return [];
+  }
 }
 
 async function startServer(
@@ -280,6 +306,58 @@ test("operator goal API creates a validated gather task", async () => {
     const body = (await response.json()) as { status: string; skillName: string };
     assert.equal(body.status, "READY");
     assert.equal(body.skillName, "resource.gather");
+  } finally {
+    await server.close();
+  }
+});
+
+test("operator task API lists and claims tasks", async () => {
+  const store = new FakeGatewayStore();
+  const server = await startServer(store);
+  try {
+    const list = await fetch(`${server.baseUrl}/v1/tasks`, { headers: adminHeaders() });
+    assert.equal(list.status, 200);
+    assert.deepEqual((await list.json()) as { tasks: unknown[] }, { tasks: [] });
+
+    const claim = await fetch(`${server.baseUrl}/v1/tasks/task-test`, {
+      method: "POST",
+      headers: adminHeaders(),
+      body: JSON.stringify({ workerId: "alice" }),
+    });
+    assert.equal(claim.status, 200);
+    assert.deepEqual((await claim.json()) as Record<string, unknown>, {
+      taskId: "task-test",
+      workerKey: "alice",
+      status: "RUNNING",
+    });
+  } finally {
+    await server.close();
+  }
+});
+
+test("operator location API upserts a named anchor", async () => {
+  const store = new FakeGatewayStore();
+  const server = await startServer(store);
+  try {
+    const response = await fetch(`${server.baseUrl}/v1/locations`, {
+      method: "POST",
+      headers: adminHeaders(),
+      body: JSON.stringify({
+        protocolVersion: 1,
+        name: "Test Chest",
+        dimension: 0,
+        x: 5,
+        y: 64,
+        z: -2,
+        facing: "E",
+        source: "operator",
+        confidence: "CONFIRMED_ANCHOR",
+      }),
+    });
+    assert.equal(response.status, 200);
+    const body = (await response.json()) as { name: string; confidence: string };
+    assert.equal(body.name, "Test Chest");
+    assert.equal(body.confidence, "CONFIRMED_ANCHOR");
   } finally {
     await server.close();
   }

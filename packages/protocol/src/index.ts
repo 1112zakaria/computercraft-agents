@@ -364,6 +364,30 @@ export const GoalCreateRequestSchema = z
 
 export type GoalCreateRequest = z.infer<typeof GoalCreateRequestSchema>;
 
+export const StoredPositionConfidenceSchema = z.enum([
+  "CONFIRMED_ANCHOR",
+  "DEAD_RECKONED",
+  "SUSPECT",
+  "UNKNOWN",
+]);
+
+export const NamedLocationCreateRequestSchema = z
+  .object({
+    protocolVersion: ProtocolVersionSchema,
+    name: z.string().trim().min(1).max(128),
+    dimension: z.number().int(),
+    x: z.number().int(),
+    y: z.number().int(),
+    z: z.number().int(),
+    facing: FacingSchema.nullable().optional(),
+    source: z.string().trim().min(1).max(128),
+    confidence: StoredPositionConfidenceSchema,
+    metadata: z.record(z.string(), z.unknown()).default({}),
+  })
+  .strict();
+
+export type NamedLocationCreateRequest = z.infer<typeof NamedLocationCreateRequestSchema>;
+
 const StopControlBaseShape = {
   protocolVersion: ProtocolVersionSchema,
   controlId: IdentifierSchema,
