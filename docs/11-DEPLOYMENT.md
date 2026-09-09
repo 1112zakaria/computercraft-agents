@@ -207,6 +207,8 @@ use coordinates that have been verified in-game; it does not move the turtle or 
 When creating a new `worker.conf`, keep the template's complete `capabilities` list unless a
 deliberate canary needs a narrower local allowlist. Older configurations that explicitly list
 only movement and inventory skills must add `mining.gather` before a gather preflight can pass.
+The turtle startup also logs a warning for each missing first-use capability; it does not enable
+the capability automatically.
 
 The turtle's cursor, authenticated UTC clock handoff, and event outbox are local persistent files. Do not commit the populated
 configuration or secret.

@@ -23,6 +23,15 @@ if not ok then
   return
 end
 local config = config_or_error
+local advertised_capabilities = {}
+for _, capability in ipairs(config.capabilities or {}) do
+  advertised_capabilities[capability] = true
+end
+for _, capability in ipairs({ "mining.gather", "navigate.path", "inventory.deposit" }) do
+  if not advertised_capabilities[capability] then
+    logging.warn("capability " .. capability .. " is not advertised; related commands will be rejected")
+  end
+end
 local recovered, recovery_error, pending_update, did_rollback = bootstrap.recover(config.update_journal_path)
 if not recovered then
   logging.error(recovery_error)

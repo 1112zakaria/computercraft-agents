@@ -147,6 +147,15 @@ test("turtle runtime supports allowlisted named container sides", () => {
   assert.match(executor, /container is not configured/);
 });
 
+test("turtle startup warns when first-use capabilities are omitted", () => {
+  const startup = readFileSync(join(runtimeRoot, "turtle/startup.lua"), "utf8");
+  assert.match(startup, /advertised_capabilities/);
+  assert.match(startup, /mining\.gather/);
+  assert.match(startup, /navigate\.path/);
+  assert.match(startup, /inventory\.deposit/);
+  assert.match(startup, /related commands will be rejected/);
+});
+
 test("turtle transfer commands emit post-transfer inventory changes", () => {
   const executor = readFileSync(join(runtimeRoot, "turtle/executor.lua"), "utf8");
   assert.match(executor, /result\.inventory = self\.inventory:snapshot\(\)/);
