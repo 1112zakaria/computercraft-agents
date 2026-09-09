@@ -47,3 +47,13 @@ test("ComputerCraft runtime modules parse as Lua 5.1", () => {
     assert.doesNotThrow(() => parse(source, { luaVersion: "5.1" }), relativePath);
   }
 });
+
+test("direct turtle updater filters the combined release manifest", () => {
+  const source = readFileSync(join(runtimeRoot, "turtle/update_manager.lua"), "utf8");
+  assert.match(source, /local function is_turtle_runtime_path/);
+  assert.match(
+    source,
+    /if is_turtle_runtime_path\(type\(entry\) == "table" and entry\.path or nil\) then/,
+  );
+  assert.match(source, /manifest contains no turtle runtime files/);
+});

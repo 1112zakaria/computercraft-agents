@@ -4,6 +4,10 @@ local M = {}
 
 local prefix = "computercraft/turtle/"
 
+local function is_turtle_runtime_path(path)
+  return type(path) == "string" and string.sub(path, 1, string.len(prefix)) == prefix
+end
+
 local function now_iso()
   return os.date("!%Y-%m-%dT%H:%M:%SZ")
 end
@@ -233,24 +237,32 @@ function M.new(config, client, protocol, id, logger, bootstrap)
     }
     self:event(update, "worker.update.started")
 
+    local turtle_file_count = 0
     for _, entry in ipairs(manifest.runtimeFiles) do
-      if type(entry) ~= "table" or not self.protocol.is_update_path(entry.path)
-        or type(entry.downloadUrl) ~= "string" or string.sub(entry.downloadUrl, 1, 8) ~= "https://" then
-        return self:fail(update, "manifest contains an unsafe runtime file")
+      if is_turtle_runtime_path(type(entry) == "table" and entry.path or nil) then
+        turtle_file_count = turtle_file_count + 1
+        if not self.protocol.is_update_path(entry.path)
+          or type(entry.downloadUrl) ~= "string" or string.sub(entry.downloadUrl, 1, 8) ~= "https://" then
+          return self:fail(update, "manifest contains an unsafe runtime file")
+        end
+        local response = self.client:get_raw(entry.downloadUrl)
+        if not response.ok then
+          return self:fail(update, response.error or "cannot download runtime file")
+        end
+        local relative = relative_path(entry.path)
+        local staged = fs.combine(self.current.stage, relative)
+        local parent = fs.getDir(staged)
+        if parent and parent ~= "" and not fs.exists(parent) then fs.makeDir(parent) end
+        local handle = fs.open(staged, "w")
+        if not handle then return self:fail(update, "cannot stage runtime file") end
+        handle.write(response.body or "")
+        handle.close()
+        self.current.files[entry.path] = { relative = relative, totalChunks = 1 }
       end
-      local response = self.client:get_raw(entry.downloadUrl)
-      if not response.ok then
-        return self:fail(update, response.error or "cannot download runtime file")
-      end
-      local relative = relative_path(entry.path)
-      local staged = fs.combine(self.current.stage, relative)
-      local parent = fs.getDir(staged)
-      if parent and parent ~= "" and not fs.exists(parent) then fs.makeDir(parent) end
-      local handle = fs.open(staged, "w")
-      if not handle then return self:fail(update, "cannot stage runtime file") end
-      handle.write(response.body or "")
-      handle.close()
-      self.current.files[entry.path] = { relative = relative, totalChunks = 1 }
+    end
+
+    if turtle_file_count == 0 then
+      return self:fail(update, "manifest contains no turtle runtime files")
     end
 
     self:event(update, "worker.update.staged")
