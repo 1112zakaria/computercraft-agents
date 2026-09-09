@@ -8,6 +8,7 @@ import {
   IdentifierSchema,
   NamedLocationCreateRequestSchema,
   ReleaseVersionSchema,
+  RelativeDirectionSchema,
   UpdateRequestSchema,
   UpdateTargetSchema,
   WorkerAnchorRequestSchema,
@@ -48,6 +49,7 @@ export function usage(): string {
     `${cliName} world-cells`,
     `${cliName} anchor <worker-id> <dimension> <x> <y> <z> [N|E|S|W]`,
     `${cliName} inspect <worker-id> [--dry-run]`,
+    `${cliName} observe <worker-id> <front|up|down> [--dry-run]`,
     `${cliName} move <worker-id> <N|E|S|W|UP|DOWN> [--dry-run]`,
     `${cliName} path <worker-id> <N|E|S|W|UP|DOWN>... [--dry-run]`,
     `${cliName} path-to <worker-id> <location-name>`,
@@ -132,6 +134,7 @@ export async function runCli(args: readonly string[]): Promise<void> {
       !new Set([
         "move",
         "inspect",
+        "observe",
         "path",
         "excavate",
         "gather",
@@ -143,7 +146,7 @@ export async function runCli(args: readonly string[]): Promise<void> {
       ]).has(command))
   ) {
     throw new Error(
-      "--dry-run is supported for goal, move, inspect, path, excavate, gather, deposit, withdraw, stop, and update",
+      "--dry-run is supported for goal, move, inspect, observe, path, excavate, gather, deposit, withdraw, stop, and update",
     );
   }
   if (command === "provision-worker") {
@@ -574,6 +577,23 @@ export async function runCli(args: readonly string[]): Promise<void> {
       budget: { maxPrimitives: 1, maxBlockChanges: 0 },
       skill: "inventory.inspect" as const,
       arguments: {},
+    };
+    console.log(JSON.stringify(await postOrPreview("/v1/commands", body, dryRun), null, 2));
+    return;
+  }
+  if (command === "observe") {
+    if (!first || !second || !RelativeDirectionSchema.safeParse(second).success) {
+      throw new Error(`usage: ${cliName} observe <worker-id> <front|up|down>`);
+    }
+    const body = {
+      protocolVersion: 1,
+      commandId: `cli-${randomUUID()}`,
+      workerId: first,
+      issuedAt: new Date().toISOString(),
+      expiresAt: timestampAfterMinutes(5),
+      budget: { maxPrimitives: 1, maxBlockChanges: 0 },
+      skill: "observation.block" as const,
+      arguments: { direction: second as "front" | "up" | "down" },
     };
     console.log(JSON.stringify(await postOrPreview("/v1/commands", body, dryRun), null, 2));
     return;

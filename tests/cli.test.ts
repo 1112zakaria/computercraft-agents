@@ -377,6 +377,36 @@ test("CLI constructs a bounded inventory inspection command", async () => {
   }
 });
 
+test("CLI constructs a bounded block observation command", async () => {
+  const previousFetch = globalThis.fetch;
+  const previousUrl = process.env.CONTROL_PLANE_URL;
+  const previousSecret = process.env.CONTROL_PLANE_ADMIN_SECRET;
+  let capturedInit: RequestInit | undefined;
+  process.env.CONTROL_PLANE_URL = "http://control-plane.test";
+  process.env.CONTROL_PLANE_ADMIN_SECRET = "test-admin-secret";
+  globalThis.fetch = async (_input, init) => {
+    capturedInit = init;
+    return new Response(JSON.stringify({ accepted: true }), { status: 200 });
+  };
+  try {
+    await runCli(["observe", "alice", "front"]);
+    const body = JSON.parse(String(capturedInit?.body)) as {
+      skill: string;
+      arguments: { direction: string };
+      budget: { maxPrimitives: number; maxBlockChanges: number };
+    };
+    assert.equal(body.skill, "observation.block");
+    assert.deepEqual(body.arguments, { direction: "front" });
+    assert.deepEqual(body.budget, { maxPrimitives: 1, maxBlockChanges: 0 });
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousUrl === undefined) delete process.env.CONTROL_PLANE_URL;
+    else process.env.CONTROL_PLANE_URL = previousUrl;
+    if (previousSecret === undefined) delete process.env.CONTROL_PLANE_ADMIN_SECRET;
+    else process.env.CONTROL_PLANE_ADMIN_SECRET = previousSecret;
+  }
+});
+
 test("CLI dry-run validates and previews an addressed gather goal without persisting it", async () => {
   const previousFetch = globalThis.fetch;
   const previousLog = console.log;

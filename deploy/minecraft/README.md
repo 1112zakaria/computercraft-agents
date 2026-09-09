@@ -100,6 +100,7 @@ For a bounded target-aware mining canary, use the operator CLI only after the wo
 npm run cli -- set-location "Test Chest" 0 10 64 -2 E --approach 0 9 64 -2 N
 npm run cli -- path-to alice "Test Chest"
 npm run cli -- go-to alice "Test Chest"
+npm run cli -- observe alice front
 npm run cli -- gather alice minecraft:cobblestone 8 12
 npm run cli -- deposit alice 8 --container-id test-chest --item-key cobblestone
 ```
@@ -108,6 +109,9 @@ The final argument is the maximum forward depth. This command gathers only up to
 bound. A named location's optional approach coordinate is used by `path-to` and the addressed
 gather workflow so the turtle stops at a safe interaction position rather than entering the
 container block.
+
+`observe` is a bounded read-only block observation. It records the adjacent cell as walkable or
+blocked in the VPS world model and can be repeated after a bounded movement to seed a known route.
 
 Use only the smallest read-only/registration canary first. Do not issue movement, mining, or
 placement commands until the worker appears online in `computercraft-agents workers`.

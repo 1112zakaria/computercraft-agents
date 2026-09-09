@@ -69,7 +69,13 @@ The control plane intentionally does not guess the turtle's position or chest si
 
 4. Seed or verify a known walkable route. Use bounded observation/movement commands and inspect
    the route before creating a gather goal; a route through unknown cells is rejected rather than
-   guessed.
+   guessed. The operator command for a relative observation is:
+
+   ```bash
+   npm run cli -- observe alice front
+   ```
+
+   Repeat it for `up` or `down` where needed, and after each bounded move when seeding a route.
 
 5. Run the read-only preflight:
 
