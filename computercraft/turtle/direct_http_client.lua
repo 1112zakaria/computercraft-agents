@@ -17,39 +17,6 @@ local function close_response(response)
   if response and response.close then response.close() end
 end
 
--- CraftOS loads each program in its own environment. Values passed between those
--- environments can retain implementation-specific metadata which the legacy JSON
--- serializer mistakes for a recursive table. Copy only JSON-compatible values into
--- a fresh table before serialising an HTTP body or persistent data.
-local function json_copy(value, seen)
-  local value_type = type(value)
-  if value_type == "nil" or value_type == "string" or value_type == "number" or value_type == "boolean" then
-    return value
-  end
-  if value_type ~= "table" then error("cannot encode " .. value_type .. " as JSON") end
-
-  seen = seen or {}
-  if seen[value] then error("cannot encode recursive table as JSON") end
-  seen[value] = true
-
-  local copy = {}
-  for key, item in pairs(value) do
-    local key_type = type(key)
-    if key_type ~= "string" and key_type ~= "number" then
-      error("cannot encode " .. key_type .. " JSON key")
-    end
-    copy[key] = json_copy(item, seen)
-  end
-  seen[value] = nil
-  return copy
-end
-
-local function encode_json(value)
-  local ok, encoded_or_error = pcall(textutils.serializeJSON, json_copy(value))
-  if ok then return encoded_or_error end
-  return nil, tostring(encoded_or_error)
-end
-
 local function read_json(path)
   if not fs.exists(path) then return {} end
   local handle = fs.open(path, "r")
@@ -64,7 +31,7 @@ end
 local function write_json(path, value)
   local handle = fs.open(path .. ".tmp", "w")
   if not handle then return false end
-  local encoded, encode_error = encode_json(value)
+  local encoded, encode_error = compat.encode_json(value)
   if not encoded then
     handle.close()
     if fs.exists(path .. ".tmp") then fs.delete(path .. ".tmp") end
@@ -109,7 +76,7 @@ function M.new(config, state, inventory, fuel, protocol, logger)
     }
     local encoded_body, encode_error
     if body then
-      encoded_body, encode_error = encode_json(body)
+      encoded_body, encode_error = compat.encode_json(body)
     else
       encoded_body = ""
     end

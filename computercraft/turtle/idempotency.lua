@@ -1,4 +1,5 @@
 local M = {}
+local compat = assert(loadfile("compat.lua"))()
 
 function M.new(path, limit, logger)
   local cache = {
@@ -14,7 +15,13 @@ function M.new(path, limit, logger)
     if not handle then
       return false, "cannot open command cache temporary file"
     end
-    handle.write(textutils.serializeJSON(self.entries))
+    local encoded, encode_error = compat.encode_json(self.entries)
+    if not encoded then
+      handle.close()
+      if fs.exists(temporary_path) then fs.delete(temporary_path) end
+      return false, encode_error
+    end
+    handle.write(encoded)
     handle.close()
     if fs.exists(self.path) then
       fs.delete(self.path)

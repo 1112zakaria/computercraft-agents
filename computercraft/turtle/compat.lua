@@ -4,6 +4,40 @@ local M = {}
 -- CraftOS gives loadfile calls isolated environments. Persist the anchor in a small local file so
 -- startup.lua, direct_http_client.lua and command modules use the same authenticated UTC clock.
 local clock_path = "worker-clock.txt"
+
+-- ComputerCraft 1.75 can expose tables from a different program environment to the
+-- JSON serializer. Some releases also use a self-referential EMPTY_ARRAY sentinel.
+-- Normalize ordinary JSON values into fresh tables, while preserving that sentinel
+-- for the native serializer's special empty-array handling.
+local function json_copy(value, seen)
+  local value_type = type(value)
+  if value_type == "nil" or value_type == "string" or value_type == "number" or value_type == "boolean" then
+    return value
+  end
+  if value_type ~= "table" then error("cannot encode " .. value_type .. " as JSON") end
+  if textutils.EMPTY_ARRAY and value == textutils.EMPTY_ARRAY then return value end
+
+  seen = seen or {}
+  if seen[value] then error("cannot encode recursive table as JSON") end
+  seen[value] = true
+  local copy = {}
+  for key, item in pairs(value) do
+    local key_type = type(key)
+    if key_type ~= "string" and key_type ~= "number" then
+      error("cannot encode " .. key_type .. " JSON key")
+    end
+    copy[key] = json_copy(item, seen)
+  end
+  seen[value] = nil
+  return copy
+end
+
+function M.encode_json(value)
+  local ok, encoded_or_error = pcall(textutils.serializeJSON, json_copy(value))
+  if ok then return encoded_or_error end
+  return nil, tostring(encoded_or_error)
+end
+
 local function leap(y) return y % 4 == 0 and (y % 100 ~= 0 or y % 400 == 0) end
 local function months(y) return {31, leap(y) and 29 or 28,31,30,31,30,31,31,30,31,30,31} end
 function M.parse_time(s)

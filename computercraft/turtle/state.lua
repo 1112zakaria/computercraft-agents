@@ -1,4 +1,5 @@
 local M = {}
+local compat = assert(loadfile("compat.lua"))()
 
 local headings = { "N", "E", "S", "W" }
 local deltas = {
@@ -36,7 +37,7 @@ function M.new(path, id)
     if not handle then
       return false, "cannot open state temporary file"
     end
-    handle.write(textutils.serializeJSON({
+    local encoded, encode_error = compat.encode_json({
       x = self.x,
       y = self.y,
       z = self.z,
@@ -45,7 +46,13 @@ function M.new(path, id)
       confidence = self.confidence,
       last_anchor_at = self.last_anchor_at,
       sequence = self.sequence,
-    }))
+    })
+    if not encoded then
+      handle.close()
+      if fs.exists(temporary_path) then fs.delete(temporary_path) end
+      return false, encode_error
+    end
+    handle.write(encoded)
     handle.close()
     if fs.exists(self.path) then
       fs.delete(self.path)

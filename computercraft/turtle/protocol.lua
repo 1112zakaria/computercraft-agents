@@ -116,7 +116,7 @@ local function arguments_valid(skill, args)
 end
 
 function M.encode(value)
-  return textutils.serializeJSON(value)
+  return compat.encode_json(value)
 end
 
 function M.decode(value)
