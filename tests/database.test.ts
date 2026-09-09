@@ -8,6 +8,7 @@ import {
   blockedMovementForReplan,
   coordinatesMatch,
   effectivePositionConfidence,
+  GatewayRuntimeRepository,
   gatherResultMeetsTarget,
   inventorySlotsFromCommandEvent,
   peripheralSnapshotFromCommandEvent,
@@ -23,6 +24,7 @@ import {
   workflowStepEventCanAdvance,
 } from "../packages/database/src/index";
 import type { Event } from "../packages/protocol/src/index";
+import type { Pool } from "pg";
 
 const migrationDirectory = join(__dirname, "../packages/database/migrations");
 
@@ -606,17 +608,29 @@ test("audit retention cleanup preserves immutable history", () => {
   assert.doesNotMatch(repositories, /retention_class = 'IMMUTABLE'.*DELETE/s);
 });
 
-test("expired OTA rollouts become explicit terminal failures with update history", () => {
-  const repositories = readFileSync(
-    join(__dirname, "../packages/database/src/repositories.ts"),
-    "utf8",
-  );
-  assert.match(repositories, /expireExpiredUpdates/);
-  assert.match(repositories, /UPDATE update_rollouts\s+SET status = 'FAILED'/s);
-  assert.match(repositories, /failure_code = 'UPDATE_EXPIRED'/);
-  assert.match(repositories, /expires_at <= \$1/);
-  assert.match(repositories, /INSERT INTO update_events/);
-  assert.match(repositories, /rollout expired before successful activation/);
+test("expired OTA rollouts become explicit terminal failures with update history", async () => {
+  const queries: Array<{ text: string; values: readonly unknown[] | undefined }> = [];
+  const pool = {
+    query: async (text: string, values?: readonly unknown[]) => {
+      queries.push({ text, values });
+      return { rowCount: 2, rows: [{ update_id: "update-a" }, { update_id: "update-b" }] };
+    },
+  } as unknown as Pool;
+  const repository = new GatewayRuntimeRepository(pool, {
+    gatewayTimeoutSeconds: 30,
+    workerTimeoutSeconds: 30,
+    worldCellMaxAgeSeconds: 300,
+  });
+  const now = new Date("2026-09-09T18:57:37.214Z");
+
+  assert.equal(await repository.expireExpiredUpdates(now), 2);
+  assert.equal(queries.length, 1);
+  assert.deepEqual(queries[0]?.values, [now]);
+  assert.match(queries[0]?.text ?? "", /UPDATE update_rollouts\s+SET status = 'FAILED'/s);
+  assert.match(queries[0]?.text ?? "", /failure_code = 'UPDATE_EXPIRED'/);
+  assert.match(queries[0]?.text ?? "", /expires_at <= \$1/);
+  assert.match(queries[0]?.text ?? "", /INSERT INTO update_events/);
+  assert.match(queries[0]?.text ?? "", /rollout expired before successful activation/);
 });
 
 test("gateway restart recovery cancels uncertain work behind an explicit resume boundary", () => {
