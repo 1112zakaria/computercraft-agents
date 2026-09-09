@@ -66,6 +66,9 @@ npm run cli -- workers alice
 npm run cli -- update --target worker:alice --version v0.4.0
 npm run cli -- excavate alice 1 1 8
 npm run cli -- deposit alice
+npm run cli -- goal "@alice get 64 cobblestone and deposit it in Test Chest"
+npm run cli -- locations
+npm run cli -- tasks
 ```
 
 See [architecture](docs/02-ARCHITECTURE.md), [protocol](docs/05-PROTOCOL.md), and

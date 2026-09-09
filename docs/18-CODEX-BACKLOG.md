@@ -212,7 +212,8 @@ Implement agents, workers, gateways, projects, jobs, tasks, dependencies, conver
 
 **Priority:** P0  
 **Dependencies:** CC-020
-**Status:** DONE
+**Status:** PARTIAL — project/job/task creation, goal persistence, task inspection, and
+restart-safe database task claims are implemented; full scheduler dispatch remains.
 
 Implement state transitions and task dependencies.
 
@@ -586,6 +587,9 @@ remains.
 
 **Priority:** P0  
 **Dependencies:** CC-020
+
+**Status:** PARTIAL — named locations can be upserted/listed through the protected API and an
+in-memory planner index exists; navigation resolution and route execution remain.
 
 **Acceptance criteria**
 

@@ -93,6 +93,24 @@ priority. In v1, `goalText` must match the deterministic form
 sentence and persists a project, ready job, and ready task with the normalized resource arguments.
 It does not yet dispatch the task to a worker; persistent scheduler claiming is a later step.
 
+Named locations are managed through the protected operator API:
+
+```text
+POST /v1/locations
+GET  /v1/locations
+```
+
+Location writes are idempotent by name and store dimension, coordinates, optional facing, source,
+confidence, and metadata. Ready tasks can be inspected and claimed with:
+
+```text
+GET  /v1/tasks
+POST /v1/tasks/:taskId
+```
+
+The claim request contains `workerId`. The database rejects claims for offline workers, unmet
+dependencies, already-claimed tasks, and workers with another active task.
+
 ## 3. Gateway registration
 
 Example:
