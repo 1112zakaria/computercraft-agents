@@ -102,6 +102,10 @@ test("stable update bootstraps repair a missing CraftOS startup hook", () => {
 test("gather capability migration preserves configuration with a backup", () => {
   const source = readFileSync(join(runtimeRoot, "../deploy/minecraft/enable-gather.lua"), "utf8");
   assert.match(source, /worker\.conf\.before-gather/);
+  assert.match(source, /function ensure_startup_hook\(\)/);
+  assert.match(source, /startup\.previous/);
+  assert.match(source, /startup\.gather\.tmp/);
+  assert.match(source, /startup_hook_is_valid/);
   assert.match(source, /textutils\.serialize/);
   assert.match(source, /mining\.gather/);
   assert.match(source, /navigate\.path/);

@@ -75,7 +75,9 @@ worker with `npm run cli -- workers alice` after its registration and heartbeat 
 If an existing `worker.conf` explicitly lists capabilities but omits the first-use gather skills,
 run `lua enable-gather.lua`. The helper creates a `worker.conf.before-gather*` backup, adds only
 `mining.gather`, `navigate.path`, and `inventory.deposit`, and preserves the bearer secret and
-other settings. Run `startup` afterward so the worker re-registers with the updated list.
+other settings. It also repairs a missing or malformed extensionless CraftOS `startup` hook,
+retaining the previous copy as `startup.previous*`. Run `startup` afterward so the worker
+re-registers with the updated list.
 
 The stable bootstrap checks the extensionless CraftOS `startup` hook during recovery and repairs
 it if it is missing, a directory, or malformed. The pinned `install-direct.lua` installer does the

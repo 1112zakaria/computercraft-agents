@@ -2,6 +2,8 @@
 -- This preserves the existing worker configuration and creates a backup before writing.
 local config_path = "worker.conf"
 local temporary_path = "worker.conf.gather.tmp"
+local startup_temporary_path = "startup.gather.tmp"
+local startup_hook = 'shell.run("startup.lua")\n'
 local required = { "mining.gather", "navigate.path", "inventory.deposit" }
 
 local function fail(message)
@@ -18,6 +20,55 @@ local function backup_path()
   fail("could not choose a worker.conf backup path")
 end
 
+local function startup_backup_path()
+  local base = "startup.previous"
+  if not fs.exists(base) then return base end
+  for index = 1, 99 do
+    local candidate = base .. "." .. tostring(index)
+    if not fs.exists(candidate) then return candidate end
+  end
+  fail("could not choose a startup hook backup path")
+end
+
+local function startup_hook_is_valid()
+  if not fs.exists("startup") or fs.isDir("startup") then return false end
+  local handle = fs.open("startup", "r")
+  if not handle then return false end
+  local content = handle.readAll()
+  handle.close()
+  return content == startup_hook
+end
+
+local function ensure_startup_hook()
+  if startup_hook_is_valid() then return false end
+  local had_existing = fs.exists("startup")
+  local preserved = startup_backup_path()
+  if had_existing then
+    local moved, move_error = pcall(fs.move, "startup", preserved)
+    if not moved then fail("could not preserve the existing startup hook: " .. tostring(move_error)) end
+  end
+  if fs.exists(startup_temporary_path) then fs.delete(startup_temporary_path) end
+  local handle = fs.open(startup_temporary_path, "w")
+  if not handle then
+    if had_existing then fs.move(preserved, "startup") end
+    fail("could not create the CraftOS startup hook")
+  end
+  handle.write(startup_hook)
+  handle.close()
+  local activated, activation_error = pcall(fs.move, startup_temporary_path, "startup")
+  if not activated then
+    if fs.exists(startup_temporary_path) then fs.delete(startup_temporary_path) end
+    if had_existing then fs.move(preserved, "startup") end
+    fail("could not activate the CraftOS startup hook: " .. tostring(activation_error))
+  end
+  if had_existing then
+    print("Repaired CraftOS startup hook; previous copy: " .. preserved)
+  else
+    print("Created CraftOS startup hook")
+  end
+  return true
+end
+
 if not fs.exists(config_path) then
   fail("worker.conf was not found; copy worker.conf.example first")
 end
@@ -31,6 +82,8 @@ local ok, config = pcall(chunk)
 if not ok or type(config) ~= "table" then
   fail("worker.conf must return a table")
 end
+
+ensure_startup_hook()
 
 if config.capabilities == nil then
   print("worker.conf has no explicit capabilities; runtime defaults already include gather capabilities")

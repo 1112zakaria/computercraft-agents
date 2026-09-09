@@ -24,9 +24,10 @@ lua enable-gather.lua
 startup
 ```
 
-The helper creates a backup before adding the first-use capabilities. It does not change the
-worker identity, transport, VPS URL, bearer secret, or local state. Confirm the turtle has
-re-registered before continuing:
+The helper creates a backup before adding the first-use capabilities and repairs a missing or
+malformed extensionless CraftOS `startup` hook, preserving the previous hook as
+`startup.previous*`. It does not change the worker identity, transport, VPS URL, bearer secret,
+or local state. Confirm the turtle has re-registered before continuing:
 
 ```bash
 CONTROL_PLANE_URL=http://172.18.0.1:8787 npm run cli -- workers alice
