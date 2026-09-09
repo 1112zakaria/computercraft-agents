@@ -550,8 +550,8 @@ gateway-backed workers and fleet rollouts remain unchanged.
 
 **Status:** PARTIAL — bounded in-memory sparse walkability model, persistent `world_cells` storage,
 worker-position anchoring, heartbeat/anchor/named-location walkable-cell seeding, and block-observation
-event ingestion plus bounded blocked-destination contradiction updates now exist; planner loading,
-freshness, and broader reconciliation remain.
+event ingestion plus bounded blocked-destination contradiction updates now exist; planner loading
+uses a configurable freshness window with a one-day default, while broader reconciliation remains.
 
 Represent observed cells and freshness/worker source.
 

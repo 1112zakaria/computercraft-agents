@@ -10,6 +10,7 @@ export interface ControlPlaneConfig {
   readonly adminSecret: string;
   readonly gatewayTimeoutSeconds: number;
   readonly workerTimeoutSeconds: number;
+  readonly worldCellMaxAgeSeconds: number;
   readonly maxHttpBodyBytes: number;
   readonly staleCheckIntervalSeconds: number;
   readonly schedulerEnabled: boolean;
@@ -111,6 +112,7 @@ export function loadConfig(): ControlPlaneConfig {
     adminSecret: required("CONTROL_PLANE_ADMIN_SECRET"),
     gatewayTimeoutSeconds: positiveInteger("GATEWAY_TIMEOUT_SECONDS", 45),
     workerTimeoutSeconds: positiveInteger("WORKER_TIMEOUT_SECONDS", 45),
+    worldCellMaxAgeSeconds: positiveInteger("WORLD_CELL_MAX_AGE_SECONDS", 86_400),
     maxHttpBodyBytes: positiveInteger("MAX_HTTP_BODY_BYTES", 1_048_576),
     staleCheckIntervalSeconds: positiveInteger("STALE_CHECK_INTERVAL_SECONDS", 10),
     schedulerEnabled: booleanValue("SCHEDULER_ENABLED", false),

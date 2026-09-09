@@ -26,6 +26,7 @@ import { storedPositionConfidence } from "./position-confidence";
 export interface GatewayRuntimeConfig {
   readonly gatewayTimeoutSeconds: number;
   readonly workerTimeoutSeconds: number;
+  readonly worldCellMaxAgeSeconds: number;
 }
 
 export interface GatewayPollResult {
@@ -916,9 +917,11 @@ export class GatewayRuntimeRepository {
         SELECT dimension, x, y, z, block_name AS "blockName", block_metadata AS "blockMetadata",
                walkable, observed_at AS "observedAt", source_worker_id::text AS "sourceWorkerId"
         FROM world_cells
+        WHERE observed_at >= NOW() - ($1::text || ' seconds')::interval
         ORDER BY observed_at DESC
         LIMIT 1000
       `,
+      [this.config.worldCellMaxAgeSeconds],
     );
     return result.rows;
   }
@@ -2575,8 +2578,10 @@ export class GatewayRuntimeRepository {
         `
           SELECT dimension, x, y, z, walkable, observed_at, source_worker_id::text
           FROM world_cells
+          WHERE observed_at >= NOW() - ($1::text || ' seconds')::interval
           LIMIT 10000
         `,
+        [this.config.worldCellMaxAgeSeconds],
       );
       for (const cell of worldResult.rows) {
         world.setCell({

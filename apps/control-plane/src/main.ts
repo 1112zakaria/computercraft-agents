@@ -28,6 +28,7 @@ async function main(): Promise<void> {
   const repository = new GatewayRuntimeRepository(pool, {
     gatewayTimeoutSeconds: config.gatewayTimeoutSeconds,
     workerTimeoutSeconds: config.workerTimeoutSeconds,
+    worldCellMaxAgeSeconds: config.worldCellMaxAgeSeconds,
   });
   const restartRecovery = await repository.reconcileControlPlaneRestart();
   logger.info("control_plane.recovery.reconciled", {

@@ -38,6 +38,12 @@ coordinate is seeded as well. This gives the planner trustworthy start/end ancho
 route without claiming that any unobserved neighboring cell is safe. Block observations and later
 movement observations extend the known map incrementally.
 
+The control plane applies a bounded freshness window to persisted world cells before planning or
+returning the world-cell inspection view. `WORLD_CELL_MAX_AGE_SECONDS` defaults to 86,400 seconds
+and can be shortened for worlds that change frequently. A stale cell is treated as unknown until a
+new heartbeat, anchor, block observation, named-location write, or movement contradiction refreshes
+that coordinate.
+
 ## 3. Planner boundary
 
 The LLM SHOULD choose destination/strategy. A deterministic navigation engine SHOULD choose the actual path.
@@ -98,8 +104,8 @@ Named locations anchor high-level plans:
 ```yaml
 name: Main Warehouse
 dimension: 0
-position: {x: 112, y: 64, z: -30}
-approach: {x: 111, y: 64, z: -30, facing: E}
+position: { x: 112, y: 64, z: -30 }
+approach: { x: 111, y: 64, z: -30, facing: E }
 ```
 
 For turtles, an `approach`/dock coordinate is often more useful than the block coordinate itself.
