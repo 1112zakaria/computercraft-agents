@@ -2,6 +2,7 @@ local M = {}
 local compat = assert(loadfile("compat.lua"))()
 
 M.VERSION = 1
+M.JSON_NULL = compat.JSON_NULL
 
 local skills = {
   ["movement.step"] = true,

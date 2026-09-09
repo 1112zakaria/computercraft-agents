@@ -122,7 +122,7 @@ function M.new(config, client, state, cancellation, movement, observation, inven
     if command.skill == "observation.block" and result.status == "OK" then
       self:emit(command.commandId, "block.observed", {
         direction = command.arguments.direction,
-        block = result.block,
+        block = result.block or self.protocol.JSON_NULL,
         position = self.state:position(),
       })
     end

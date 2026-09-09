@@ -141,9 +141,15 @@ test("stable update bootstraps remove newly introduced files during rollback", (
 });
 
 test("turtle executor emits a world observation event after block inspection", () => {
+  const compat = readFileSync(join(runtimeRoot, "turtle/compat.lua"), "utf8");
   const source = readFileSync(join(runtimeRoot, "turtle/executor.lua"), "utf8");
+  const protocol = readFileSync(join(runtimeRoot, "turtle/protocol.lua"), "utf8");
+  assert.match(compat, /M\.JSON_NULL = \{\}/);
+  assert.match(compat, /if value == M\.JSON_NULL then return "null" end/);
+  assert.match(protocol, /M\.JSON_NULL = compat\.JSON_NULL/);
   assert.match(source, /command\.skill == "observation\.block"/);
   assert.match(source, /self:emit\(command\.commandId, "block\.observed"/);
+  assert.match(source, /block = result\.block or self\.protocol\.JSON_NULL/);
 });
 
 test("turtle runtime exposes bounded target-aware gathering", () => {

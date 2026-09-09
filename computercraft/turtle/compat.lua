@@ -1,6 +1,9 @@
 -- Legacy ComputerCraft has JSON encoding, but no JSON decoder or UTC clock.
 -- Decode data only (never loadstring). UTC is anchored to authenticated VPS responses.
 local M = {}
+-- Lua table fields assigned nil disappear before encoding. Keep an explicit
+-- sentinel for protocol fields whose wire value must be JSON null.
+M.JSON_NULL = {}
 -- CraftOS gives loadfile calls isolated environments. Persist the anchor in a small local file so
 -- startup.lua, direct_http_client.lua and command modules use the same authenticated UTC clock.
 local clock_path = "worker-clock.txt"
@@ -26,6 +29,7 @@ local function quote_json_string(value)
 end
 
 local function json_encode(value, seen)
+  if value == M.JSON_NULL then return "null" end
   local value_type = type(value)
   if value_type == "nil" then return "null" end
   if value_type == "string" then return quote_json_string(value) end
