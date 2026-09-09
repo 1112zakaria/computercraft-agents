@@ -73,14 +73,14 @@ export interface PlannerTriggerRecord {
   readonly triggerId: string;
   readonly cause: string;
   readonly subjectId: string;
-  readonly occurredAt: Date | string;
+  readonly occurredAt: string;
   readonly priority: number;
   readonly status: string;
   readonly attempts: number;
-  readonly claimedAt?: Date | string | null;
+  readonly claimedAt?: string | null;
   readonly lastError?: unknown;
-  readonly createdAt: Date | string;
-  readonly processedAt?: Date | string | null;
+  readonly createdAt: string;
+  readonly processedAt?: string | null;
 }
 
 export type PlannerTriggerStatus = "PENDING" | "PROCESSING" | "SUCCEEDED" | "FAILED";
@@ -333,6 +333,27 @@ function isUniqueViolation(error: unknown): boolean {
   return typeof error === "object" && error !== null && "code" in error && error.code === "23505";
 }
 
+function timestampString(value: Date | string | null): string | null {
+  if (value === null) return null;
+  return value instanceof Date ? value.toISOString() : value;
+}
+
+function plannerTriggerRecord(row: Record<string, unknown>): PlannerTriggerRecord {
+  return {
+    triggerId: String(row.triggerId),
+    cause: String(row.cause),
+    subjectId: String(row.subjectId),
+    occurredAt: timestampString(row.occurredAt as Date | string)!,
+    priority: Number(row.priority),
+    status: String(row.status),
+    attempts: Number(row.attempts),
+    claimedAt: timestampString(row.claimedAt as Date | string | null),
+    lastError: row.lastError,
+    createdAt: timestampString(row.createdAt as Date | string)!,
+    processedAt: timestampString(row.processedAt as Date | string | null),
+  };
+}
+
 export class GatewayRuntimeRepository {
   public constructor(
     private readonly pool: Pool,
@@ -552,7 +573,7 @@ export class GatewayRuntimeRepository {
       `,
       [limit],
     );
-    return result.rows;
+    return result.rows.map((row) => plannerTriggerRecord(row));
   }
 
   public async claimPlannerTriggers(limit = 1): Promise<readonly PlannerTriggerRecord[]> {
@@ -579,7 +600,7 @@ export class GatewayRuntimeRepository {
       `,
       [limit],
     );
-    return result.rows;
+    return result.rows.map((row) => plannerTriggerRecord(row));
   }
 
   public async completePlannerTrigger(
