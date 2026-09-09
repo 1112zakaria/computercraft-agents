@@ -678,7 +678,8 @@ workflow ownership remains.
 **Status:** PARTIAL — the control plane now exposes validated explicit task transitions plus
 `pause-task`, `resume-task`, and `cancel-task` CLI controls. Pausing/cancelling a running task now
 atomically cancels active command delivery, releases the worker claim, and queues a transport-aware
-stop control; resuming returns the task to `READY` and resource reservations remain.
+stop control; cancellation also cascades through already-paused workflow children, while resuming
+returns the task to `READY` and resource reservations remain.
 
 **Acceptance criteria**
 

@@ -4490,7 +4490,8 @@ export class TaskRepository {
       );
       const activeExecution = activeExecutionResult.rows[0];
       const propagatesToWorkflowChildren =
-        current.status === "RUNNING" && (nextState === "PAUSED" || nextState === "CANCELLED");
+        (current.status === "RUNNING" && (nextState === "PAUSED" || nextState === "CANCELLED")) ||
+        (current.status === "PAUSED" && nextState === "CANCELLED");
       const requiresStop = propagatesToWorkflowChildren && activeExecution?.worker_key != null;
       if (propagatesToWorkflowChildren) {
         await client.query(
@@ -4510,7 +4511,7 @@ export class TaskRepository {
             SET status = $2, assigned_worker_id = NULL,
                 last_error_json = $3
             WHERE parent_task_id = $1
-              AND status IN ('READY', 'RUNNING')
+              AND status IN ('READY', 'RUNNING', 'PAUSED')
           `,
           [
             taskId,

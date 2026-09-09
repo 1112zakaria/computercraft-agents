@@ -567,7 +567,11 @@ test("operator pause and cancel propagate to the active workflow child", () => {
   assert.match(repositories, /t\.parent_task_id = \$1/);
   assert.match(repositories, /propagatesToWorkflowChildren/);
   assert.match(repositories, /SELECT id FROM tasks WHERE id = \$1 OR parent_task_id = \$1/);
-  assert.match(repositories, /WHERE parent_task_id = \$1[\s\S]*status IN \('READY', 'RUNNING'\)/);
+  assert.match(
+    repositories,
+    /WHERE parent_task_id = \$1[\s\S]*status IN \('READY', 'RUNNING', 'PAUSED'\)/,
+  );
+  assert.match(repositories, /current\.status === "PAUSED" && nextState === "CANCELLED"/);
   assert.match(repositories, /activeExecution\.worker_key/);
   assert.match(repositories, /activeExecution\.transport_type/);
 });
