@@ -2,6 +2,20 @@
 
 ComputerCraft-first autonomous Minecraft workers for Minecraft Java 1.7.10 + Forge.
 
+## Current development target: MVP relay
+
+The original PostgreSQL, scheduler, gateway, multi-agent, and mod-integration architecture is
+frozen as the future platform. Current development happens in the small `relay/` MVP: one Node
+relay, one direct-HTTP turtle, and one sequential job queue. The first live target is:
+
+```text
+agent "mine 8 cobblestone and deposit it in the chest"
+```
+
+Start the relay with `npm run mvp:relay` and submit a goal with `npm run agent -- "..."`. The MVP
+uses no authentication by default; set `RELAY_AUTH_ENABLED=true` and `RELAY_SECRET` only when
+needed. Keep the relay reachable only from the trusted Minecraft network/server.
+
 The repository has completed the CC-001 bootstrap, CC-010 protocol-schema, CC-020 database schema,
 CC-030–047 ComputerCraft runtime stages, and the first VPS gateway transport/domain slice. It now
 supports both gateway-backed Rednet workers and direct HTTP turtles; the control-plane workspace
