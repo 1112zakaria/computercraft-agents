@@ -26,6 +26,8 @@
 --   uneven_wheat auto [period_minutes] [fuel]
 --       Farms immediately, then repeats on a fixed start-to-start period.
 --       Default period is 60 minutes. Alice must remain chunk-loaded.
+--       Per-cell plant/harvest problems are logged and skipped. Temporary
+--       supply shortages pause at HOME and are retried every 5 minutes.
 --
 --   uneven_wheat mapauto [radius] [period_minutes] [fuel]
 --       Maps the farm ONCE at startup, saves the new map, then switches to
@@ -49,6 +51,8 @@ local MAP_VERSION = 3
 local DEFAULT_MAX_RADIUS = 20
 local DEFAULT_TARGET_FUEL = 12000
 local DEFAULT_AUTO_PERIOD_MINUTES = 60
+local SUPPLY_RETRY_MINUTES = 5
+local MAX_SOFT_FAILURE_DETAILS = 12
 local KEEP_SEEDS = 16
 
 local WHEAT = "minecraft:wheat"
@@ -94,7 +98,11 @@ local DZ = { [0] = -1, [1] = 0, [2] = 1,  [3] = 0 }
 local mapData = nil
 local tried = {}
 local serviced = {}
-local abortReason = nil
+local blockedEdges = {}
+local abortReason = nil       -- fatal: auto mode must stop
+local cycleStopReason = nil   -- recoverable: return HOME, then keep scheduler alive
+local softFailures = {}
+local sessionSoftFailures = 0
 
 local function newStats()
     return {
@@ -105,10 +113,23 @@ local function newStats()
         planted = 0,
         failedPlant = 0,
         failedHarvest = 0,
+        softFailures = 0,
     }
 end
 
 local stats = newStats()
+
+local function recordSoftFailure(kind, message)
+    stats.softFailures = stats.softFailures + 1
+    sessionSoftFailures = sessionSoftFailures + 1
+    if #softFailures < MAX_SOFT_FAILURE_DETAILS then
+        softFailures[#softFailures + 1] = {
+            kind = kind,
+            message = message,
+        }
+    end
+    print("WARNING: " .. message)
+end
 
 -- Auto mode runs several farm cycles in one program invocation. Each cycle
 -- starts with Alice physically at HOME and facing the original HOME direction.
@@ -118,7 +139,10 @@ local function resetFarmCycleState()
     mapData = nil
     tried = {}
     serviced = {}
+    blockedEdges = {}
     abortReason = nil
+    cycleStopReason = nil
+    softFailures = {}
     stats = newStats()
 end
 
@@ -136,6 +160,25 @@ end
 
 local function opposite(d)
     return (d + 2) % 4
+end
+
+local function blockedEdgeKey(k, d)
+    return k .. "|" .. tostring(d)
+end
+
+local function isEdgeBlocked(k, d)
+    return blockedEdges[blockedEdgeKey(k, d)] == true
+end
+
+local function markEdgeBlocked(sourceKey, d, targetKey)
+    blockedEdges[blockedEdgeKey(sourceKey, d)] = true
+    if targetKey then
+        blockedEdges[blockedEdgeKey(targetKey, opposite(d))] = true
+    end
+end
+
+local function hasBlockedEdges()
+    return next(blockedEdges) ~= nil
 end
 
 -- Straight is preferred only when choices are otherwise comparable.
@@ -294,18 +337,18 @@ end
 local function plantSeed()
     if not selectItem(SEEDS) then
         stats.failedPlant = stats.failedPlant + 1
-        return false
+        return false, "out of wheat seeds"
     end
 
     -- Alice stays at cruising height. placeDown can plant onto the farmland
     -- beneath the empty crop space without Alice occupying that crop space.
     if turtle.placeDown() then
         stats.planted = stats.planted + 1
-        return true
+        return true, nil
     end
 
     stats.failedPlant = stats.failedPlant + 1
-    return false
+    return false, "seed placement failed"
 end
 
 -- Determine what kind of traversable farm cell Alice is currently above.
@@ -491,41 +534,80 @@ local function serviceCurrentCrop()
             return
         end
 
-        -- Make sure Alice can replant BEFORE breaking the mature crop.
+        -- Never harvest a mature crop unless Alice already has a seed available
+        -- to replant it. Running out of seeds is recoverable at HOME, so end this
+        -- cycle early instead of killing the automatic scheduler.
         if not selectItem(SEEDS) then
-            abortReason = "out of wheat seeds"
+            cycleStopReason = "out of wheat seeds"
             return
         end
 
+        -- A full inventory is also recoverable: return HOME, unload, and allow
+        -- the next scheduled cycle to run normally.
         if not hasRoomFor(WHEAT) or not hasRoomFor(SEEDS) then
-            abortReason = "inventory nearly full"
+            cycleStopReason = "inventory nearly full"
             return
         end
 
         local dug, err = turtle.digDown()
         if not dug then
             stats.failedHarvest = stats.failedHarvest + 1
-            print("Harvest failed: " .. tostring(err))
+            recordSoftFailure(
+                "harvest",
+                "harvest failed at " .. currentKey() .. ": " .. tostring(err)
+            )
             return
         end
 
         stats.harvested = stats.harvested + 1
 
-        if not plantSeed() then
-            abortReason = "could not replant harvested wheat"
+        local planted, plantErr = plantSeed()
+        if not planted then
+            if plantErr == "out of wheat seeds" then
+                -- The crop was already harvested, so remember the damaged cell
+                -- and return HOME before touching more mature crops.
+                recordSoftFailure(
+                    "replant",
+                    "could not replant harvested wheat at " .. currentKey() ..
+                    ": " .. tostring(plantErr)
+                )
+                cycleStopReason = "out of wheat seeds"
+            else
+                -- A single bad farmland/crop position must not stop unattended
+                -- farming. Leave it for repair on the next cycle.
+                recordSoftFailure(
+                    "replant",
+                    "could not replant harvested wheat at " .. currentKey() ..
+                    ": " .. tostring(plantErr)
+                )
+            end
         end
 
     elseif not ok then
         -- This is a known crop cell whose crop is missing. Attempt to repair it
-        -- from cruising height; never descend onto the farmland. Stop if the
-        -- repair fails rather than continuing over a damaged/unknown crop cell.
-        if not plantSeed() then
-            abortReason = "could not plant known crop cell " .. currentKey()
+        -- from cruising height. A single failed placement is a soft per-cell
+        -- failure and will be retried on a later cycle.
+        local planted, plantErr = plantSeed()
+        if not planted then
+            if plantErr == "out of wheat seeds" then
+                cycleStopReason = "out of wheat seeds"
+            else
+                recordSoftFailure(
+                    "plant",
+                    "could not plant known crop cell " .. currentKey() ..
+                    ": " .. tostring(plantErr)
+                )
+            end
         end
 
     else
-        -- Something other than wheat occupies the crop layer. Leave it alone.
-        print("WARNING: crop cell blocked by " .. tostring(data.name))
+        -- Something other than wheat occupies the crop layer. Leave it alone
+        -- and continue. This is a soft failure because the rest of the field is
+        -- still safe to harvest.
+        recordSoftFailure(
+            "blocked_crop",
+            "crop cell " .. currentKey() .. " blocked by " .. tostring(data.name)
+        )
     end
 end
 
@@ -733,7 +815,7 @@ local function findShortestPath(predicate)
             local order = preferredDirs(state.heading)
             for _, d in ipairs(order) do
                 local nextKey = getEdge(cell, d)
-                if nextKey and getCell(nextKey) then
+                if nextKey and getCell(nextKey) and not isEdgeBlocked(state.k, d) then
                     local nextId = stateId(nextKey, d)
                     if not seen[nextId] then
                         seen[nextId] = true
@@ -776,7 +858,15 @@ local function moveAlongKnownPath(path, doService)
 
         turnTo(d)
         if not moveKnown(delta) then
-            return false, "mapped route is blocked near " .. sourceKey
+            -- moveKnown only returns false after repeated attempts while Alice
+            -- remains on the original mapped cell. Temporarily exclude this edge
+            -- and let the caller re-plan through another known route.
+            markEdgeBlocked(sourceKey, d, targetKey)
+            recordSoftFailure(
+                "route",
+                "mapped route blocked between " .. sourceKey .. " and " .. targetKey
+            )
+            return false, "blocked"
         end
 
         if currentKey() ~= targetKey or y ~= target.y then
@@ -785,7 +875,7 @@ local function moveAlongKnownPath(path, doService)
 
         if doService then
             serviceCellOnce(targetKey)
-            if abortReason then
+            if abortReason or cycleStopReason then
                 return true
             end
         end
@@ -801,26 +891,29 @@ local function pathHome()
     end
 
     local homeKey = key(0, 0)
-    local path = findShortestPath(function(k)
-        return k == homeKey
-    end)
 
-    if not path then
-        return false
-    end
+    -- Re-plan if a mapped edge is temporarily blocked. Each failed edge is
+    -- excluded for the rest of this cycle, so this loop cannot keep selecting
+    -- the same obstruction forever.
+    while currentKey() ~= homeKey or y ~= 0 do
+        local path = findShortestPath(function(k)
+            return k == homeKey
+        end)
 
-    local ok = moveAlongKnownPath(path, false)
-    if not ok then
-        return false
-    end
+        if not path then
+            return false
+        end
 
-    if currentKey() ~= homeKey or y ~= 0 then
-        return false
+        local ok, moveErr = moveAlongKnownPath(path, false)
+        if not ok and moveErr ~= "blocked" then
+            return false
+        end
     end
 
     turnTo(0)
     return true
 end
+
 
 local function saveMap()
     mapData.version = MAP_VERSION
@@ -927,6 +1020,9 @@ local function mapFarm()
             end)
 
             if not path then
+                if hasBlockedEdges() then
+                    abortReason = "mapping interrupted by blocked route"
+                end
                 break
             end
 
@@ -936,9 +1032,9 @@ local function mapFarm()
                 error("Frontier search stalled at " .. currentKey())
             end
 
-            local ok, err = moveAlongKnownPath(path, true)
-            if not ok then
-                abortReason = err
+            local ok, moveErr = moveAlongKnownPath(path, true)
+            if not ok and moveErr ~= "blocked" then
+                abortReason = moveErr
             end
         end
     end
@@ -1002,7 +1098,7 @@ local function farmMappedField()
 
     serviceCellOnce(currentKey())
 
-    while not abortReason and remainingCropCount() > 0 do
+    while not abortReason and not cycleStopReason and remainingCropCount() > 0 do
         local current = getCell(currentKey())
         if not current then
             error("Alice is not at a cell in the saved map")
@@ -1017,7 +1113,8 @@ local function farmMappedField()
         for _, d in ipairs(order) do
             local nextKey = getEdge(current, d)
             local nextCell = nextKey and getCell(nextKey) or nil
-            if nextCell and nextCell.kind == "crop" and not serviced[nextKey] then
+            if nextCell and nextCell.kind == "crop" and
+               not serviced[nextKey] and not isEdgeBlocked(currentKey(), d) then
                 chosenDir = d
                 break
             end
@@ -1027,21 +1124,31 @@ local function farmMappedField()
         if chosenDir ~= nil then
             path = { chosenDir }
         else
-            -- No adjacent crop remains. Take the shortest CONFIRMED route to
-            -- the nearest unserviced crop. BFS guarantees distance comes before
-            -- the straightness preference.
+            -- No adjacent crop remains. Take the shortest currently usable
+            -- confirmed route to the nearest unserviced crop.
             path = nearestUnservicedCropPath()
         end
 
         if not path then
-            abortReason = "saved map cannot reach all crop cells"
+            if hasBlockedEdges() then
+                -- The map itself may still be valid. Some cells are merely
+                -- unreachable through today's temporarily blocked edges.
+                cycleStopReason = "some crop cells temporarily unreachable"
+            else
+                abortReason = "saved map cannot reach all crop cells"
+            end
             break
         end
 
         local ok, moveErr = moveAlongKnownPath(path, true)
         if not ok then
-            abortReason = moveErr
-            break
+            if moveErr == "blocked" then
+                -- Stay on the current known cell and let the loop re-plan while
+                -- excluding the edge that just failed.
+            else
+                abortReason = tostring(moveErr)
+                break
+            end
         end
     end
 
@@ -1054,6 +1161,7 @@ local function farmMappedField()
 
     return abortReason == nil
 end
+
 
 local function isVanillaChestInFront()
     local ok, data = turtle.inspect()
@@ -1167,20 +1275,46 @@ local function printRunStats(runMode)
     if stats.failedPlant > 0 then
         print("Failed plant attempts: " .. tostring(stats.failedPlant))
     end
+    if stats.softFailures > 0 then
+        print("Soft failures this cycle: " .. tostring(stats.softFailures))
+        for _, failure in ipairs(softFailures) do
+            print("  - " .. failure.message)
+        end
+        if stats.softFailures > #softFailures then
+            print("  ... plus " .. tostring(stats.softFailures - #softFailures) .. " more")
+        end
+    end
+    if sessionSoftFailures > 0 then
+        print("Soft failures this session: " .. tostring(sessionSoftFailures))
+    end
 end
 
 local function checkSupplies()
     if not ensureFuel(TARGET_FUEL) then
         print("Not enough fuel")
         print("Target: " .. tostring(TARGET_FUEL))
-        print("Add coal/charcoal/etc. and run again")
         return false
     end
 
     if not selectItem(SEEDS) then
         print("No wheat seeds found")
-        print("Alice needs seeds to farm safely.")
         return false
+    end
+
+    return true
+end
+
+local function waitForSupplies()
+    local retrySeconds = SUPPLY_RETRY_MINUTES * 60
+
+    while not checkSupplies() do
+        print("Alice is safely at HOME.")
+        print("Add fuel/seeds; checking again in " ..
+              tostring(SUPPLY_RETRY_MINUTES) .. " minutes.")
+        print("Hold Ctrl+T to stop automatic farming.")
+        sleep(retrySeconds)
+        print("")
+        print("Rechecking supplies...")
     end
 
     return true
@@ -1235,10 +1369,7 @@ local function runAutoFarm(waitBeforeFirstCycle)
         printRunHeader("auto")
         print("Cycle: " .. tostring(cycle))
 
-        if not checkSupplies() then
-            print("Automatic farming stopped.")
-            return
-        end
+        waitForSupplies()
 
         print("Fuel: " .. tostring(turtle.getFuelLevel()))
         print("Starting farm cycle...")
@@ -1252,7 +1383,9 @@ local function runAutoFarm(waitBeforeFirstCycle)
         print("")
         print("Back HOME")
         if abortReason then
-            print("Stopped early: " .. abortReason)
+            print("Fatal stop: " .. abortReason)
+        elseif cycleStopReason then
+            print("Cycle ended early: " .. cycleStopReason)
         elseif success then
             print("Farm cycle complete")
         end
@@ -1264,7 +1397,7 @@ local function runAutoFarm(waitBeforeFirstCycle)
 
         if abortReason or not success then
             print("")
-            print("Automatic farming stopped; fix the problem and restart.")
+            print("Automatic farming stopped due to a navigation/map safety failure.")
             return
         end
 
@@ -1300,9 +1433,12 @@ if mode == "mapauto" then
 
     printRunHeader("mapauto")
 
-    if not checkSupplies() then
-        return
-    end
+    -- Remember whether a valid old map exists. mapFarm() does not overwrite it
+    -- unless the new mapping completes successfully, so it can be used as a
+    -- fallback if a recoverable mapping problem occurs.
+    local previousMap = loadMap()
+
+    waitForSupplies()
 
     print("Fuel: " .. tostring(turtle.getFuelLevel()))
     print("Mapping once before automatic farming...")
@@ -1313,7 +1449,9 @@ if mode == "mapauto" then
     print("")
     print("Back HOME")
     if abortReason then
-        print("Stopped early: " .. abortReason)
+        print("Mapping stopped: " .. abortReason)
+    elseif cycleStopReason then
+        print("Mapping completed with recoverable issue: " .. cycleStopReason)
     elseif success then
         print("Initial mapping complete")
     end
@@ -1325,8 +1463,13 @@ if mode == "mapauto" then
 
     if abortReason or not success then
         print("")
-        print("Automatic farming NOT started.")
-        print("The previous saved map was not replaced unless mapping succeeded.")
+        print("The new map was not saved.")
+        if previousMap then
+            print("Falling back to the previous valid map and starting auto-farm.")
+            runAutoFarm(false)
+        else
+            print("No previous valid map is available; automatic farming cannot start.")
+        end
         return
     end
 
@@ -1357,7 +1500,9 @@ end
 print("")
 print("Back HOME")
 if abortReason then
-    print("Stopped early: " .. abortReason)
+    print("Fatal stop: " .. abortReason)
+elseif cycleStopReason then
+    print("Stopped early (recoverable): " .. cycleStopReason)
 elseif success then
     print("Run complete")
 end
