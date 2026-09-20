@@ -23,6 +23,11 @@
 --       Alice uses shortest known routes, with straight movement used only as
 --       a tie-breaker/preference among equally close choices.
 --
+--   uneven_wheat auto [period_minutes] [fuel]
+--       Farms immediately, then repeats on a fixed start-to-start period.
+--       Default period is 60 minutes, appropriate for a dense hydrated wheat
+--       field under normal random tick speed. Alice must remain chunk-loaded.
+--
 --   uneven_wheat status
 --       Shows information about the saved map.
 --
@@ -38,6 +43,7 @@ local MAP_VERSION = 3
 
 local DEFAULT_MAX_RADIUS = 20
 local DEFAULT_TARGET_FUEL = 12000
+local DEFAULT_AUTO_PERIOD_MINUTES = 60
 local KEEP_SEEDS = 16
 
 local WHEAT = "minecraft:wheat"
@@ -56,12 +62,16 @@ end
 
 local MAX_RADIUS = DEFAULT_MAX_RADIUS
 local TARGET_FUEL = DEFAULT_TARGET_FUEL
+local AUTO_PERIOD_MINUTES = DEFAULT_AUTO_PERIOD_MINUTES
 
 if mode == "map" then
     MAX_RADIUS = tonumber(args[2]) or DEFAULT_MAX_RADIUS
     TARGET_FUEL = tonumber(args[3]) or DEFAULT_TARGET_FUEL
 elseif mode == "farm" then
     TARGET_FUEL = tonumber(args[2]) or DEFAULT_TARGET_FUEL
+elseif mode == "auto" then
+    AUTO_PERIOD_MINUTES = tonumber(args[2]) or DEFAULT_AUTO_PERIOD_MINUTES
+    TARGET_FUEL = tonumber(args[3]) or DEFAULT_TARGET_FUEL
 end
 
 -- Relative turtle coordinates. HOME is (0, 0, 0), and the direction Alice
@@ -77,15 +87,30 @@ local tried = {}
 local serviced = {}
 local abortReason = nil
 
-local stats = {
-    moves = 0,
-    cellsMapped = 0,
-    cropChecks = 0,
-    harvested = 0,
-    planted = 0,
-    failedPlant = 0,
-    failedHarvest = 0,
-}
+local function newStats()
+    return {
+        moves = 0,
+        cellsMapped = 0,
+        cropChecks = 0,
+        harvested = 0,
+        planted = 0,
+        failedPlant = 0,
+        failedHarvest = 0,
+    }
+end
+
+local stats = newStats()
+
+-- Auto mode runs several farm cycles in one program invocation. Each cycle
+-- starts with Alice physically at HOME and facing the original HOME direction.
+local function resetFarmCycleState()
+    x, y, z = 0, 0, 0
+    dir = 0
+    mapData = nil
+    serviced = {}
+    abortReason = nil
+    stats = newStats()
+end
 
 local function key(px, pz)
     return tostring(px) .. "," .. tostring(pz)
@@ -1096,6 +1121,7 @@ local function printUsage()
     print("Usage:")
     print("  uneven_wheat map [radius] [fuel]")
     print("  uneven_wheat farm [fuel]")
+    print("  uneven_wheat auto [period_minutes] [fuel]")
     print("  uneven_wheat status")
     print("  uneven_wheat reset")
 end
@@ -1111,29 +1137,136 @@ elseif mode == "reset" then
         print("No saved map to delete")
     end
     return
-elseif mode ~= "map" and mode ~= "farm" then
+elseif mode ~= "map" and mode ~= "farm" and mode ~= "auto" then
     printUsage()
     return
 end
 
-term.clear()
-term.setCursorPos(1, 1)
-print("Alice - Uneven Wheat Farmer")
-print("---------------------------")
-print("Mode: " .. mode)
-print("Fuel target: " .. tostring(TARGET_FUEL))
-print("")
-
-if not ensureFuel(TARGET_FUEL) then
-    print("Not enough fuel")
-    print("Target: " .. tostring(TARGET_FUEL))
-    print("Add coal/charcoal/etc. and run again")
-    return
+local function printRunStats(runMode)
+    print("Movement steps: " .. tostring(stats.moves))
+    if runMode == "map" then
+        print("New cells mapped: " .. tostring(stats.cellsMapped))
+    end
+    print("Crop cells checked: " .. tostring(stats.cropChecks))
+    print("Mature wheat harvested: " .. tostring(stats.harvested))
+    print("Seeds planted: " .. tostring(stats.planted))
+    if stats.failedHarvest > 0 then
+        print("Failed harvests: " .. tostring(stats.failedHarvest))
+    end
+    if stats.failedPlant > 0 then
+        print("Failed plant attempts: " .. tostring(stats.failedPlant))
+    end
 end
 
-if not selectItem(SEEDS) then
-    print("No wheat seeds found")
-    print("Alice needs seeds to farm safely.")
+local function checkSupplies()
+    if not ensureFuel(TARGET_FUEL) then
+        print("Not enough fuel")
+        print("Target: " .. tostring(TARGET_FUEL))
+        print("Add coal/charcoal/etc. and run again")
+        return false
+    end
+
+    if not selectItem(SEEDS) then
+        print("No wheat seeds found")
+        print("Alice needs seeds to farm safely.")
+        return false
+    end
+
+    return true
+end
+
+local function printRunHeader(runMode)
+    term.clear()
+    term.setCursorPos(1, 1)
+    print("Alice - Uneven Wheat Farmer")
+    print("---------------------------")
+    print("Mode: " .. runMode)
+    print("Fuel target: " .. tostring(TARGET_FUEL))
+    if runMode == "auto" then
+        print("Farm period: " .. tostring(AUTO_PERIOD_MINUTES) .. " min")
+    end
+    print("")
+end
+
+if mode == "auto" then
+    if AUTO_PERIOD_MINUTES <= 0 then
+        print("period_minutes must be greater than 0")
+        return
+    end
+
+    local data, mapErr = loadMap()
+    if not data then
+        print("Cannot auto-farm: " .. tostring(mapErr))
+        print("Run: uneven_wheat map [radius] [fuel]")
+        return
+    end
+
+    local periodSeconds = AUTO_PERIOD_MINUTES * 60
+    local cycle = 1
+
+    while true do
+        resetFarmCycleState()
+        printRunHeader("auto")
+        print("Cycle: " .. tostring(cycle))
+
+        if not checkSupplies() then
+            print("Automatic farming stopped.")
+            return
+        end
+
+        print("Fuel: " .. tostring(turtle.getFuelLevel()))
+        print("Starting farm cycle...")
+        print("")
+
+        -- os.clock() exists in ComputerCraft 1.75 and measures seconds while
+        -- this computer is running. Subtracting the farm runtime keeps the
+        -- requested period approximately start-to-start instead of adding the
+        -- farm runtime on top of every interval.
+        local cycleStarted = os.clock()
+        local success = farmMappedField()
+
+        print("")
+        print("Back HOME")
+        if abortReason then
+            print("Stopped early: " .. abortReason)
+        elseif success then
+            print("Farm cycle complete")
+        end
+
+        unloadBehind()
+
+        print("")
+        printRunStats("farm")
+
+        if abortReason or not success then
+            print("")
+            print("Automatic farming stopped; fix the problem and restart.")
+            return
+        end
+
+        local elapsed = os.clock() - cycleStarted
+        local waitSeconds = periodSeconds - elapsed
+
+        print("")
+        if waitSeconds > 0 then
+            print(string.format(
+                "Next farm cycle in %.1f minutes.",
+                waitSeconds / 60
+            ))
+            print("Hold Ctrl+T to stop automatic farming.")
+            sleep(waitSeconds)
+        else
+            print("Cycle took longer than the configured period.")
+            print("Starting the next cycle immediately.")
+        end
+
+        cycle = cycle + 1
+    end
+end
+
+printRunHeader(mode)
+
+if not checkSupplies() then
     return
 end
 
@@ -1159,17 +1292,5 @@ end
 unloadBehind()
 
 print("")
-print("Movement steps: " .. tostring(stats.moves))
-if mode == "map" then
-    print("New cells mapped: " .. tostring(stats.cellsMapped))
-end
-print("Crop cells checked: " .. tostring(stats.cropChecks))
-print("Mature wheat harvested: " .. tostring(stats.harvested))
-print("Seeds planted: " .. tostring(stats.planted))
-if stats.failedHarvest > 0 then
-    print("Failed harvests: " .. tostring(stats.failedHarvest))
-end
-if stats.failedPlant > 0 then
-    print("Failed plant attempts: " .. tostring(stats.failedPlant))
-end
+printRunStats(mode)
 print("Done")
