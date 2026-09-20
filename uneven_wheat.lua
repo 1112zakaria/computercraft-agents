@@ -25,8 +25,13 @@
 --
 --   uneven_wheat auto [period_minutes] [fuel]
 --       Farms immediately, then repeats on a fixed start-to-start period.
---       Default period is 60 minutes, appropriate for a dense hydrated wheat
---       field under normal random tick speed. Alice must remain chunk-loaded.
+--       Default period is 60 minutes. Alice must remain chunk-loaded.
+--
+--   uneven_wheat mapauto [radius] [period_minutes] [fuel]
+--       Maps the farm ONCE at startup, saves the new map, then switches to
+--       periodic auto-farming using that saved map. Because mapping already
+--       services the crops, the first automatic farm run waits one full period.
+--       An existing map is only replaced after a successful mapping run.
 --
 --   uneven_wheat status
 --       Shows information about the saved map.
@@ -72,6 +77,10 @@ elseif mode == "farm" then
 elseif mode == "auto" then
     AUTO_PERIOD_MINUTES = tonumber(args[2]) or DEFAULT_AUTO_PERIOD_MINUTES
     TARGET_FUEL = tonumber(args[3]) or DEFAULT_TARGET_FUEL
+elseif mode == "mapauto" then
+    MAX_RADIUS = tonumber(args[2]) or DEFAULT_MAX_RADIUS
+    AUTO_PERIOD_MINUTES = tonumber(args[3]) or DEFAULT_AUTO_PERIOD_MINUTES
+    TARGET_FUEL = tonumber(args[4]) or DEFAULT_TARGET_FUEL
 end
 
 -- Relative turtle coordinates. HOME is (0, 0, 0), and the direction Alice
@@ -107,6 +116,7 @@ local function resetFarmCycleState()
     x, y, z = 0, 0, 0
     dir = 0
     mapData = nil
+    tried = {}
     serviced = {}
     abortReason = nil
     stats = newStats()
@@ -1122,6 +1132,7 @@ local function printUsage()
     print("  uneven_wheat map [radius] [fuel]")
     print("  uneven_wheat farm [fuel]")
     print("  uneven_wheat auto [period_minutes] [fuel]")
+    print("  uneven_wheat mapauto [radius] [period_minutes] [fuel]")
     print("  uneven_wheat status")
     print("  uneven_wheat reset")
 end
@@ -1137,7 +1148,7 @@ elseif mode == "reset" then
         print("No saved map to delete")
     end
     return
-elseif mode ~= "map" and mode ~= "farm" and mode ~= "auto" then
+elseif mode ~= "map" and mode ~= "farm" and mode ~= "auto" and mode ~= "mapauto" then
     printUsage()
     return
 end
@@ -1182,15 +1193,22 @@ local function printRunHeader(runMode)
     print("---------------------------")
     print("Mode: " .. runMode)
     print("Fuel target: " .. tostring(TARGET_FUEL))
-    if runMode == "auto" then
+    if runMode == "auto" or runMode == "mapauto" then
         print("Farm period: " .. tostring(AUTO_PERIOD_MINUTES) .. " min")
     end
     print("")
 end
 
-if mode == "auto" then
+local function validateAutoSettings()
     if AUTO_PERIOD_MINUTES <= 0 then
         print("period_minutes must be greater than 0")
+        return false
+    end
+    return true
+end
+
+local function runAutoFarm(waitBeforeFirstCycle)
+    if not validateAutoSettings() then
         return
     end
 
@@ -1203,6 +1221,14 @@ if mode == "auto" then
 
     local periodSeconds = AUTO_PERIOD_MINUTES * 60
     local cycle = 1
+
+    if waitBeforeFirstCycle then
+        print("")
+        print("Initial mapping already serviced the farm.")
+        print("Next farm cycle in " .. tostring(AUTO_PERIOD_MINUTES) .. " minutes.")
+        print("Hold Ctrl+T to stop automatic farming.")
+        sleep(periodSeconds)
+    end
 
     while true do
         resetFarmCycleState()
@@ -1218,10 +1244,8 @@ if mode == "auto" then
         print("Starting farm cycle...")
         print("")
 
-        -- os.clock() exists in ComputerCraft 1.75 and measures seconds while
-        -- this computer is running. Subtracting the farm runtime keeps the
-        -- requested period approximately start-to-start instead of adding the
-        -- farm runtime on top of every interval.
+        -- Keep the configured period approximately start-to-start: time spent
+        -- farming is subtracted from the wait before the following cycle.
         local cycleStarted = os.clock()
         local success = farmMappedField()
 
@@ -1262,6 +1286,55 @@ if mode == "auto" then
 
         cycle = cycle + 1
     end
+end
+
+if mode == "auto" then
+    runAutoFarm(false)
+    return
+end
+
+if mode == "mapauto" then
+    if not validateAutoSettings() then
+        return
+    end
+
+    printRunHeader("mapauto")
+
+    if not checkSupplies() then
+        return
+    end
+
+    print("Fuel: " .. tostring(turtle.getFuelLevel()))
+    print("Mapping once before automatic farming...")
+    print("")
+
+    local success = mapFarm()
+
+    print("")
+    print("Back HOME")
+    if abortReason then
+        print("Stopped early: " .. abortReason)
+    elseif success then
+        print("Initial mapping complete")
+    end
+
+    unloadBehind()
+
+    print("")
+    printRunStats("map")
+
+    if abortReason or not success then
+        print("")
+        print("Automatic farming NOT started.")
+        print("The previous saved map was not replaced unless mapping succeeded.")
+        return
+    end
+
+    -- mapFarm() already visited/serviced the mapped crop cells, so running a
+    -- normal farm pass immediately would duplicate the same traversal. Wait one
+    -- full configured period, then use only the saved map from then on.
+    runAutoFarm(true)
+    return
 end
 
 printRunHeader(mode)
