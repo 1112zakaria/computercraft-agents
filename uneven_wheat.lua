@@ -55,6 +55,14 @@ local SUPPLY_RETRY_MINUTES = 5
 local MAX_SOFT_FAILURE_DETAILS = 12
 local KEEP_SEEDS = 16
 
+-- Navigation reliability settings. A route edge that fails to move is treated
+-- as a temporary observation, not a permanent map failure. Farming will retry
+-- a fully blocked route set a few times before ending only that cycle, while
+-- HOME recovery keeps reconsidering temporary blocks until a route opens.
+local FARM_ROUTE_RECOVERY_ROUNDS = 3
+local FARM_ROUTE_RECOVERY_DELAY_SECONDS = 2
+local HOME_ROUTE_RECOVERY_MAX_DELAY_SECONDS = 10
+
 local WHEAT = "minecraft:wheat"
 local SEEDS = "minecraft:wheat_seeds"
 local WATER = "minecraft:water"
@@ -892,21 +900,60 @@ local function pathHome()
 
     local homeKey = key(0, 0)
 
-    -- Re-plan if a mapped edge is temporarily blocked. Each failed edge is
-    -- excluded for the rest of this cycle, so this loop cannot keep selecting
-    -- the same obstruction forever.
+    -- blockedEdges contains only temporary movement failures observed during
+    -- this cycle. They must never poison the emergency route HOME. Start HOME
+    -- recovery with the complete saved graph available again.
+    blockedEdges = {}
+
+    local recoveryRound = 0
+
     while currentKey() ~= homeKey or y ~= 0 do
         local path = findShortestPath(function(k)
             return k == homeKey
         end)
 
         if not path then
-            return false
-        end
+            if hasBlockedEdges() then
+                -- Every currently usable route HOME has encountered a temporary
+                -- obstruction. Forget those temporary exclusions, wait briefly
+                -- for mobs/players/transient obstructions to move, and retry.
+                -- Do not terminate the unattended farming program for this.
+                recoveryRound = recoveryRound + 1
 
-        local ok, moveErr = moveAlongKnownPath(path, false)
-        if not ok and moveErr ~= "blocked" then
-            return false
+                print(
+                    "WARNING: HOME routes temporarily blocked; retrying (" ..
+                    tostring(recoveryRound) .. ")"
+                )
+
+                blockedEdges = {}
+                sleep(math.min(
+                    2 * recoveryRound,
+                    HOME_ROUTE_RECOVERY_MAX_DELAY_SECONDS
+                ))
+            else
+                -- With no temporary exclusions at all, failure to find HOME
+                -- means the saved graph itself is disconnected/corrupt. That is
+                -- a genuine map failure rather than a soft movement failure.
+                return false
+            end
+        else
+            local ok, moveErr = moveAlongKnownPath(path, false)
+
+            if not ok then
+                if moveErr == "blocked" then
+                    -- The failed edge has just been temporarily excluded. Loop
+                    -- and try another known route. If that eventually exhausts
+                    -- all routes, the recovery block above clears them and tries
+                    -- again rather than killing Alice's program.
+                    sleep(1)
+                else
+                    return false
+                end
+            else
+                -- Successful progress means an earlier transient problem has
+                -- cleared; restart the backoff for any future obstruction.
+                recoveryRound = 0
+            end
         end
     end
 
@@ -1098,6 +1145,10 @@ local function farmMappedField()
 
     serviceCellOnce(currentKey())
 
+    -- Counts occasions where every currently known route to remaining crops has
+    -- become temporarily excluded. Actual successful movement resets this.
+    local routeRecoveryRounds = 0
+
     while not abortReason and not cycleStopReason and remainingCropCount() > 0 do
         local current = getCell(currentKey())
         if not current then
@@ -1131,23 +1182,47 @@ local function farmMappedField()
 
         if not path then
             if hasBlockedEdges() then
-                -- The map itself may still be valid. Some cells are merely
-                -- unreachable through today's temporarily blocked edges.
-                cycleStopReason = "some crop cells temporarily unreachable"
-            else
-                abortReason = "saved map cannot reach all crop cells"
-            end
-            break
-        end
+                -- A mob/player/transient obstruction may have caused enough
+                -- edges to be blacklisted that the remaining field appears
+                -- unreachable. Reconsider all temporary exclusions a few times
+                -- before ending this cycle. This is never a fatal map failure.
+                routeRecoveryRounds = routeRecoveryRounds + 1
 
-        local ok, moveErr = moveAlongKnownPath(path, true)
-        if not ok then
-            if moveErr == "blocked" then
-                -- Stay on the current known cell and let the loop re-plan while
-                -- excluding the edge that just failed.
+                if routeRecoveryRounds <= FARM_ROUTE_RECOVERY_ROUNDS then
+                    print(
+                        "Temporary route blockage; retrying farm routes (" ..
+                        tostring(routeRecoveryRounds) .. "/" ..
+                        tostring(FARM_ROUTE_RECOVERY_ROUNDS) .. ")"
+                    )
+                    blockedEdges = {}
+                    sleep(FARM_ROUTE_RECOVERY_DELAY_SECONDS)
+                else
+                    cycleStopReason =
+                        "some crop cells temporarily unreachable after retries"
+                    break
+                end
             else
-                abortReason = tostring(moveErr)
+                -- No path exists even without temporary edge exclusions, so the
+                -- saved map itself is inconsistent/disconnected.
+                abortReason = "saved map cannot reach all crop cells"
                 break
+            end
+        else
+            local ok, moveErr = moveAlongKnownPath(path, true)
+            if not ok then
+                if moveErr == "blocked" then
+                    -- Stay on the current known cell and let the loop re-plan
+                    -- while excluding the edge that just failed. Do not count
+                    -- this as fatal; only a completely exhausted route set
+                    -- advances routeRecoveryRounds above.
+                else
+                    abortReason = tostring(moveErr)
+                    break
+                end
+            else
+                -- Any successful route traversal proves useful progress and
+                -- clears the consecutive full-route recovery count.
+                routeRecoveryRounds = 0
             end
         end
     end
