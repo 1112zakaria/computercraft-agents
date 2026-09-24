@@ -661,6 +661,65 @@ local function plantSeed()
     return false, "seed placement failed"
 end
 
+-- A movement used to restore a known position must never be treated like an
+-- ordinary failed route attempt. Once Alice has partially moved during a probe
+-- or an elevation transition, abandoning the rollback would leave her logical
+-- coordinates and the physical turtle position inconsistent. Keep retrying the
+-- required rollback until it succeeds. If Alice is actually out of fuel, try
+-- fuel already in her inventory; otherwise wait for fuel instead of crashing.
+local function retryRequiredMove(description, moveFn)
+    local warned = false
+
+    while true do
+        if moveFn() then
+            if warned then
+                print("Recovered: " .. description)
+            end
+            return true
+        end
+
+        local fuel = turtle.getFuelLevel()
+        if fuel ~= "unlimited" and fuel <= 0 then
+            if not ensureFuel(1) then
+                if not warned then
+                    print("WARNING: " .. description .. " cannot complete: out of fuel")
+                    print("Add fuel to Alice; rollback will keep retrying.")
+                end
+                warned = true
+                sleep(5)
+            else
+                if not warned then
+                    print("WARNING: refueled while recovering " .. description)
+                end
+                warned = true
+                sleep(0.25)
+            end
+        else
+            if not warned then
+                print("WARNING: " .. description .. " temporarily blocked; retrying")
+            end
+            warned = true
+            sleep(0.25)
+        end
+    end
+end
+
+-- Reverse a successful exploration move while preserving Alice's heading.
+-- delta is the candidate cell's cruising Y minus the source cell's cruising Y.
+local function rollbackExplorationMove(delta, description)
+    if delta == 0 then
+        retryRequiredMove(description .. " (back)", rawBack)
+    elseif delta == 1 then
+        retryRequiredMove(description .. " (back)", rawBack)
+        retryRequiredMove(description .. " (down)", rawDown)
+    elseif delta == -1 then
+        retryRequiredMove(description .. " (up)", rawUp)
+        retryRequiredMove(description .. " (back)", rawBack)
+    else
+        error("Invalid exploration rollback elevation: " .. tostring(delta))
+    end
+end
+
 -- Determine what kind of traversable farm cell Alice is currently above.
 --
 -- SAFETY RULE: never descend onto bare farmland merely to inspect it.
@@ -698,16 +757,15 @@ local function classifyCurrentSurface()
 
     -- Seed placement failed, so this is not normal plantable vanilla farmland.
     -- Descend one block only to test for an irrigation-water cell, then return
-    -- immediately to cruising height.
+    -- immediately to cruising height. Once the probe descends, returning upward
+    -- is mandatory and therefore uses the retrying rollback helper.
     if not rawDown() then
         return nil
     end
 
     local groundOk, groundData = turtle.inspectDown()
 
-    if not rawUp() then
-        error("Could not return upward after water probe")
-    end
+    retryRequiredMove("return upward after water probe", rawUp)
 
     if groundOk and isWater(groundData) then
         return "water"
@@ -717,7 +775,9 @@ local function classifyCurrentSurface()
 end
 
 -- Move one horizontal cell while discovering unknown terrain. Alice tests
--- same elevation first, then one block higher, then one block lower.
+-- same elevation first, then one block higher, then one block lower. Any
+-- partially completed failed probe is rolled back persistently so a temporary
+-- obstruction can never strand Alice between known map cells.
 -- Returns: success, verticalDelta, kind
 local function tryNeighborAndClassify()
     local deltas = { 0, 1, -1 }
@@ -734,9 +794,7 @@ local function tryNeighborAndClassify()
                     return true, 0, kind
                 end
 
-                if not rawBack() then
-                    error("Failed to reverse level terrain probe")
-                end
+                rollbackExplorationMove(0, "reverse level terrain probe")
             end
 
         elseif d == 1 then
@@ -747,13 +805,10 @@ local function tryNeighborAndClassify()
                         return true, 1, kind
                     end
 
-                    if not rawBack() then
-                        error("Failed to reverse uphill terrain probe")
-                    end
-                end
-
-                if not rawDown() then
-                    error("Failed to reverse uphill terrain probe")
+                    rollbackExplorationMove(1, "reverse uphill terrain probe")
+                else
+                    -- Alice moved up but never reached the candidate cell.
+                    retryRequiredMove("reverse partial uphill terrain probe", rawDown)
                 end
             end
 
@@ -765,13 +820,10 @@ local function tryNeighborAndClassify()
                         return true, -1, kind
                     end
 
-                    if not rawUp() then
-                        error("Failed to reverse downhill terrain probe")
-                    end
-                end
-
-                if not rawBack() then
-                    error("Failed to reverse downhill terrain probe")
+                    rollbackExplorationMove(-1, "reverse downhill terrain probe")
+                else
+                    -- Alice moved forward but could not descend to the candidate.
+                    retryRequiredMove("reverse partial downhill terrain probe", rawBack)
                 end
             end
         end
@@ -795,9 +847,9 @@ local function moveKnown(delta)
                 if rawForward() then
                     ok = true
                 else
-                    if not rawDown() then
-                        error("Could not undo blocked uphill move")
-                    end
+                    -- The partial uphill move must be undone before this edge
+                    -- can be reported blocked and another route attempted.
+                    retryRequiredMove("undo blocked uphill move", rawDown)
                 end
             end
 
@@ -806,9 +858,9 @@ local function moveKnown(delta)
                 if rawDown() then
                     ok = true
                 else
-                    if not rawBack() then
-                        error("Could not undo blocked downhill move")
-                    end
+                    -- Likewise, once the forward half succeeds Alice must get
+                    -- back to the source cell before pathfinding can continue.
+                    retryRequiredMove("undo blocked downhill move", rawBack)
                 end
             end
 
@@ -1074,7 +1126,30 @@ local function attemptExploreDirection(d)
 
     local target = getCell(targetKey)
     if target and target.y ~= y then
-        error("Vertically overlapping farm surfaces are not supported at " .. targetKey)
+        -- The current map format deliberately has one cell per X/Z coordinate.
+        -- If a probe reaches the same X/Z at a different elevation, that probe
+        -- cannot be represented as another node. This is a local mapping
+        -- irregularity, not a reason to terminate mapauto. Restore the source
+        -- position, leave this direction marked tried, and continue elsewhere.
+        local probedY = y
+        local mappedY = target.y
+
+        rollbackExplorationMove(
+            delta,
+            "reject vertically overlapping surface at " .. targetKey
+        )
+
+        if currentKey() ~= sourceKey or y ~= source.y then
+            error("Vertical-overlap rollback did not restore the source cell")
+        end
+
+        recordSoftFailure(
+            "map_overlap",
+            "skipped vertically overlapping farm surface at " .. targetKey ..
+            " (mapped y=" .. tostring(mappedY) ..
+            ", probed y=" .. tostring(probedY) .. ")"
+        )
+        return false
     end
 
     target = storeCurrentCell(kind, false)
