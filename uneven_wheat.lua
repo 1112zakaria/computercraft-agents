@@ -4,9 +4,10 @@
 -- Alice's uneven-terrain wheat farmer.
 --
 -- Setup:
---   * Put Alice at the same HOME position every run.
---   * Alice must face the same direction every run. That direction is "north"
---     for the saved relative map.
+--   * Start NEW map/farm/auto commands from the same HOME position every run.
+--   * For a NEW command Alice must face the same direction. That direction is
+--     "north" for the saved relative map. A crash resume restores position and
+--     heading from the recovery journal instead of assuming Alice is at HOME.
 --   * Normal cruising height is one block above the wheat crop itself
 --     (two blocks above farmland).
 --   * Put a vanilla chest directly BEHIND Alice at HOME, at turtle height.
@@ -35,18 +36,35 @@
 --       services the crops, the first automatic farm run waits one full period.
 --       An existing map is only replaced after a successful mapping run.
 --
+--   uneven_wheat resume
+--       Resumes an interrupted farm/auto job from uneven_wheat.state.
+--       A ComputerCraft startup program can call this after a server restart.
+--
+--   uneven_wheat stop
+--       Clears crash-recovery state so a deliberately stopped auto job will
+--       not resume on the next reboot. Does not delete the farm map.
+--
 --   uneven_wheat status
---       Shows information about the saved map.
+--       Shows information about the saved map and crash-recovery state.
 --
 --   uneven_wheat reset
---       Deletes the saved map.
+--       Deletes the saved map and crash-recovery state.
 --
--- With no command, Alice maps if no map exists, otherwise she farms.
+-- With no command, Alice resumes an interrupted job if recovery state exists;
+-- otherwise she maps if no map exists, or farms if a map already exists.
 
 local args = { ... }
 
 local MAP_FILE = "uneven_wheat.map"
 local MAP_VERSION = 3
+
+-- Crash-recovery journal. The primary, temp, and backup files are all checked
+-- on startup; the newest valid generation wins. This makes checkpoint writes
+-- tolerant of a server stopping in the middle of a file rotation.
+local STATE_FILE = "uneven_wheat.state"
+local STATE_TMP_FILE = "uneven_wheat.state.tmp"
+local STATE_BACKUP_FILE = "uneven_wheat.state.bak"
+local STATE_VERSION = 1
 
 local DEFAULT_MAX_RADIUS = 20
 local DEFAULT_TARGET_FUEL = 12000
@@ -70,7 +88,10 @@ local FLOWING_WATER = "minecraft:flowing_water"
 
 local mode = string.lower(args[1] or "")
 if mode == "" then
-    if fs.exists(MAP_FILE) then
+    if fs.exists(STATE_FILE) or fs.exists(STATE_TMP_FILE) or
+       fs.exists(STATE_BACKUP_FILE) then
+        mode = "resume"
+    elseif fs.exists(MAP_FILE) then
         mode = "farm"
     else
         mode = "map"
@@ -112,6 +133,21 @@ local cycleStopReason = nil   -- recoverable: return HOME, then keep scheduler a
 local softFailures = {}
 local sessionSoftFailures = 0
 
+-- Persistent job state is intentionally separate from the permanent farm map.
+-- Only normal saved-map farming (farm/auto) is crash-resumable. Initial mapping
+-- remains a HOME-start operation; mapauto becomes resumable once mapping has
+-- completed and it transitions into normal auto farming.
+local checkpointSeq = 0
+local runtime = {
+    active = false,
+    jobMode = nil,
+    phase = nil,
+    cycle = 1,
+    pendingMove = nil,
+    pendingTurn = nil,
+    pendingEdge = nil,
+}
+
 local function newStats()
     return {
         moves = 0,
@@ -126,6 +162,254 @@ local function newStats()
 end
 
 local stats = newStats()
+
+local function deleteIfExists(path)
+    if fs.exists(path) then
+        fs.delete(path)
+    end
+end
+
+local function readRecoveryFile(path)
+    if not fs.exists(path) then
+        return nil
+    end
+
+    local h = fs.open(path, "r")
+    if not h then
+        return nil
+    end
+
+    local raw = h.readAll()
+    h.close()
+
+    local data = textutils.unserialize(raw)
+    if type(data) ~= "table" or data.version ~= STATE_VERSION then
+        return nil
+    end
+
+    return data
+end
+
+local function loadRecoveryState()
+    local best = nil
+    local files = { STATE_FILE, STATE_TMP_FILE, STATE_BACKUP_FILE }
+
+    for _, path in ipairs(files) do
+        local data = readRecoveryFile(path)
+        if data then
+            local seq = tonumber(data.seq) or 0
+            local bestSeq = best and (tonumber(best.seq) or 0) or -1
+            if not best or seq > bestSeq then
+                best = data
+            end
+        end
+    end
+
+    return best
+end
+
+local function recoveryStateExists()
+    return fs.exists(STATE_FILE) or fs.exists(STATE_TMP_FILE) or
+           fs.exists(STATE_BACKUP_FILE)
+end
+
+local function writeRecoverySnapshot(snapshot)
+    deleteIfExists(STATE_TMP_FILE)
+
+    local h = fs.open(STATE_TMP_FILE, "w")
+    if not h then
+        error("Could not open " .. STATE_TMP_FILE .. " for writing")
+    end
+
+    h.write(textutils.serialize(snapshot))
+    h.close()
+
+    -- Rotate only after a complete temp file exists. If the server stops during
+    -- rotation, loadRecoveryState() will choose the newest valid generation.
+    deleteIfExists(STATE_BACKUP_FILE)
+    if fs.exists(STATE_FILE) then
+        fs.move(STATE_FILE, STATE_BACKUP_FILE)
+    end
+    fs.move(STATE_TMP_FILE, STATE_FILE)
+end
+
+local function checkpointState()
+    if not runtime.active then
+        return
+    end
+
+    checkpointSeq = checkpointSeq + 1
+
+    writeRecoverySnapshot({
+        version = STATE_VERSION,
+        seq = checkpointSeq,
+        active = true,
+        jobMode = runtime.jobMode,
+        phase = runtime.phase,
+        cycle = runtime.cycle,
+        x = x,
+        y = y,
+        z = z,
+        dir = dir,
+        maxRadius = MAX_RADIUS,
+        targetFuel = TARGET_FUEL,
+        autoPeriodMinutes = AUTO_PERIOD_MINUTES,
+        serviced = serviced,
+        pendingMove = runtime.pendingMove,
+        pendingTurn = runtime.pendingTurn,
+        pendingEdge = runtime.pendingEdge,
+        -- Reserved so future GPS support can verify/replace this source without
+        -- changing the rest of the recovery format. No GPS logic exists yet.
+        positionSource = "checkpoint",
+    })
+end
+
+local function clearRecoveryState()
+    runtime.active = false
+    runtime.pendingMove = nil
+    runtime.pendingTurn = nil
+    runtime.pendingEdge = nil
+    deleteIfExists(STATE_FILE)
+    deleteIfExists(STATE_TMP_FILE)
+    deleteIfExists(STATE_BACKUP_FILE)
+end
+
+local function startRuntime(jobMode, phase, cycle)
+    runtime.active = true
+    runtime.jobMode = jobMode
+    runtime.phase = phase
+    runtime.cycle = cycle or 1
+    runtime.pendingMove = nil
+    runtime.pendingTurn = nil
+    runtime.pendingEdge = nil
+    checkpointState()
+end
+
+local function setRuntimePhase(phase)
+    if not runtime.active then
+        return
+    end
+    runtime.phase = phase
+    checkpointState()
+end
+
+local function beginTurnCheckpoint(kind, targetDir)
+    if not runtime.active then
+        return
+    end
+
+    runtime.pendingTurn = {
+        kind = kind,
+        fromDir = dir,
+        targetDir = targetDir,
+    }
+    checkpointState()
+end
+
+local function finishTurnCheckpoint()
+    if not runtime.active then
+        return
+    end
+    runtime.pendingTurn = nil
+    checkpointState()
+end
+
+local function beginMovementCheckpoint(kind)
+    if not runtime.active then
+        return
+    end
+
+    runtime.pendingMove = {
+        kind = kind,
+        x = x,
+        y = y,
+        z = z,
+        dir = dir,
+        fuelBefore = turtle.getFuelLevel(),
+    }
+    checkpointState()
+end
+
+local function finishMovementCheckpoint()
+    if not runtime.active then
+        return
+    end
+    runtime.pendingMove = nil
+    checkpointState()
+end
+
+local function beginEdgeCheckpoint(sourceKey, targetKey, d, delta, source, target)
+    if not runtime.active then
+        return
+    end
+
+    runtime.pendingEdge = {
+        sourceKey = sourceKey,
+        targetKey = targetKey,
+        dir = d,
+        delta = delta,
+        source = { x = source.x, y = source.y, z = source.z },
+        target = { x = target.x, y = target.y, z = target.z },
+    }
+    checkpointState()
+end
+
+local function finishEdgeCheckpoint()
+    if not runtime.active then
+        return
+    end
+    runtime.pendingEdge = nil
+    checkpointState()
+end
+
+-- A physical turtle move consumes exactly one fuel when fuel is enabled. The
+-- pending-move journal lets startup distinguish "the move never happened" from
+-- "the move happened but the post-move checkpoint never reached disk". This
+-- closes the most dangerous crash window without needing GPS.
+local function recoverPendingMoveRecord(state)
+    local pending = state.pendingMove
+    if type(pending) ~= "table" then
+        return true, nil
+    end
+
+    local before = pending.fuelBefore
+    local now = turtle.getFuelLevel()
+
+    if type(before) ~= "number" or type(now) ~= "number" then
+        return false,
+            "cannot resolve an interrupted physical move because fuel is unlimited/non-numeric"
+    end
+
+    local used = before - now
+    if used ~= 0 and used ~= 1 then
+        return false,
+            "cannot resolve interrupted move: fuel changed by " .. tostring(used)
+    end
+
+    state.x = tonumber(pending.x) or state.x
+    state.y = tonumber(pending.y) or state.y
+    state.z = tonumber(pending.z) or state.z
+    state.dir = tonumber(pending.dir) or state.dir
+
+    if used == 1 then
+        if pending.kind == "forward" then
+            state.x = state.x + DX[state.dir]
+            state.z = state.z + DZ[state.dir]
+        elseif pending.kind == "back" then
+            state.x = state.x - DX[state.dir]
+            state.z = state.z - DZ[state.dir]
+        elseif pending.kind == "up" then
+            state.y = state.y + 1
+        elseif pending.kind == "down" then
+            state.y = state.y - 1
+        else
+            return false, "unknown interrupted move type: " .. tostring(pending.kind)
+        end
+    end
+
+    state.pendingMove = nil
+    return true, used == 1 and "completed" or "not completed"
+end
 
 local function recordSoftFailure(kind, message)
     stats.softFailures = stats.softFailures + 1
@@ -200,51 +484,69 @@ local function preferredDirs(heading)
 end
 
 local function rawForward()
+    beginMovementCheckpoint("forward")
     if turtle.forward() then
         x = x + DX[dir]
         z = z + DZ[dir]
         stats.moves = stats.moves + 1
+        finishMovementCheckpoint()
         return true
     end
+    finishMovementCheckpoint()
     return false
 end
 
 local function rawBack()
+    beginMovementCheckpoint("back")
     if turtle.back() then
         x = x - DX[dir]
         z = z - DZ[dir]
         stats.moves = stats.moves + 1
+        finishMovementCheckpoint()
         return true
     end
+    finishMovementCheckpoint()
     return false
 end
 
 local function rawUp()
+    beginMovementCheckpoint("up")
     if turtle.up() then
         y = y + 1
         stats.moves = stats.moves + 1
+        finishMovementCheckpoint()
         return true
     end
+    finishMovementCheckpoint()
     return false
 end
 
 local function rawDown()
+    beginMovementCheckpoint("down")
     if turtle.down() then
         y = y - 1
         stats.moves = stats.moves + 1
+        finishMovementCheckpoint()
         return true
     end
+    finishMovementCheckpoint()
     return false
 end
 
 local function turnLeft()
+    local targetDir = (dir + 3) % 4
+    beginTurnCheckpoint("left", targetDir)
     turtle.turnLeft()
-    dir = (dir + 3) % 4
+    dir = targetDir
+    finishTurnCheckpoint()
 end
 
 local function turnRight()
+    local targetDir = (dir + 1) % 4
+    beginTurnCheckpoint("right", targetDir)
     turtle.turnRight()
-    dir = (dir + 1) % 4
+    dir = targetDir
+    finishTurnCheckpoint()
 end
 
 local function turnTo(target)
@@ -624,12 +926,23 @@ local function serviceCellOnce(k)
         return
     end
 
-    serviced[k] = true
-
     local cell = mapData and mapData.cells and mapData.cells[k]
     if cell and cell.kind == "crop" then
         serviceCurrentCrop()
+
+        -- Supply/inventory stops are intentionally NOT marked serviced. If the
+        -- server stops or Alice returns HOME for supplies, this crop is retried.
+        if abortReason or cycleStopReason then
+            checkpointState()
+            return
+        end
     end
+
+    -- Mark only after the cell action is complete. If the server dies after a
+    -- harvest but before replanting, resume sees this cell as unfinished and
+    -- repairs the empty farmland before moving on.
+    serviced[k] = true
+    checkpointState()
 end
 
 local function getCell(k)
@@ -865,10 +1178,13 @@ local function moveAlongKnownPath(path, doService)
         end
 
         turnTo(d)
+        beginEdgeCheckpoint(sourceKey, targetKey, d, delta, source, target)
+
         if not moveKnown(delta) then
             -- moveKnown only returns false after repeated attempts while Alice
             -- remains on the original mapped cell. Temporarily exclude this edge
             -- and let the caller re-plan through another known route.
+            finishEdgeCheckpoint()
             markEdgeBlocked(sourceKey, d, targetKey)
             recordSoftFailure(
                 "route",
@@ -880,6 +1196,8 @@ local function moveAlongKnownPath(path, doService)
         if currentKey() ~= targetKey or y ~= target.y then
             error("Known-path coordinate mismatch")
         end
+
+        finishEdgeCheckpoint()
 
         if doService then
             serviceCellOnce(targetKey)
@@ -1125,7 +1443,7 @@ local function remainingCropCount()
     return n
 end
 
-local function farmMappedField()
+local function farmMappedField(resuming)
     local data, err = loadMap()
     if not data then
         print("Cannot farm: " .. tostring(err))
@@ -1140,9 +1458,20 @@ local function farmMappedField()
     print("Loaded map: " .. tostring(total) .. " cells")
     print("Crop cells: " .. tostring(crops))
     print("Water cells: " .. tostring(water))
-    print("Remember: same HOME position and facing.")
+    if resuming then
+        print("Resuming saved cycle at " .. currentKey() ..
+              " y=" .. tostring(y) .. " dir=" .. tostring(dir))
+    else
+        print("Remember: same HOME position and facing.")
+    end
     print("")
 
+    local here = getCell(currentKey())
+    if not here or here.y ~= y then
+        error("Saved recovery position is not a cruising cell in the farm map")
+    end
+
+    setRuntimePhase("farming")
     serviceCellOnce(currentKey())
 
     -- Counts occasions where every currently known route to remaining crops has
@@ -1229,6 +1558,7 @@ local function farmMappedField()
 
     print("")
     print("Returning HOME...")
+    setRuntimePhase("returning_home")
 
     if not pathHome() then
         error("Could not return HOME using the saved map")
@@ -1308,6 +1638,30 @@ local function printStatus()
     print("Mapped cells: " .. tostring(total))
     print("Crop cells: " .. tostring(crops))
     print("Water cells: " .. tostring(water))
+
+    local recovery = loadRecoveryState()
+    if recovery and recovery.active then
+        print("")
+        print("Crash recovery: ACTIVE")
+        print("Job: " .. tostring(recovery.jobMode))
+        print("Phase: " .. tostring(recovery.phase))
+        print("Cycle: " .. tostring(recovery.cycle or 1))
+        print("Position: " .. tostring(recovery.x) .. "," ..
+              tostring(recovery.y) .. "," .. tostring(recovery.z))
+        print("Direction: " .. tostring(recovery.dir))
+        if recovery.pendingMove then
+            print("Pending physical move journal present")
+        end
+        if recovery.pendingTurn then
+            print("Pending turn journal present")
+        end
+        if recovery.pendingEdge then
+            print("Pending mapped-edge transaction present")
+        end
+    else
+        print("")
+        print("Crash recovery: inactive")
+    end
 end
 
 local function printUsage()
@@ -1316,6 +1670,8 @@ local function printUsage()
     print("  uneven_wheat farm [fuel]")
     print("  uneven_wheat auto [period_minutes] [fuel]")
     print("  uneven_wheat mapauto [radius] [period_minutes] [fuel]")
+    print("  uneven_wheat resume")
+    print("  uneven_wheat stop")
     print("  uneven_wheat status")
     print("  uneven_wheat reset")
 end
@@ -1323,7 +1679,17 @@ end
 if mode == "status" then
     printStatus()
     return
+elseif mode == "stop" then
+    if recoveryStateExists() then
+        clearRecoveryState()
+        print("Cleared crash-recovery state")
+        print("Alice will not auto-resume this job on reboot")
+    else
+        print("No crash-recovery state to clear")
+    end
+    return
 elseif mode == "reset" then
+    clearRecoveryState()
     if fs.exists(MAP_FILE) then
         fs.delete(MAP_FILE)
         print("Deleted " .. MAP_FILE)
@@ -1331,7 +1697,8 @@ elseif mode == "reset" then
         print("No saved map to delete")
     end
     return
-elseif mode ~= "map" and mode ~= "farm" and mode ~= "auto" and mode ~= "mapauto" then
+elseif mode ~= "map" and mode ~= "farm" and mode ~= "auto" and
+       mode ~= "mapauto" and mode ~= "resume" then
     printUsage()
     return
 end
@@ -1416,7 +1783,7 @@ local function validateAutoSettings()
     return true
 end
 
-local function runAutoFarm(waitBeforeFirstCycle)
+local function runAutoFarm(waitBeforeFirstCycle, startingCycle)
     if not validateAutoSettings() then
         return
     end
@@ -1425,13 +1792,27 @@ local function runAutoFarm(waitBeforeFirstCycle)
     if not data then
         print("Cannot auto-farm: " .. tostring(mapErr))
         print("Run: uneven_wheat map [radius] [fuel]")
+        clearRecoveryState()
         return
     end
 
     local periodSeconds = AUTO_PERIOD_MINUTES * 60
-    local cycle = 1
+    local cycle = startingCycle or 1
+
+    if not runtime.active then
+        -- At entry Alice must physically be HOME and facing the original HOME
+        -- direction. Subsequent cycles preserve that invariant themselves.
+        startRuntime("auto", waitBeforeFirstCycle and "waiting" or
+                     "waiting_supplies", cycle)
+    else
+        runtime.jobMode = "auto"
+        runtime.cycle = cycle
+        checkpointState()
+    end
 
     if waitBeforeFirstCycle then
+        runtime.cycle = cycle
+        setRuntimePhase("waiting")
         print("")
         print("Initial mapping already serviced the farm.")
         print("Next farm cycle in " .. tostring(AUTO_PERIOD_MINUTES) .. " minutes.")
@@ -1441,6 +1822,9 @@ local function runAutoFarm(waitBeforeFirstCycle)
 
     while true do
         resetFarmCycleState()
+        runtime.cycle = cycle
+        setRuntimePhase("waiting_supplies")
+
         printRunHeader("auto")
         print("Cycle: " .. tostring(cycle))
 
@@ -1450,10 +1834,11 @@ local function runAutoFarm(waitBeforeFirstCycle)
         print("Starting farm cycle...")
         print("")
 
-        -- Keep the configured period approximately start-to-start: time spent
-        -- farming is subtracted from the wait before the following cycle.
+        -- Keep the configured period approximately start-to-start during normal
+        -- uninterrupted operation. After a reboot, waiting resumes immediately
+        -- rather than attempting to reconstruct wall-clock downtime.
         local cycleStarted = os.clock()
-        local success = farmMappedField()
+        local success = farmMappedField(false)
 
         print("")
         print("Back HOME")
@@ -1465,6 +1850,7 @@ local function runAutoFarm(waitBeforeFirstCycle)
             print("Farm cycle complete")
         end
 
+        setRuntimePhase("unloading")
         unloadBehind()
 
         print("")
@@ -1473,11 +1859,16 @@ local function runAutoFarm(waitBeforeFirstCycle)
         if abortReason or not success then
             print("")
             print("Automatic farming stopped due to a navigation/map safety failure.")
+            clearRecoveryState()
             return
         end
 
         local elapsed = os.clock() - cycleStarted
         local waitSeconds = periodSeconds - elapsed
+
+        cycle = cycle + 1
+        runtime.cycle = cycle
+        setRuntimePhase("waiting")
 
         print("")
         if waitSeconds > 0 then
@@ -1491,13 +1882,282 @@ local function runAutoFarm(waitBeforeFirstCycle)
             print("Cycle took longer than the configured period.")
             print("Starting the next cycle immediately.")
         end
-
-        cycle = cycle + 1
     end
 end
 
+
+-- Normalize a crash that occurred between the two physical moves of an uneven
+-- mapped edge. The raw-move journal restores the exact intermediate coordinate;
+-- this routine safely backs out to the known source cell and lets pathfinding
+-- retry the edge normally. If the edge had already completed, it simply accepts
+-- the target cell. This is deliberately map-based and contains no GPS logic.
+local function normalizePendingEdgeAfterResume()
+    local edge = runtime.pendingEdge
+    if type(edge) ~= "table" then
+        return true
+    end
+
+    local source = edge.source
+    local target = edge.target
+    if type(source) ~= "table" or type(target) ~= "table" then
+        return false, "recovery journal has an invalid pending edge"
+    end
+
+    local function at(px, py, pz)
+        return x == px and y == py and z == pz
+    end
+
+    if at(target.x, target.y, target.z) then
+        print("Recovered completed mapped edge to " .. tostring(edge.targetKey))
+        finishEdgeCheckpoint()
+        return true
+    end
+
+    if at(source.x, source.y, source.z) then
+        print("Recovered mapped edge at its source; route will be retried")
+        finishEdgeCheckpoint()
+        return true
+    end
+
+    turnTo(tonumber(edge.dir) or dir)
+
+    if tonumber(edge.delta) == 1 and
+       at(source.x, source.y + 1, source.z) then
+        print("Recovering interrupted uphill edge back to source...")
+        for attempt = 1, 20 do
+            if rawDown() then
+                finishEdgeCheckpoint()
+                return true
+            end
+            sleep(0.25)
+        end
+        return false, "could not back out of interrupted uphill edge"
+    end
+
+    if tonumber(edge.delta) == -1 and
+       at(target.x, source.y, target.z) then
+        print("Recovering interrupted downhill edge back to source...")
+        for attempt = 1, 20 do
+            if rawBack() then
+                finishEdgeCheckpoint()
+                return true
+            end
+            sleep(0.25)
+        end
+        return false, "could not back out of interrupted downhill edge"
+    end
+
+    return false,
+        "saved position does not match the interrupted mapped-edge transaction"
+end
+
+local function restoreRuntimeFromRecovery(state)
+    if not state or not state.active then
+        return false, "no active crash-recovery state"
+    end
+
+    if state.jobMode ~= "farm" and state.jobMode ~= "auto" then
+        return false, "unsupported recovery job: " .. tostring(state.jobMode)
+    end
+
+    -- Without GPS (or another absolute heading sensor) there is no reliable way
+    -- to tell whether a server stopped immediately before or immediately after a
+    -- turtle turn. Detect that tiny ambiguous window and stop safely instead of
+    -- guessing a heading and corrupting the map-relative position. Future GPS
+    -- support can resolve this journal entry automatically.
+    if type(state.pendingTurn) == "table" then
+        return false,
+            "server stopped during a turn; heading is ambiguous until GPS support is added"
+    end
+
+    local ok, moveResult = recoverPendingMoveRecord(state)
+    if not ok then
+        return false, moveResult
+    end
+
+    if moveResult then
+        print("Interrupted physical move was " .. moveResult .. ".")
+    end
+
+    x = tonumber(state.x) or 0
+    y = tonumber(state.y) or 0
+    z = tonumber(state.z) or 0
+    dir = tonumber(state.dir) or 0
+    MAX_RADIUS = tonumber(state.maxRadius) or DEFAULT_MAX_RADIUS
+    TARGET_FUEL = tonumber(state.targetFuel) or DEFAULT_TARGET_FUEL
+    AUTO_PERIOD_MINUTES = tonumber(state.autoPeriodMinutes) or
+                          DEFAULT_AUTO_PERIOD_MINUTES
+    serviced = type(state.serviced) == "table" and state.serviced or {}
+    blockedEdges = {}
+    tried = {}
+    abortReason = nil
+    cycleStopReason = nil
+    softFailures = {}
+    stats = newStats()
+
+    checkpointSeq = tonumber(state.seq) or 0
+    runtime.active = true
+    runtime.jobMode = state.jobMode
+    runtime.phase = state.phase or "farming"
+    runtime.cycle = tonumber(state.cycle) or 1
+    runtime.pendingMove = nil
+    runtime.pendingTurn = nil
+    runtime.pendingEdge = state.pendingEdge
+
+    local data, mapErr = loadMap()
+    if not data then
+        return false, "cannot resume without a valid map: " .. tostring(mapErr)
+    end
+    mapData = data
+    MAX_RADIUS = mapData.radius or MAX_RADIUS
+
+    -- Write the resolved pending-move result before any further movement.
+    checkpointState()
+
+    local edgeOk, edgeErr = normalizePendingEdgeAfterResume()
+    if not edgeOk then
+        return false, edgeErr
+    end
+
+    local here = getCell(currentKey())
+    if not here or here.y ~= y then
+        return false,
+            "saved position " .. currentKey() .. " y=" .. tostring(y) ..
+            " is not a cruising cell in the saved map"
+    end
+
+    return true
+end
+
+local function finishRecoveredCycleAndContinue()
+    print("")
+    print("Back HOME after crash recovery")
+    setRuntimePhase("unloading")
+    unloadBehind()
+    printRunStats("farm")
+
+    if runtime.jobMode == "farm" then
+        clearRecoveryState()
+        print("Recovered farm run complete")
+        return
+    end
+
+    local nextCycle = (runtime.cycle or 1) + 1
+    runtime.cycle = nextCycle
+    setRuntimePhase("waiting")
+
+    print("")
+    print("Recovered cycle complete.")
+    print("Next farm cycle in " .. tostring(AUTO_PERIOD_MINUTES) .. " minutes.")
+    print("Hold Ctrl+T to stop automatic farming.")
+    sleep(AUTO_PERIOD_MINUTES * 60)
+
+    runAutoFarm(false, nextCycle)
+end
+
+local function resumeInterruptedJob()
+    local state = loadRecoveryState()
+    if not state or not state.active then
+        print("No active Alice farming job to resume")
+        return
+    end
+
+    printRunHeader("resume")
+    print("Restoring " .. tostring(state.jobMode) ..
+          " job, phase=" .. tostring(state.phase) ..
+          ", cycle=" .. tostring(state.cycle or 1))
+
+    local ok, err = restoreRuntimeFromRecovery(state)
+    if not ok then
+        print("")
+        print("RECOVERY STOPPED SAFELY")
+        print(tostring(err))
+        print("Recovery state was preserved for diagnosis.")
+        return
+    end
+
+    print("Recovered position: " .. currentKey() ..
+          " y=" .. tostring(y) .. " dir=" .. tostring(dir))
+
+    local phase = runtime.phase
+
+    if phase == "farming" then
+        print("Continuing interrupted farming cycle...")
+        local success = farmMappedField(true)
+        if not success or abortReason then
+            print("Recovery encountered a fatal map/navigation failure.")
+            clearRecoveryState()
+            return
+        end
+        finishRecoveredCycleAndContinue()
+        return
+    end
+
+    if phase == "returning_home" then
+        print("Continuing interrupted return HOME...")
+        if not pathHome() then
+            print("Could not recover a route HOME from the saved map")
+            return
+        end
+        finishRecoveredCycleAndContinue()
+        return
+    end
+
+    if phase == "unloading" then
+        if currentKey() ~= key(0, 0) or y ~= 0 then
+            print("Unload recovery was not at HOME; returning HOME first...")
+            setRuntimePhase("returning_home")
+            if not pathHome() then
+                print("Could not recover a route HOME from the saved map")
+                return
+            end
+        end
+        finishRecoveredCycleAndContinue()
+        return
+    end
+
+    if phase == "waiting" or phase == "waiting_supplies" then
+        if currentKey() ~= key(0, 0) or y ~= 0 then
+            print("Saved waiting phase was away from HOME; returning HOME first...")
+            setRuntimePhase("returning_home")
+            if not pathHome() then
+                print("Could not recover a route HOME from the saved map")
+                return
+            end
+        end
+
+        if runtime.jobMode == "farm" then
+            -- A one-shot farm job normally never waits. Treat this conservatively
+            -- as an unfinished farm cycle and restart it immediately from HOME.
+            serviced = {}
+            setRuntimePhase("farming")
+            local success = farmMappedField(false)
+            if success and not abortReason then
+                finishRecoveredCycleAndContinue()
+            end
+            return
+        end
+
+        print("Server restarted while Alice was waiting at HOME.")
+        print("Starting the saved auto cycle immediately.")
+        runAutoFarm(false, runtime.cycle or 1)
+        return
+    end
+
+    print("Unknown recovery phase: " .. tostring(phase))
+    print("Recovery state was preserved.")
+end
+
+if mode == "resume" then
+    resumeInterruptedJob()
+    return
+end
+
 if mode == "auto" then
-    runAutoFarm(false)
+    -- A fresh auto command is a new job. If an old recovery journal exists,
+    -- replace it only because the user explicitly issued a new auto command.
+    clearRecoveryState()
+    runAutoFarm(false, 1)
     return
 end
 
@@ -1541,7 +2201,8 @@ if mode == "mapauto" then
         print("The new map was not saved.")
         if previousMap then
             print("Falling back to the previous valid map and starting auto-farm.")
-            runAutoFarm(false)
+            clearRecoveryState()
+            runAutoFarm(false, 1)
         else
             print("No previous valid map is available; automatic farming cannot start.")
         end
@@ -1551,7 +2212,8 @@ if mode == "mapauto" then
     -- mapFarm() already visited/serviced the mapped crop cells, so running a
     -- normal farm pass immediately would duplicate the same traversal. Wait one
     -- full configured period, then use only the saved map from then on.
-    runAutoFarm(true)
+    clearRecoveryState()
+    runAutoFarm(true, 1)
     return
 end
 
@@ -1569,7 +2231,12 @@ local success
 if mode == "map" then
     success = mapFarm()
 else
-    success = farmMappedField()
+    -- A one-shot farm is resumable too. Mapping itself is intentionally not
+    -- journaled because a crash can occur while Alice is probing an unknown cell;
+    -- future GPS support can make that safe without guessing.
+    clearRecoveryState()
+    startRuntime("farm", "farming", 1)
+    success = farmMappedField(false)
 end
 
 print("")
@@ -1582,8 +2249,16 @@ elseif success then
     print("Run complete")
 end
 
+if mode == "farm" and runtime.active then
+    setRuntimePhase("unloading")
+end
 unloadBehind()
 
 print("")
 printRunStats(mode)
+
+if mode == "farm" and runtime.active then
+    clearRecoveryState()
+end
+
 print("Done")

@@ -1,0 +1,14 @@
+-- Alice crash-recovery startup
+-- ComputerCraft 1.75 / Minecraft 1.7.10
+--
+-- If uneven_wheat has an active/recoverable journal, ask it to resume. If no
+-- journal exists, leave Alice at the normal CraftOS prompt.
+
+local hasRecovery = fs.exists("uneven_wheat.state") or
+                    fs.exists("uneven_wheat.state.tmp") or
+                    fs.exists("uneven_wheat.state.bak")
+
+if hasRecovery then
+    print("Alice: recovery state detected; resuming wheat farmer...")
+    shell.run("uneven_wheat", "resume")
+end
