@@ -1,5 +1,13 @@
 local M = {}
 
+local function normalize_item_key(item_key)
+  local normalized = string.lower(item_key)
+  if string.find(normalized, ":", 1, true) then
+    return normalized
+  end
+  return "minecraft:" .. normalized
+end
+
 local function is_reserved(reserved_slots, slot)
   return reserved_slots[slot] == true or reserved_slots[tostring(slot)] == true
 end
@@ -10,6 +18,13 @@ local function total_count(api)
     total = total + (api.getItemCount(slot) or 0)
   end
   return total
+end
+
+local function stack_capacity(detail)
+  if detail and type(detail.maxCount) == "number" and detail.maxCount >= 1 then
+    return detail.maxCount
+  end
+  return 64
 end
 
 function M.new(api, config, cancellation)
@@ -54,6 +69,7 @@ function M.new(api, config, cancellation)
   end
 
   function inventory:count(item_key)
+    item_key = normalize_item_key(item_key)
     local total = 0
     for slot = 1, 16 do
       if not is_reserved(self.reserved_slots, slot) and self.api.getItemDetail then
@@ -66,7 +82,37 @@ function M.new(api, config, cancellation)
     return total
   end
 
+  function inventory:free_slots()
+    local free = 0
+    for slot = 1, 16 do
+      if not is_reserved(self.reserved_slots, slot) and (self.api.getItemCount(slot) or 0) == 0 then
+        free = free + 1
+      end
+    end
+    return free
+  end
+
+  function inventory:free_capacity(item_key)
+    item_key = normalize_item_key(item_key)
+    local free = 0
+    for slot = 1, 16 do
+      if not is_reserved(self.reserved_slots, slot) then
+        local count = self.api.getItemCount(slot) or 0
+        if count == 0 then
+          free = free + 64
+        elseif self.api.getItemDetail then
+          local detail = self.api.getItemDetail(slot)
+          if detail and detail.name == item_key then
+            free = free + math.max(0, stack_capacity(detail) - count)
+          end
+        end
+      end
+    end
+    return free
+  end
+
   function inventory:find(item_key, minimum)
+    item_key = normalize_item_key(item_key)
     local needed = minimum or 1
     for slot = 1, 16 do
       if not is_reserved(self.reserved_slots, slot) and self.api.getItemDetail then
@@ -115,20 +161,38 @@ function M.new(api, config, cancellation)
     return { status = transferred and "OK" or "NO_TRANSFER", moved = math.max(delta, 0) }
   end
 
-  function inventory:deposit(direction, quantity, slot)
+  function inventory:deposit(direction, quantity, item_key, slot)
+    if item_key then
+      item_key = normalize_item_key(item_key)
+    end
     local selected = self:selected_slot()
-    if slot then
-      local selected_ok, select_error = self:select(slot)
+    local target_slot = slot
+    if item_key and not target_slot then
+      target_slot = self:find(item_key, 1)
+      if not target_slot then
+        return { status = "MISSING_ITEM", itemKey = item_key }
+      end
+    end
+    if target_slot then
+      if item_key and self.api.getItemDetail then
+        local detail = self.api.getItemDetail(target_slot)
+        if not detail or detail.name ~= item_key then
+          return { status = "ITEM_MISMATCH", itemKey = item_key, slot = target_slot }
+        end
+      end
+      local selected_ok, select_error = self:select(target_slot)
       if not selected_ok then
         return { status = "ERROR", error = select_error }
       end
     end
     local result = self:transfer("deposit", direction, quantity)
+    if item_key then result.itemKey = item_key end
     self:select(selected)
     return result
   end
 
   function inventory:withdraw(direction, item_key, quantity, slot)
+    item_key = normalize_item_key(item_key)
     local selected = self:selected_slot()
     local target_slot = slot or self:find(item_key, 1)
     if not target_slot then

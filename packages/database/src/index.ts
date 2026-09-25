@@ -64,6 +64,18 @@ export function migrationChecksum(migration: Migration): string {
   return createHash("sha256").update(migration.sql).digest("hex");
 }
 
+/**
+ * Return checksums for the same migration text with supported newline encodings.
+ * Existing deployments may have recorded a CRLF checksum after a Windows checkout;
+ * newline conversion does not change SQL semantics, but any other content change
+ * must still fail migration validation.
+ */
+export function migrationChecksumVariants(migration: Migration): readonly string[] {
+  const normalized = migration.sql.replace(/\r\n/g, "\n");
+  const variants = [migration.sql, normalized, normalized.replace(/\n/g, "\r\n")];
+  return [...new Set(variants.map((sql) => createHash("sha256").update(sql).digest("hex")))];
+}
+
 async function ensureMigrationTable(client: PoolClient): Promise<void> {
   await client.query(`
     CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -157,10 +169,10 @@ export async function runMigrations(
     for (const migration of migrations) {
       const existing = appliedMigrations.get(migration.version);
       if (existing) {
-        const checksum = migrationChecksum(migration);
-        if (existing.checksum !== checksum) {
+        const checksums = migrationChecksumVariants(migration);
+        if (!checksums.includes(existing.checksum)) {
           throw new Error(
-            `Migration ${migration.filename} changed after application; expected ${existing.checksum}, got ${checksum}`,
+            `Migration ${migration.filename} changed after application; expected ${existing.checksum}, got ${checksums[0]}`,
           );
         }
         skipped.push(migration.version);
@@ -182,3 +194,4 @@ export function createDatabasePool(connectionString: string): Pool {
 }
 
 export * from "./repositories";
+export * from "./position-confidence";

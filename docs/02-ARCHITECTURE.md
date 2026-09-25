@@ -171,7 +171,7 @@ Context assembler
   │
   ▼
 ReasoningProvider
-  └── CodexCliProvider (v1)
+  └── CodexCliProvider (read-only, ephemeral v1 boundary)
   │
   ▼
 Structured decision
@@ -185,6 +185,24 @@ Structured decision
 ```
 
 The planner SHALL operate on semantic skills, not raw turtle APIs.
+
+The context assembler bounds each section and labels goal, task, worker, world, memory, and
+conversation records as untrusted data. Relevance selection and persistence-backed retrieval are
+separate planner work; the assembler does not authorize actions.
+
+The reasoning package validates structured decisions before they can be consumed by a planner.
+The supported v1 decision kinds are `plan`, `create-task`, `continue`, `delegate`, `replan`,
+`refuse`, and `report`. The fake provider is deterministic and test-only; it does not authorize
+world mutations or bypass the control plane. The CLI provider invokes `codex exec` in an
+ephemeral read-only sandbox, sends only a structured planning prompt, passes a sanitized child
+environment, and validates the returned JSON again locally. Its output is still inert until a
+planner service persists and dispatches the resulting semantic tasks. The control plane currently
+offers an opt-in plan-only runner that claims durable triggers, invokes the read-only provider,
+and records decisions for review without applying them to tasks or commands. It is disabled by
+default; applying a decision remains an explicit safety-gated follow-up.
+Provider calls pass through a concurrency limiter before production planner integration so queued
+requests can be cancelled and the control plane does not create an unbounded number of Codex
+processes.
 
 Bad planner interface:
 

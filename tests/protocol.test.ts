@@ -4,6 +4,7 @@ import { join } from "node:path";
 import test from "node:test";
 
 import {
+  AddressResolutionRequestSchema,
   CommandSchema,
   DirectWorkerEventBatchSchema,
   DirectWorkerPollResponseSchema,
@@ -11,6 +12,7 @@ import {
   DirectWorkerRegistrationSchema,
   ErrorResponseSchema,
   EventBatchSchema,
+  EventSchema,
   GatewayHeartbeatSchema,
   GatewayRegistrationSchema,
   StopControlSchema,
@@ -71,6 +73,82 @@ test("unknown skills and malformed arguments are rejected", () => {
   );
 });
 
+test("bounded gather commands require a target and depth budget", () => {
+  const command = CommandSchema.parse({
+    protocolVersion: 1,
+    commandId: "command-gather-1",
+    workerId: "alice",
+    issuedAt: "2026-09-08T12:00:00.000Z",
+    expiresAt: "2026-09-08T12:10:00.000Z",
+    budget: { maxPrimitives: 32, maxBlockChanges: 8 },
+    skill: "mining.gather",
+    arguments: { itemKey: "minecraft:cobblestone", quantity: 8, maxDepth: 8 },
+  });
+  assert.equal(command.skill, "mining.gather");
+  assert.equal(
+    CommandSchema.safeParse({
+      ...command,
+      arguments: { ...command.arguments, maxDepth: 65 },
+    }).success,
+    false,
+  );
+});
+
+test("peripheral inspection accepts an optional bounded side", () => {
+  const command = CommandSchema.parse({
+    protocolVersion: 1,
+    commandId: "command-peripheral-1",
+    workerId: "alice",
+    issuedAt: "2026-09-08T12:00:00.000Z",
+    expiresAt: "2026-09-08T12:10:00.000Z",
+    budget: { maxPrimitives: 1, maxBlockChanges: 0 },
+    skill: "peripheral.inspect",
+    arguments: { side: "front" },
+  });
+  assert.equal(command.skill, "peripheral.inspect");
+  assert.equal(
+    CommandSchema.safeParse({ ...command, arguments: { side: "diagonal" } }).success,
+    false,
+  );
+  assert.equal(CommandSchema.safeParse({ ...command, arguments: {} }).success, true);
+});
+
+test("deposit commands may carry a canonical target item", () => {
+  const command = CommandSchema.parse({
+    protocolVersion: 1,
+    commandId: "command-deposit-1",
+    workerId: "alice",
+    issuedAt: "2026-09-08T12:00:00.000Z",
+    expiresAt: "2026-09-08T12:10:00.000Z",
+    budget: { maxPrimitives: 1, maxBlockChanges: 0, maxInventoryTransfers: 1 },
+    skill: "inventory.deposit",
+    arguments: { itemKey: "minecraft:cobblestone", quantity: 8 },
+  });
+  assert.equal(command.arguments.itemKey, "minecraft:cobblestone");
+  assert.equal(
+    CommandSchema.safeParse({
+      ...command,
+      arguments: { ...command.arguments, itemKey: "not valid" },
+    }).success,
+    false,
+  );
+});
+
+test("task-dispatched commands preserve task correlation", () => {
+  const command = CommandSchema.parse({
+    protocolVersion: 1,
+    commandId: "command-task-1",
+    taskId: "task-1",
+    workerId: "alice",
+    issuedAt: "2026-09-07T12:00:00.000Z",
+    expiresAt: "2026-09-07T12:05:00.000Z",
+    budget: { maxPrimitives: 1, maxBlockChanges: 0 },
+    skill: "movement.step",
+    arguments: { direction: "N" },
+  });
+  assert.equal(command.taskId, "task-1");
+});
+
 test("command events require command correlation and error responses are typed", () => {
   assert.equal(
     EventBatchSchema.safeParse(fixture("invalid/event-missing-command-id.json")).success,
@@ -90,6 +168,43 @@ test("command events require command correlation and error responses are typed",
   assert.equal(error.error.retryable, false);
   assert.equal(isSupportedProtocolVersion(error.protocolVersion), true);
   assert.equal(isSupportedProtocolVersion(2), false);
+});
+
+test("protocol errors accept the legacy buffered wrapper and the canonical payload", () => {
+  const event = {
+    protocolVersion: 1,
+    eventId: "protocol-error-1",
+    workerId: "alice",
+    commandId: null,
+    sequence: 1,
+    type: "protocol.error" as const,
+    occurredAt: "2026-09-09T12:00:00.000Z",
+  };
+  assert.equal(
+    EventSchema.safeParse({
+      ...event,
+      payload: {
+        code: "INVALID_PAYLOAD",
+        message: "invalid command",
+        retryable: false,
+      },
+    }).success,
+    true,
+  );
+  assert.equal(
+    EventSchema.safeParse({
+      ...event,
+      eventId: "protocol-error-legacy",
+      payload: {
+        error: {
+          code: "INVALID_PAYLOAD",
+          message: "invalid command",
+          retryable: false,
+        },
+      },
+    }).success,
+    true,
+  );
 });
 
 test("update controls require immutable releases and validate transfer envelopes", () => {
@@ -234,6 +349,64 @@ test("direct worker transport schemas require worker-scoped identity", () => {
         },
       ],
     }).success,
+    false,
+  );
+});
+
+test("clear-space block observations accept explicit or legacy omitted null", () => {
+  const baseEvent = {
+    protocolVersion: 1,
+    eventId: "event-observation-clear",
+    workerId: "alice",
+    sequence: 3,
+    type: "block.observed" as const,
+    occurredAt: "2026-09-08T12:00:00.000Z",
+    payload: {
+      direction: "front" as const,
+      position: {
+        dimension: 0,
+        x: 0,
+        y: 64,
+        z: 0,
+        facing: "N" as const,
+        confidence: "UNCERTAIN" as const,
+      },
+    },
+  };
+  assert.equal(
+    DirectWorkerEventBatchSchema.safeParse({
+      protocolVersion: 1,
+      workerId: "alice",
+      workerBootId: "worker-boot-1",
+      batchId: "batch-observation-omitted",
+      events: [baseEvent],
+    }).success,
+    true,
+  );
+  assert.equal(
+    DirectWorkerEventBatchSchema.safeParse({
+      protocolVersion: 1,
+      workerId: "alice",
+      workerBootId: "worker-boot-1",
+      batchId: "batch-observation-null",
+      events: [{ ...baseEvent, payload: { ...baseEvent.payload, block: null } }],
+    }).success,
+    true,
+  );
+});
+
+test("address resolution requests require a bounded protocol-versioned command", () => {
+  assert.deepEqual(
+    AddressResolutionRequestSchema.parse({ protocolVersion: 1, commandText: "@miners inspect" }),
+    { protocolVersion: 1, commandText: "@miners inspect" },
+  );
+  assert.equal(
+    AddressResolutionRequestSchema.safeParse({ protocolVersion: 1, commandText: "" }).success,
+    false,
+  );
+  assert.equal(
+    AddressResolutionRequestSchema.safeParse({ protocolVersion: 2, commandText: "@miners inspect" })
+      .success,
     false,
   );
 });

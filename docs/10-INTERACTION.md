@@ -22,7 +22,13 @@ Examples:
 @all return to the workshop
 ```
 
-The address parser resolves names/groups. Codex receives the already-resolved recipient scope.
+The deterministic address parser recognizes one or more named targets and the special `@all`
+target before reasoning. Names are normalized case-insensitively, and the domain layer provides a
+pure registry resolver: a known worker resolves to itself, a known group expands to its currently
+registered workers, and `@all` expands to every registered worker. Unknown targets are rejected
+rather than silently producing an empty scope. Persistence, authorization, and task creation
+remain control-plane responsibilities, and the first single-worker gather API still requires one
+named worker. Codex receives only the resolved recipient scope, never raw address syntax.
 
 ## 3. Natural unaddressed conversation
 

@@ -6,10 +6,12 @@ local skill_names = {
   ["movement.step"] = true,
   ["navigate.path"] = true,
   ["observation.block"] = true,
+  ["peripheral.inspect"] = true,
   ["inventory.inspect"] = true,
   ["inventory.deposit"] = true,
   ["inventory.withdraw"] = true,
   ["mining.excavate"] = true,
+  ["mining.gather"] = true,
   ["fuel.refuel"] = true,
 }
 
@@ -153,6 +155,14 @@ local function validate_arguments(skill, arguments)
       return fail(error_message or "observation.block.direction is invalid")
     end
     return true
+  elseif skill == "peripheral.inspect" then
+    local ok, error_message = has_only_keys(arguments, { side = true })
+    if not ok then return fail(error_message) end
+    if arguments.side ~= nil and arguments.side ~= "top" and arguments.side ~= "bottom" and arguments.side ~= "front"
+      and arguments.side ~= "back" and arguments.side ~= "left" and arguments.side ~= "right" then
+      return fail("peripheral.inspect.side is invalid")
+    end
+    return true
   elseif skill == "inventory.inspect" then
     local ok, error_message = has_only_keys(arguments, {})
     if not ok then
@@ -160,9 +170,12 @@ local function validate_arguments(skill, arguments)
     end
     return true
   elseif skill == "inventory.deposit" then
-    local ok, error_message = has_only_keys(arguments, { containerId = true, quantity = true, slot = true })
+    local ok, error_message = has_only_keys(arguments, { containerId = true, itemKey = true, quantity = true, slot = true })
     if not ok then
       return fail(error_message)
+    end
+    if arguments.itemKey ~= nil and not is_id(arguments.itemKey) then
+      return fail("inventory.deposit.itemKey is invalid")
     end
     if arguments.quantity ~= nil and (not is_integer(arguments.quantity) or arguments.quantity < 1 or arguments.quantity > 64) then
       return fail("inventory.deposit.quantity is invalid")
@@ -195,6 +208,21 @@ local function validate_arguments(skill, arguments)
       if not is_integer(arguments[key]) or arguments[key] < 1 or arguments[key] > 64 then
         return fail("mining.excavate." .. key .. " is invalid")
       end
+    end
+    return true
+  elseif skill == "mining.gather" then
+    local ok, error_message = has_only_keys(arguments, { itemKey = true, quantity = true, maxDepth = true })
+    if not ok then
+      return fail(error_message)
+    end
+    if not is_id(arguments.itemKey) then
+      return fail("mining.gather.itemKey is required")
+    end
+    if not is_integer(arguments.quantity) or arguments.quantity < 1 or arguments.quantity > 64 then
+      return fail("mining.gather.quantity is invalid")
+    end
+    if not is_integer(arguments.maxDepth) or arguments.maxDepth < 1 or arguments.maxDepth > 64 then
+      return fail("mining.gather.maxDepth is invalid")
     end
     return true
   elseif skill == "fuel.refuel" then

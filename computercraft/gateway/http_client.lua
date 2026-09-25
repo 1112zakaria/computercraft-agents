@@ -31,18 +31,18 @@ function M.new(config, logger)
     }
     local url = join_url(self.config.vps_url, path)
     local encoded_body = body and textutils.serializeJSON(body) or nil
-    local ok, response_or_error
+    local ok, response_or_error, request_error
 
     if method == "GET" then
-      ok, response_or_error = pcall(http.get, url, headers)
+      ok, response_or_error, request_error = pcall(http.get, url, headers)
     elseif method == "POST" then
-      ok, response_or_error = pcall(http.post, url, encoded_body or "", headers)
+      ok, response_or_error, request_error = pcall(http.post, url, encoded_body or "", headers)
     else
       return { ok = false, error = "unsupported HTTP method" }
     end
 
     if not ok or not response_or_error then
-      return { ok = false, error = tostring(response_or_error or "HTTP request failed") }
+      return { ok = false, error = tostring(request_error or response_or_error or "HTTP request failed") }
     end
 
     local response = response_or_error
@@ -67,9 +67,9 @@ function M.new(config, logger)
     if not http or not http.get then
       return { ok = false, error = "ComputerCraft HTTP API is unavailable" }
     end
-    local ok, response_or_error = pcall(http.get, url)
+    local ok, response_or_error, request_error = pcall(http.get, url)
     if not ok or not response_or_error then
-      return { ok = false, error = tostring(response_or_error or "HTTP request failed") }
+      return { ok = false, error = tostring(request_error or response_or_error or "HTTP request failed") }
     end
     local response = response_or_error
     local status = response.getResponseCode and response.getResponseCode() or 200

@@ -93,6 +93,10 @@ stop all
 resume alice
 ```
 
+The worker inventory view is populated by the latest `inventory.changed` event and by the result
+of a bounded `inventory.inspect` command. An operator can refresh the persisted snapshot with
+`npm run cli -- inspect <worker-id>` and then inspect the worker without a direct database query.
+
 ## 5. Metrics
 
 Useful counters/gauges:
@@ -111,3 +115,34 @@ Useful counters/gauges:
 - event backlog size.
 
 Prometheus is optional; structured logs + database status are sufficient initially.
+
+## 6. Control-plane structured logs
+
+The control plane writes one JSON record per lifecycle/request event. HTTP records include:
+`requestId`, method, path, status code, and duration. Command/task/update/worker lineage fields
+are available to callers that emit those events, and scheduler/recovery failures include an
+explicit `outcome` and error message. The `X-Request-Id` response header exposes the correlation
+ID for support diagnostics; a safe caller-supplied ID is preserved, otherwise one is generated.
+
+Request bodies, bearer credentials, authorization headers, and secret-like fields are never logged.
+Secret-like keys are redacted defensively if they are passed to the logger in future code.
+
+Recent persisted audit records can be inspected without direct database access:
+
+```bash
+npm run cli -- audit
+npm run cli -- audit 100
+```
+
+This is an operator-only view and includes category, worker, lineage, retention, action, and
+result fields for the bounded result set.
+
+Audit cleanup runs on the control plane using these defaults:
+
+- STANDARD: 30 days;
+- HIGH: 365 days;
+- IMMUTABLE: never deleted.
+
+The windows and cleanup interval can be changed with `AUDIT_STANDARD_RETENTION_DAYS`,
+`AUDIT_HIGH_RETENTION_DAYS`, and `RETENTION_CLEANUP_INTERVAL_SECONDS`. Cleanup reports only
+counts and never logs audit payloads.

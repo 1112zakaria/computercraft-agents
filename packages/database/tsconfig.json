@@ -7,5 +7,8 @@
     "rootDir": "src"
   },
   "include": ["src/**/*.ts"],
-  "references": [{ "path": "../protocol/tsconfig.json" }]
+  "references": [
+    { "path": "../navigation/tsconfig.json" },
+    { "path": "../protocol/tsconfig.json" }
+  ]
 }

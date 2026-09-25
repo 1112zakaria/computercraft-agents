@@ -3,10 +3,13 @@ import { URL } from "node:url";
 
 import { errorResponse, HttpError, repositoryErrorToHttp } from "./gateway-service";
 import type { GatewayService } from "./gateway-service";
+import { createLogger, requestIdFromHeader } from "./logger";
+import type { Logger } from "./logger";
 
 export interface HttpServerOptions {
   readonly service: GatewayService;
   readonly maxBodyBytes: number;
+  readonly logger?: Logger;
 }
 
 function sendJson(response: ServerResponse, statusCode: number, body: object): void {
@@ -41,13 +44,42 @@ async function readBody(request: IncomingMessage, maxBodyBytes: number): Promise
 }
 
 export function createControlPlaneServer(options: HttpServerOptions): Server {
+  const logger =
+    options.logger ?? createLogger("computercraft-agents-control-plane", () => undefined);
   return createServer(async (request, response) => {
+    const requestId = requestIdFromHeader(request.headers["x-request-id"]);
+    const requestPath = (request.url ?? "/").split("?", 1)[0] ?? "/";
+    const startedAt = Date.now();
+    response.setHeader("X-Request-Id", requestId);
     try {
       const url = new URL(request.url ?? "/", "http://control-plane.local");
       const method = requestMethod(request);
       const workerPathMatch = url.pathname.match(/^\/v1\/workers(?:\/([^/]+))?$/);
+      const workerPathPlanMatch = url.pathname.match(/^\/v1\/workers\/([^/]+)\/path-to\/([^/]+)$/);
+      const workerAnchorPathMatch = url.pathname.match(/^\/v1\/workers\/([^/]+)\/anchor$/);
       const workerProvisionPath = url.pathname === "/v1/workers/provision";
       const updatePathMatch = url.pathname.match(/^\/v1\/updates(?:\/([^/]+))?$/);
+      const agentPathMatch = url.pathname.match(/^\/v1\/agents(?:\/([^/]+))?$/);
+      const addressResolvePath = url.pathname === "/v1/addressing/resolve";
+      const projectsPath = url.pathname === "/v1/projects";
+      const featureGatesPath = url.pathname === "/v1/feature-gates";
+      const auditPath = url.pathname === "/v1/audit";
+      const goalsPath = url.pathname === "/v1/goals";
+      const goalPreflightPath = url.pathname === "/v1/goals/preflight";
+      const goalReportPathMatch = url.pathname.match(/^\/v1\/goals\/([^/]+)\/report$/);
+      const plannerTriggersPath = url.pathname === "/v1/planner/triggers";
+      const plannerStatusPath = url.pathname === "/v1/planner/status";
+      const taskPathMatch = url.pathname.match(/^\/v1\/tasks(?:\/([^/]+))?$/);
+      const taskPlanningContextPathMatch = url.pathname.match(
+        /^\/v1\/tasks\/([^/]+)\/planning-context$/,
+      );
+      const taskTransitionPathMatch = url.pathname.match(/^\/v1\/tasks\/([^/]+)\/transition$/);
+      const taskDispatchPathMatch = url.pathname.match(/^\/v1\/tasks\/([^/]+)\/dispatch$/);
+      const runnableTasksPath = url.pathname === "/v1/tasks/runnable";
+      const schedulerTickPath = url.pathname === "/v1/scheduler/tick";
+      const locationsPath = url.pathname === "/v1/locations";
+      const locationPathMatch = url.pathname.match(/^\/v1\/locations\/([^/]+)$/);
+      const worldCellsPath = url.pathname === "/v1/world/cells";
 
       if (method === "GET" && url.pathname === "/healthz") {
         sendJson(response, 200, options.service.health());
@@ -56,13 +88,75 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
 
       if (
         workerPathMatch ||
+        workerPathPlanMatch ||
+        workerAnchorPathMatch ||
         workerProvisionPath ||
         updatePathMatch ||
+        agentPathMatch ||
+        addressResolvePath ||
+        projectsPath ||
+        featureGatesPath ||
+        auditPath ||
+        goalsPath ||
+        goalPreflightPath ||
+        goalReportPathMatch ||
+        plannerTriggersPath ||
+        plannerStatusPath ||
+        taskPathMatch ||
+        taskPlanningContextPathMatch ||
+        taskTransitionPathMatch ||
+        taskDispatchPathMatch ||
+        runnableTasksPath ||
+        schedulerTickPath ||
+        locationsPath ||
+        locationPathMatch ||
+        worldCellsPath ||
         url.pathname === "/v1/diagnostics" ||
         url.pathname === "/v1/commands" ||
         url.pathname === "/v1/stop-controls"
       ) {
         options.service.authenticateAdmin(request.headers);
+        if (method === "GET" && workerPathPlanMatch) {
+          let workerId: string;
+          let locationName: string;
+          try {
+            workerId = decodeURIComponent(workerPathPlanMatch[1]!);
+            locationName = decodeURIComponent(workerPathPlanMatch[2]!);
+          } catch {
+            throw new HttpError(400, "INVALID_PAYLOAD", "path target is not valid URL encoding");
+          }
+          sendJson(response, 200, await options.service.planPathToLocation(workerId, locationName));
+          return;
+        }
+        if (method === "POST" && workerPathPlanMatch) {
+          let workerId: string;
+          let locationName: string;
+          try {
+            workerId = decodeURIComponent(workerPathPlanMatch[1]!);
+            locationName = decodeURIComponent(workerPathPlanMatch[2]!);
+          } catch {
+            throw new HttpError(400, "INVALID_PAYLOAD", "path target is not valid URL encoding");
+          }
+          sendJson(
+            response,
+            202,
+            await options.service.executePathToLocation(workerId, locationName),
+          );
+          return;
+        }
+        if (method === "POST" && workerAnchorPathMatch) {
+          let workerId: string;
+          try {
+            workerId = decodeURIComponent(workerAnchorPathMatch[1]!);
+          } catch {
+            throw new HttpError(400, "INVALID_PAYLOAD", "worker id is not valid URL encoding");
+          }
+          const anchorBody = options.service.parseBody(
+            await readBody(request, options.maxBodyBytes),
+          );
+          sendJson(response, 200, await options.service.anchorWorker(workerId, anchorBody));
+          return;
+        }
         if (method === "GET" && workerPathMatch && !workerProvisionPath) {
           const encodedWorkerId = workerPathMatch[1];
           if (encodedWorkerId) {
@@ -102,6 +196,218 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
           } else {
             sendJson(response, 200, { updates: await options.service.listUpdates() });
           }
+          return;
+        }
+        if (method === "GET" && agentPathMatch) {
+          const encodedAgentName = agentPathMatch[1];
+          if (encodedAgentName) {
+            let agentName: string;
+            try {
+              agentName = decodeURIComponent(encodedAgentName);
+            } catch {
+              throw new HttpError(400, "INVALID_PAYLOAD", "agent name is not valid URL encoding");
+            }
+            sendJson(response, 200, await options.service.getAgent(agentName));
+          } else {
+            sendJson(response, 200, { agents: await options.service.listAgents() });
+          }
+          return;
+        }
+        if (addressResolvePath) {
+          if (method !== "POST") {
+            throw new HttpError(405, "INVALID_PAYLOAD", "method is not supported");
+          }
+          const addressBody = options.service.parseBody(
+            await readBody(request, options.maxBodyBytes),
+          );
+          sendJson(response, 200, await options.service.resolveAddress(addressBody));
+          return;
+        }
+        if (method === "GET" && projectsPath) {
+          sendJson(response, 200, { projects: await options.service.listProjects() });
+          return;
+        }
+        if (method === "GET" && featureGatesPath) {
+          sendJson(response, 200, { featureGates: options.service.listFeatureGates() });
+          return;
+        }
+        if (method === "GET" && auditPath) {
+          sendJson(response, 200, {
+            events: await options.service.listAuditEvents(url.searchParams.get("limit")),
+          });
+          return;
+        }
+        if (goalsPath) {
+          if (method === "GET") {
+            sendJson(response, 200, { goals: await options.service.listGoals() });
+            return;
+          }
+          if (method === "POST") {
+            const goalBody = options.service.parseBody(
+              await readBody(request, options.maxBodyBytes),
+            );
+            sendJson(response, 202, await options.service.createGoal(goalBody));
+            return;
+          }
+        }
+        if (goalPreflightPath) {
+          if (method !== "POST") {
+            throw new HttpError(405, "INVALID_PAYLOAD", "method is not supported");
+          }
+          const goalBody = options.service.parseBody(await readBody(request, options.maxBodyBytes));
+          sendJson(response, 200, await options.service.preflightGoal(goalBody));
+          return;
+        }
+        if (runnableTasksPath) {
+          if (method !== "GET") {
+            throw new HttpError(405, "INVALID_PAYLOAD", "method is not supported");
+          }
+          sendJson(response, 200, { tasks: await options.service.listRunnableTasks() });
+          return;
+        }
+        if (goalReportPathMatch) {
+          if (method !== "GET") {
+            throw new HttpError(405, "INVALID_PAYLOAD", "method is not supported");
+          }
+          let taskId: string;
+          try {
+            taskId = decodeURIComponent(goalReportPathMatch[1]!);
+          } catch {
+            throw new HttpError(400, "INVALID_PAYLOAD", "task id is not valid URL encoding");
+          }
+          sendJson(response, 200, await options.service.goalReport(taskId));
+          return;
+        }
+        if (plannerTriggersPath) {
+          if (method !== "GET") {
+            throw new HttpError(405, "INVALID_PAYLOAD", "method is not supported");
+          }
+          const limitValue = url.searchParams.get("limit");
+          const limit = limitValue === null ? 100 : Number(limitValue);
+          sendJson(response, 200, {
+            triggers: await options.service.listPlannerTriggers(limit),
+          });
+          return;
+        }
+        if (plannerStatusPath) {
+          if (method !== "GET") {
+            throw new HttpError(405, "INVALID_PAYLOAD", "method is not supported");
+          }
+          sendJson(response, 200, await options.service.plannerStatus());
+          return;
+        }
+        if (schedulerTickPath) {
+          if (method !== "POST") {
+            throw new HttpError(405, "INVALID_PAYLOAD", "method is not supported");
+          }
+          sendJson(response, 200, await options.service.dispatchRunnableTasks());
+          return;
+        }
+        if (taskPathMatch) {
+          if (method === "GET" && taskPathMatch[1]) {
+            let taskId: string;
+            try {
+              taskId = decodeURIComponent(taskPathMatch[1]);
+            } catch {
+              throw new HttpError(400, "INVALID_PAYLOAD", "task id is not valid URL encoding");
+            }
+            sendJson(response, 200, await options.service.getTask(taskId));
+            return;
+          }
+          if (method === "GET" && !taskPathMatch[1]) {
+            sendJson(response, 200, { tasks: await options.service.listTasks() });
+            return;
+          }
+          if (method === "POST" && taskPathMatch[1]) {
+            let taskId: string;
+            try {
+              taskId = decodeURIComponent(taskPathMatch[1]);
+            } catch {
+              throw new HttpError(400, "INVALID_PAYLOAD", "task id is not valid URL encoding");
+            }
+            const taskBody = options.service.parseBody(
+              await readBody(request, options.maxBodyBytes),
+            );
+            sendJson(response, 200, await options.service.claimTask(taskId, taskBody));
+            return;
+          }
+        }
+        if (taskPlanningContextPathMatch) {
+          if (method !== "GET") {
+            throw new HttpError(405, "INVALID_PAYLOAD", "method is not supported");
+          }
+          let taskId: string;
+          try {
+            taskId = decodeURIComponent(taskPlanningContextPathMatch[1]!);
+          } catch {
+            throw new HttpError(400, "INVALID_PAYLOAD", "task id is not valid URL encoding");
+          }
+          sendJson(response, 200, await options.service.planningContext(taskId));
+          return;
+        }
+        if (taskTransitionPathMatch) {
+          if (method !== "POST") {
+            throw new HttpError(405, "INVALID_PAYLOAD", "method is not supported");
+          }
+          let taskId: string;
+          try {
+            taskId = decodeURIComponent(taskTransitionPathMatch[1]!);
+          } catch {
+            throw new HttpError(400, "INVALID_PAYLOAD", "task id is not valid URL encoding");
+          }
+          const transitionBody = options.service.parseBody(
+            await readBody(request, options.maxBodyBytes),
+          );
+          sendJson(response, 200, await options.service.transitionTask(taskId, transitionBody));
+          return;
+        }
+        if (taskDispatchPathMatch) {
+          if (method !== "POST") {
+            throw new HttpError(405, "INVALID_PAYLOAD", "method is not supported");
+          }
+          let taskId: string;
+          try {
+            taskId = decodeURIComponent(taskDispatchPathMatch[1]!);
+          } catch {
+            throw new HttpError(400, "INVALID_PAYLOAD", "task id is not valid URL encoding");
+          }
+          const dispatchBody = options.service.parseBody(
+            await readBody(request, options.maxBodyBytes),
+          );
+          sendJson(response, 200, await options.service.dispatchTask(taskId, dispatchBody));
+          return;
+        }
+        if (locationsPath) {
+          if (method === "GET") {
+            sendJson(response, 200, { locations: await options.service.listNamedLocations() });
+            return;
+          }
+          if (method === "POST") {
+            const locationBody = options.service.parseBody(
+              await readBody(request, options.maxBodyBytes),
+            );
+            sendJson(response, 200, await options.service.createNamedLocation(locationBody));
+            return;
+          }
+        }
+        if (locationPathMatch) {
+          if (method !== "GET") {
+            throw new HttpError(405, "INVALID_PAYLOAD", "method is not supported");
+          }
+          let locationName: string;
+          try {
+            locationName = decodeURIComponent(locationPathMatch[1]!);
+          } catch {
+            throw new HttpError(400, "INVALID_PAYLOAD", "location name is not valid URL encoding");
+          }
+          sendJson(response, 200, await options.service.resolveNamedLocation(locationName));
+          return;
+        }
+        if (worldCellsPath) {
+          if (method !== "GET") {
+            throw new HttpError(405, "INVALID_PAYLOAD", "method is not supported");
+          }
+          sendJson(response, 200, { cells: await options.service.listWorldCells() });
           return;
         }
         if (method !== "POST") {
@@ -205,10 +511,24 @@ export function createControlPlaneServer(options: HttpServerOptions): Server {
       sendJson(response, 404, { error: "not found" });
     } catch (error) {
       const httpError = repositoryErrorToHttp(error);
-      if (httpError.statusCode >= 500) {
-        console.error(`Control-plane request failed: ${httpError.message}`);
+      if (httpError.statusCode >= 400) {
+        logger.error("http.request.failed", {
+          requestId,
+          outcome: "error",
+          error: httpError.message,
+          code: httpError.code,
+          details: httpError.details,
+        });
       }
       sendJson(response, httpError.statusCode, errorResponse(httpError));
+    } finally {
+      logger.info("http.request.completed", {
+        requestId,
+        method: request.method?.toUpperCase() ?? "GET",
+        path: requestPath,
+        statusCode: response.statusCode,
+        durationMs: Date.now() - startedAt,
+      });
     }
   });
 }

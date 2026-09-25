@@ -119,12 +119,18 @@ without changing control-plane domain architecture.
 Target experience:
 
 1. friend clones repository or downloads release bundle;
-2. obtains `computercraft/gateway` files;
-3. places them into the selected ComputerCraft computer's filesystem/disk workflow;
+2. copies `install-gateway.lua` from the release root (or a reviewed commit) to the selected
+   ComputerCraft computer;
+3. runs the installer with the same pinned 40-character commit used for the runtime;
 4. sets `gateway.conf` values such as VPS URL and server/gateway ID;
 5. secret is provided privately and entered locally;
 6. starts/reboots gateway computer;
 7. sees connection diagnostic.
+
+The pinned installer downloads and parses the gateway files before activation, preserves local
+configuration and outbox files, and repairs the extensionless CraftOS `startup` hook. It leaves a
+unique backup directory on the computer for recovery. A release bundle contains the installer at
+its root; the installer does not contain or request any secret.
 
 Because direct filesystem paths for ComputerCraft worlds vary, the repo SHOULD include both:
 
@@ -143,7 +149,10 @@ worker config:
   gateway_rednet_id/channel
 ```
 
-A bootstrap disk/program SHOULD eventually automate this for new turtles.
+A release bundle contains `install-direct.lua` at its root. Run that pinned installer before
+creating `worker.conf`; it downloads and parses the turtle files, preserves local configuration
+and state, repairs the extensionless CraftOS `startup` hook, and leaves a unique backup directory.
+This is the initial bootstrap path; later runtime changes should use the tagged OTA flow.
 
 ### Direct HTTP turtle installation
 
@@ -155,7 +164,7 @@ npm run cli -- provision-worker \
   --id alice \
   --server friends-server \
   --computer-id 21 \
-  --version v0.4.0
+  --version v0.4.1
 ```
 
 Copy the turtle runtime and stable bootstrap files from the release archive. Create `worker.conf`
@@ -168,7 +177,7 @@ return {
   transport = "direct-http",
   vps_url = "https://192.99.69.46.sslip.io:8443",
   vps_bearer_secret = "set-locally",
-  runtime_version = "v0.4.0",
+  runtime_version = "v0.4.1",
   poll_interval_seconds = 2,
   heartbeat_interval_seconds = 10,
 }
@@ -179,16 +188,48 @@ turtle registers, heartbeats, and polls `/v1/worker/commands`. Confirm it with:
 
 ```bash
 npm run cli -- workers alice
+npm run cli -- inspect alice
 ```
+
+Worker inspection includes the current runtime state, the latest bounded inventory snapshot when
+one has been reported, and, when a task is active, its `currentTaskId`. The scheduler uses that
+same value to avoid selecting a worker that is already executing another task; the database remains
+the final atomic one-task-per-worker guard.
+
+### Re-anchor a worker after manual relocation
+
+If a turtle is moved manually or its dead-reckoned position is no longer trusted, stand it at a
+known coordinate and record that coordinate explicitly. Facing is optional because ComputerCraft
+does not expose a universal compass sensor:
+
+```bash
+npm run cli -- anchor alice 0 10 64 -2 E
+npm run cli -- set-location "Test Chest" 0 10 64 -2 E
+npm run cli -- set-location "Test Chest" 0 10 64 -2 E --approach 0 9 64 -2 N
+npm run cli -- workers alice
+```
+
+The `anchor` command writes a `CONFIRMED_ANCHOR` worker observation. The `set-location` command
+records a named destination with the same operator-confirmed coordinates. Add `--approach` with a
+safe adjacent turtle standing coordinate when the named block is a container or other interaction
+target. These are operator assertions, so only
+use coordinates that have been verified in-game; it does not move the turtle or detect direction.
+
+When creating a new `worker.conf`, keep the template's complete `capabilities` list unless a
+deliberate canary needs a narrower local allowlist. Older configurations that explicitly list
+only movement and inventory skills must add `mining.gather` before a gather preflight can pass.
+The turtle startup also logs a warning for each missing first-use capability; it does not enable
+the capability automatically.
 
 The turtle's cursor, authenticated UTC clock handoff, and event outbox are local persistent files. Do not commit the populated
 configuration or secret.
 
 For a reviewed development build, download `deploy/minecraft/install-direct.lua` from a pinned
-40-character Git commit, then run `install-direct <same-commit>`. It downloads and parses all
-runtime files before replacing them, and retains root files (including configuration/state)
-in a unique `manual-install-backup-*` directory. Configure `worker.conf` locally and run `startup`.
-This manual bootstrap is separate from tagged-release OTA; it does not create a release.
+40-character Git commit, then run `lua install-direct.lua <same-commit>`. It downloads and parses
+all runtime files before replacing them, and retains root files (including configuration/state)
+in a unique `manual-install-backup-*` directory. It also installs the safe `worker.conf.example`
+template; copy it to `worker.conf`, configure it locally, and run `startup`. This manual bootstrap
+is separate from tagged-release OTA; it does not create a release.
 
 Legacy ComputerCraft 1.75 lacks `os.date`, `os.epoch`, and `textutils.unserializeJSON`.
 The turtle bootstrap installs a non-executing JSON decoder and synchronizes UTC from authenticated
@@ -237,6 +278,135 @@ refresh worker observations
 reconcile active tasks
 resume/replan
 ```
+
+Control-plane process and HTTP logs are newline-delimited JSON. Use the response `X-Request-Id`
+when correlating an operator or turtle request with service logs; request bodies and bearer secrets
+are intentionally excluded.
+
+The service also performs bounded audit retention cleanup at startup and on a configurable interval.
+It removes expired STANDARD/HIGH events and never removes IMMUTABLE events. Review the retention
+defaults before production deployment if the server has a different compliance or storage policy.
+
+### Explicit task dispatch
+
+The control plane can atomically dispatch a ready task that already represents one protocol
+command. Inspect compatible work, then dispatch it to a specific online worker:
+
+```text
+npm run cli -- runnable-tasks
+npm run cli -- scheduler-tick
+npm run cli -- dispatch-task <task-id> <worker-id>
+npm run cli -- task <task-id>
+npm run cli -- move <worker-id> <N|E|S|W|UP|DOWN> --dry-run
+```
+
+The scheduler tick selects compatible online workers for protocol-level command tasks and then
+dispatches them through the same atomic path. Dispatch persists the task claim and command
+together, includes the task ID in the command for event correlation, and enforces one active task
+per worker. Worker completion/failure/cancellation events update the linked task.
+Natural-language `resource.gather` goals remain multi-step workflow records and are not silently
+dispatched as a single command. Use `task <task-id>` to inspect one workflow step or parent task,
+including its phase, assignment, attempt count, and persisted blocking error.
+
+Before creating the first live gather goal, run the read-only preflight:
+
+```bash
+npm run cli -- goal-preflight "@alice get 64 cobblestone and deposit it in Test Chest"
+```
+
+Resolve every reported blocker. For this gather workflow, the worker must advertise
+`mining.gather`, `navigate.path`, and `inventory.deposit`; `peripheral.inspect` is a recommended
+read-only capability for inspecting attached chests and other peripherals, but is not required
+for the gather/deposit command path. The worker position must be re-anchored after manual
+relocation. If the capability blocker is reported for an existing install, run
+`lua enable-gather.lua` on the turtle and then `startup`; this updates `worker.conf` with a
+backup and re-registers the capability list. The preflight cannot inspect the turtle's local
+`container_sides` table, so verify the matching physical chest-side mapping in `worker.conf`
+separately.
+
+The control plane also supports an opt-in bounded background scheduler loop. Set
+`SCHEDULER_ENABLED=true` and choose `SCHEDULER_INTERVAL_SECONDS` (10 seconds by default) after
+reviewing the task set. Each interval performs at most one non-overlapping scheduler tick; the
+loop is disabled by default so deployment does not silently begin dispatching queued work.
+
+The planner loop is separately opt-in. Set `PLANNER_ENABLED=true` only after confirming the VPS
+has an authenticated `codex` executable and reviewing the cost, timeout, and retention implications.
+Leave `PLANNER_APPLY_ENABLED=false` for plan-only review. The apply gate only accepts validated
+`create-task`/`plan` proposals within the existing job and worker scope; all other decision kinds
+remain audit-only.
+
+```text
+PLANNER_ENABLED=true
+PLANNER_APPLY_ENABLED=false
+PLANNER_INTERVAL_SECONDS=30
+PLANNER_BATCH_SIZE=1
+PLANNER_TIMEOUT_MS=30000
+PLANNER_MAX_CONCURRENT=1
+PLANNER_CLAIM_LEASE_SECONDS=300
+PLANNER_FAILURE_THRESHOLD=1
+PLANNER_RETRY_AFTER_SECONDS=30
+PLANNER_REASONING_TIER=fast
+# Optional per-tier Codex CLI overrides. Leave blank to use the CLI default.
+PLANNER_FAST_MODEL=
+PLANNER_FAST_PROFILE=
+PLANNER_STANDARD_MODEL=
+PLANNER_STANDARD_PROFILE=
+PLANNER_STRONG_MODEL=
+PLANNER_STRONG_PROFILE=
+CODEX_COMMAND=codex
+```
+
+`PLANNER_REASONING_TIER` selects one logical tier. The corresponding optional model/profile
+variables are passed only to the Codex CLI invocation for that tier; they do not change the
+validated decision schema. Keeping all six override variables blank is valid and uses the locally
+configured Codex default.
+
+The loop claims durable planner triggers, invokes Codex in its read-only ephemeral boundary, and
+records validated decisions as HIGH-retention audit events. With `PLANNER_APPLY_ENABLED=true`, a
+safe subset of validated task proposals becomes ready tasks; the scheduler still controls worker
+assignment and command dispatch. Keep the apply gate disabled until the resulting task stream has
+been reviewed in a canary environment.
+
+Every stale-worker check is also a recovery boundary. When a worker transitions from online to
+stale, the control plane pauses its assigned task, cancels queued or in-flight command delivery,
+and queues an independent worker stop control. The task is not automatically retried; after
+confirming the turtle is safe, inspect it with `task <task-id>` and explicitly resume it with
+`task-status <task-id> READY`.
+
+Physical command, stop-control, update, and addressed gather-goal CLI requests also accept
+`--dry-run`. Dry-run builds the same bounded payload locally and prints the intended POST path
+without requiring the admin secret or contacting the control plane. For a goal, the preview also
+shows the deterministic worker/item/quantity/destination parse, so an operator can catch an
+addressing or spelling mistake before creating a persistent goal.
+
+When the scheduler background loop is disabled, `goal ... --start` is the explicit operator path
+to create a goal and perform exactly one bounded scheduler tick. It does not bypass capability,
+worker-availability, task-dependency, or one-active-task checks. If no worker is eligible, the
+response includes a `skipped` entry explaining whether the worker is offline, busy, unknown, or
+missing a required capability. Omit `--start` to create the goal without dispatching.
+
+The protected operator inspection commands are:
+
+```bash
+npm run cli -- agents
+npm run cli -- agent alice
+npm run cli -- projects
+npm run cli -- feature-gates
+npm run cli -- audit 50
+npm run cli -- diagnose
+```
+
+`diagnose` reports gateway/worker registration and liveness, transports, observed runtime versions,
+and whether the background scheduler is enabled. When the scheduler mode is `MANUAL`, queued work
+will not advance until an operator runs `scheduler-tick` or uses `goal --start`. It complements the
+reverse-proxy/firewall source-IP check; the application cannot independently verify the Minecraft
+host's public egress address.
+
+Use `pause-task`, `resume-task`, and `cancel-task` for explicit lifecycle control. Pausing or
+cancelling a running task cancels its active command delivery, releases the worker claim, and
+queues a transport-aware stop control before the task can be resumed or permanently cancelled.
+For a multi-step workflow, the parent goal may not own the worker claim; the control plane also
+propagates the pause/cancel to its active child step so the actual turtle execution stream stops.
 
 ## 10. Releases
 

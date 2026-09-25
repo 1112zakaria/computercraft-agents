@@ -2,6 +2,20 @@
 
 This backlog is written for a coding agent working incrementally in the repository. Items are ordered to reduce risk. Codex SHOULD complete one bounded item at a time, run relevant tests, update documentation when contracts change, and avoid starting later destructive features before prerequisites pass.
 
+## Current implementation notes
+
+As of 2026-09-09, the direct HTTP transport has passed a live canary on worker `alice`, including
+registration, heartbeat, bounded movement, event submission, and a successful `v0.4.1` OTA
+activation/reboot. The installer and stable bootstrap now create or repair the extensionless
+CraftOS `startup` hook; live post-reboot validation of that behavior remains tracked in GitHub
+issue #7.
+
+Gateway Rednet live validation remains pending because the gateway/turtle modem hardware is not
+available. It is not a blocker for the direct HTTP primary path.
+
+The navigation, scheduler, and excavation implementations currently include tested deterministic
+foundations only; they are not yet the complete persistent task/resource workflow.
+
 Priority:
 
 - **P0** — required for first useful system.
@@ -199,7 +213,10 @@ Implement agents, workers, gateways, projects, jobs, tasks, dependencies, conver
 
 **Priority:** P0  
 **Dependencies:** CC-020
-**Status:** DONE
+**Status:** PARTIAL — project/job/task creation, goal persistence, task inspection (including
+single-task detail), a read-only goal workflow report, restart-safe database claims, explicit
+command-task dispatch, and the first bounded multi-step workflow are implemented; workflow event
+advancement is duplicate/late-event safe, while broader dependency and recovery semantics remain.
 
 Implement state transitions and task dependencies.
 
@@ -229,7 +246,8 @@ Implement state transitions and task dependencies.
 
 **Priority:** P0  
 **Dependencies:** CC-010
-**Status:** DONE
+**Status:** DONE — the runtime and release bundle now include a pinned gateway bootstrap installer
+that preserves local configuration/outbox files and repairs the CraftOS startup hook.
 
 Implement `startup.lua`, validated local config, logging, and gateway identity.
 
@@ -426,9 +444,10 @@ Add CLI commands to list workers and inspect status/state.
 
 **Priority:** P0  
 **Dependencies:** CC-033, CC-042, CC-050
-**Status:** IN PROGRESS — bounded move and stop commands are implemented and fake-integrated; the
-turtle runtime is installed on worker `alice` (ComputerCraft ID 9), while the live-server
-acceptance remains blocked until gateway ID 4 and the turtle have modems attached.
+**Status:** PARTIAL — bounded move and stop commands are implemented and fake-integrated, and the
+direct-HTTP movement plus stop-control canaries have been validated on the live modem-less turtle.
+The gateway-Rednet live acceptance remains blocked until gateway ID 4 and the turtle have modems
+attached.
 
 Before Codex, prove `worker move/turn` command path end-to-end.
 
@@ -442,6 +461,12 @@ Before Codex, prove `worker move/turn` command path end-to-end.
 
 **Priority:** P0  
 **Dependencies:** CC-031, CC-051, CC-053
+
+**Status:** PARTIAL — public HTTPS, authenticated connectivity, source allowlist admission, and
+worker/gateway inspection are available; `diagnose` now provides a single bounded summary of
+registration, liveness, transports, and runtime versions, and gateway/direct HTTP clients preserve
+the native ComputerCraft connection error returned by `http.get`/`http.post`. Live gateway-path
+registration and command acceptance remain pending modem hardware.
 
 Implement a diagnostic command/output showing public HTTPS reachability, observed gateway source
 address/allowlist admission, gateway status, worker status, runtime/protocol versions.
@@ -494,7 +519,10 @@ attempt rollback after interrupted activation.
 
 **Priority:** P0
 **Dependencies:** CC-010, CC-020, CC-050, CC-053
-**Status:** IMPLEMENTED on `feat/direct-turtle-http-transport`; live direct canary pending
+**Status:** LIVE CANARY COMPLETE on `main`/`v0.4.1`; registration, heartbeat, bounded movement,
+inventory inspection, event ingestion, and individual OTA activation/reboot have all been verified
+on the modem-less turtle. Automatic startup-hook creation/repair is implemented and tested, while
+live post-reboot validation remains open as issue #7.
 
 Add `direct-http` as a transport-aware alternative to `gateway-rednet`. Direct turtles register,
 heartbeat, poll commands/stop controls/updates, and submit durable event batches through the
@@ -504,10 +532,10 @@ gateway-backed workers and fleet rollouts remain unchanged.
 
 **Remaining live acceptance**
 
-- provision one direct worker;
-- install the direct runtime and `worker.conf` on a modem-less turtle;
-- verify registration, heartbeat, bounded movement, stop, and event ingestion;
-- queue an individual update and verify activation/rollback without overwriting local state.
+- validate automatic CraftOS startup after a reboot using the repaired extensionless `startup`
+  hook;
+- complete the first useful gather-and-deposit workflow once the turtle advertises
+  `mining.gather` and the operator has confirmed an anchor, chest side, and known route.
 
 **Future hardening**
 
@@ -525,12 +553,21 @@ gateway-backed workers and fleet rollouts remain unchanged.
 **Priority:** P0  
 **Dependencies:** CC-020, CC-044
 
+**Status:** PARTIAL — bounded in-memory sparse walkability model, persistent `world_cells` storage,
+worker-position anchoring, heartbeat/anchor/named-location walkable-cell seeding, the bounded
+operator `observe` command, and block-observation event ingestion plus bounded blocked-destination
+contradiction updates and gather-route replanning now exist; planner loading uses a configurable
+freshness window with a one-day default, while broader reconciliation remains.
+
 Represent observed cells and freshness/worker source.
 
 ### CC-061 — Implement A* pathfinding over known cells
 
 **Priority:** P0  
 **Dependencies:** CC-060
+
+**Status:** PARTIAL — bounded known-cell A* planning is exposed through a protected worker-to-
+named-location route-plan API and CLI; runtime path execution/replanning remains.
 
 **Acceptance criteria**
 
@@ -544,6 +581,11 @@ Represent observed cells and freshness/worker source.
 **Priority:** P0  
 **Dependencies:** CC-042, CC-043, CC-061
 
+**Status:** PARTIAL — the turtle executor already performs bounded `navigate.path` execution with
+per-step cancellation and blocked-step reporting, and the operator CLI now exposes bounded `path`,
+read-only `path-to`, and queued `go-to` commands. Gather navigation can replan up to three times
+after a blocked step; loading persistent paths and general-purpose replanning remain.
+
 **Acceptance criteria**
 
 - turtle follows path;
@@ -556,6 +598,9 @@ Represent observed cells and freshness/worker source.
 **Priority:** P1  
 **Dependencies:** CC-060, CC-062
 
+**Status:** PARTIAL — bounded gather-route replanning after a newly observed blocked cell exists;
+frontier exploration through unknown cells and general-purpose replan policy remain.
+
 **Acceptance criteria**
 
 - can advance through partially unknown corridor/world within budget;
@@ -567,6 +612,12 @@ Represent observed cells and freshness/worker source.
 **Priority:** P0  
 **Dependencies:** CC-020
 
+**Status:** PARTIAL — named locations can be created, listed, and case-insensitively resolved
+through the protected API and CLI (`set-location` records an operator-confirmed anchor), and an
+optional approach/docking coordinate now drives route planning and destination-aware gather
+workflow targets. Gather navigation now verifies the turtle-reported destination coordinate before
+queuing deposit; general route execution and broader postcondition tooling remain.
+
 **Acceptance criteria**
 
 - create/list/resolve named locations;
@@ -577,6 +628,10 @@ Represent observed cells and freshness/worker source.
 
 **Priority:** P0  
 **Dependencies:** CC-041
+
+**Status:** DONE — a protected operator anchor endpoint and CLI command persist a
+`CONFIRMED_ANCHOR` observation; facing remains optional and is not treated as automatically
+detected.
 
 Evaluate GPS/manual docking/other available approaches and implement the simplest reliable anchor mechanism.
 
@@ -594,12 +649,22 @@ Evaluate GPS/manual docking/other available approaches and implement the simples
 **Priority:** P0  
 **Dependencies:** CC-023, CC-022
 
+**Status:** PARTIAL — deterministic capability-aware and target-aware selection, dependency-filtered runnable-task
+inspection, job/project lifecycle filtering, an atomic explicit command-task dispatch path, a bounded
+operator scheduler tick with explicit skip reasons, and an opt-in non-overlapping background scheduler
+loop are implemented; multi-step workflow dispatch remains.
+
 Select tasks based on dependencies, worker availability, required capabilities, and priority.
 
 ### CC-071 — Enforce one execution stream per worker
 
 **Priority:** P0  
 **Dependencies:** CC-070
+
+**Status:** PARTIAL — scheduler selection reserves each worker once per decision and the database
+dispatch path enforces one active command-task per worker while rejecting paused/cancelled job or
+project work; the operator tick and opt-in background loop exercise this path, while multi-step
+workflow ownership remains.
 
 **Acceptance criteria**
 
@@ -610,6 +675,12 @@ Select tasks based on dependencies, worker availability, required capabilities, 
 
 **Priority:** P0  
 **Dependencies:** CC-015, CC-023, CC-071
+
+**Status:** PARTIAL — the control plane now exposes validated explicit task transitions plus
+`pause-task`, `resume-task`, and `cancel-task` CLI controls. Pausing/cancelling a running task now
+atomically cancels active command delivery, releases the worker claim, and queues a transport-aware
+stop control; cancellation also cascades through already-paused workflow children, while resuming
+returns the task to `READY` and resource reservations remain.
 
 **Acceptance criteria**
 
@@ -647,6 +718,10 @@ Condition → desired state → finite work generation.
 **Priority:** P0  
 **Dependencies:** CC-001
 
+**Status:** DONE — the provider contract carries request identity, reasoning tier, timeout,
+cancellation, validated decision output, and timing metadata; the production CLI boundary is
+implemented and is used by the opt-in plan-only planner loop.
+
 Support request context, structured schema, timeout, cancellation, reasoning tier, and result metadata.
 
 ### CC-081 — Implement fake reasoning provider
@@ -654,12 +729,19 @@ Support request context, structured schema, timeout, cancellation, reasoning tie
 **Priority:** P0  
 **Dependencies:** CC-080
 
+**Status:** DONE — deterministic queued responses are validated through the planner decision
+schema and covered by workspace tests.
+
 Use in tests/CI without live Codex.
 
 ### CC-082 — Implement Codex CLI provider
 
 **Priority:** P0  
 **Dependencies:** CC-003, CC-080
+
+**Status:** DONE — read-only ephemeral `codex exec` invocation, strict decision validation,
+deadline/cancellation handling, sanitized child environment, and injectable test execution are
+implemented. Production enablement remains separate.
 
 **Acceptance criteria**
 
@@ -674,12 +756,19 @@ Use in tests/CI without live Codex.
 **Priority:** P1  
 **Dependencies:** CC-082
 
+**Status:** DONE — `fast`, `standard`, and `strong` are selectable logical tiers, and each tier
+can optionally map to a deployment-provided Codex model/profile through environment variables.
+Blank overrides preserve the Codex CLI default.
+
 Implement `fast`, `standard`, `strong` logical tiers mapped by configuration.
 
 ### CC-084 — Reasoning concurrency limiter
 
 **Priority:** P0  
 **Dependencies:** CC-082
+
+**Status:** DONE — provider calls are bounded by a configurable concurrency limit and queued
+requests can be cancelled before execution.
 
 **Acceptance criteria**
 
@@ -692,6 +781,12 @@ Implement `fast`, `standard`, `strong` logical tiers mapped by configuration.
 **Priority:** P0  
 **Dependencies:** CC-080, CC-023
 
+**Status:** PARTIAL — plan/create-task/continue/delegate/replan/refuse/report decisions are
+validated in the reasoning package, planner decisions are durably recorded in HIGH-retention audit
+events, and a separately gated safe apply boundary can persist protocol-validated `plan` and
+`create-task` proposals idempotently within the subject job/worker scope. Continue/delegate/replan
+application and richer policy remain.
+
 Define decisions for plan/create-task/delegate/report/refuse/replan.
 
 ### CC-086 — Context assembler
@@ -699,12 +794,27 @@ Define decisions for plan/create-task/delegate/report/refuse/replan.
 **Priority:** P0  
 **Dependencies:** CC-064, CC-085
 
+**Status:** PARTIAL — a bounded, untrusted-data-aware prompt assembler is implemented for goal,
+task, worker, skill, world, memory, and conversation context, and the protected planning-context
+endpoint now loads task/worker/world records; persistence-backed memory/conversation retrieval and
+relevance selection remain.
+
 Assemble goal, current job/task, relevant worker observation, skills, world knowledge, memories, recent conversation.
 
 ### CC-087 — Event-driven planner trigger service
 
 **Priority:** P0  
 **Dependencies:** CC-085, CC-086
+
+**Status:** PARTIAL — the reasoning package now validates the supported trigger causes, assembles
+bounded context, invokes the configured provider, and suppresses duplicate trigger IDs. The
+control plane persists idempotent `goal.created`, task-correlated command completion/failure, and
+`worker.blocked` triggers, exposes bounded operator inspection, and has an opt-in planner loop that
+records validated decisions as HIGH-retention audit events. A separate apply gate can persist only
+validated `plan`/`create-task` proposals within the subject job and worker scope, with trigger/index
+idempotency and sequential dependencies. Continue/delegate/replan application and broader planner
+policy remain. The repository provides a transactional claim/complete boundary with stale-claim
+recovery, and the runner releases provider failures for retry.
 
 Trigger on new goal, meaningful completion/failure, unexpected state, delegation need, replan.
 
@@ -720,6 +830,11 @@ Implement complexity heuristic and structured project plan output.
 **Priority:** P0  
 **Dependencies:** CC-082, CC-087
 
+**Status:** PARTIAL — the reasoning package now provides an explicit available/degraded/paused
+state machine with bounded retry timing and recovery reset. The control plane persists the outage
+snapshot, restores it during startup, automatically retries durable pending triggers after the
+pause window, and exposes protected `planner-status` inspection. Richer outage policy remains.
+
 **Acceptance criteria**
 
 - provider failure pauses goal-level reasoning;
@@ -730,17 +845,28 @@ Implement complexity heuristic and structured project plan output.
 
 ## Epic J — Natural-language command system
 
-### CC-090 — Implement deterministic address parser
+### CC-096 — Implement deterministic address parser
 
 **Priority:** P0  
 **Dependencies:** CC-021
 
+**Status:** PARTIAL — explicit syntax for one or more named targets and `@all` is parsed before
+reasoning, with duplicate and mixed-`@all` targets rejected. The domain layer now canonicalizes
+case-insensitive worker names and provides pure registry-backed worker/group/`@all` scope
+expansion with unknown-target rejection. A protected read-only `addressing/resolve` API and CLI
+preview now use the persisted worker/group registry. Authorization and multi-worker task creation
+remain.
+
 Parse agents/groups/`@all` before reasoning.
 
-### CC-091 — Implement CLI natural-language command
+### CC-097 — Implement CLI natural-language command
 
 **Priority:** P0  
-**Dependencies:** CC-085, CC-090
+**Dependencies:** CC-085, CC-096
+
+**Status:** PARTIAL — the first narrow gather sentence is parsed and persisted through the
+protected `/v1/goals` API and CLI; the explicit CLI `--start` path can perform one bounded
+scheduler tick after creation, while full autonomous planner/scheduler dispatch remains.
 
 Example:
 
@@ -753,7 +879,7 @@ creates goal and starts planner/scheduler flow.
 ### CC-092 — Implement conversational session context
 
 **Priority:** P1  
-**Dependencies:** CC-090, CC-020
+**Dependencies:** CC-096, CC-020
 
 Support follow-up targeting without explicit address when context is clear.
 
@@ -765,7 +891,7 @@ Support follow-up targeting without explicit address when context is clear.
 ### CC-094 — Minecraft chat integration spike
 
 **Priority:** P1  
-**Dependencies:** CC-091
+**Dependencies:** CC-097
 
 Discover existing peripheral support; otherwise specify the smallest Forge chat relay.
 
@@ -790,12 +916,20 @@ Discover existing peripheral support; otherwise specify the smallest Forge chat 
 **Priority:** P0  
 **Dependencies:** CC-045
 
+**Status:** PARTIAL — bare and namespaced item names are normalized to lowercase canonical
+`namespace:name` IDs at the CLI, domain, and turtle gathering/inventory boundaries. Damage/NBT
+constraints and a complete 1.7.10 item registry remain future work.
+
 Represent item ID/damage/NBT constraints sufficiently for 1.7.10 inventory planning.
 
 ### CC-101 — Implement bounded excavation skill
 
 **Priority:** P0  
 **Dependencies:** CC-044, CC-062
+
+**Status:** PARTIAL — safe one-block-wide, one-block-high tunnel and target-aware gather
+primitives have bounded CLI commands; box patterns and full delivery orchestration remain
+intentionally incomplete.
 
 Start with simple tunnel/box patterns; every operation bounded.
 
@@ -804,20 +938,64 @@ Start with simple tunnel/box patterns; every operation bounded.
 **Priority:** P0  
 **Dependencies:** CC-101, CC-045, CC-064
 
+**Status:** PARTIAL — a pure bounded gather workflow contract and persistent parent/step linkage
+now model targeted gather, known-cell destination navigation, allowlisted deposit, completion, and
+safe blocking. The scheduler can dispatch the first protocol step and command events advance the
+workflow idempotently. Inventory-full failures now attempt a bounded return to the named container,
+deposit the collected quantity, and queue a fresh gather step; if the route or evidence is
+insufficient, the workflow pauses with an explicit resume instruction and preserves the
+remaining quantity for the next manual gather attempt. Target-stack-aware local
+capacity checks now avoid false inventory-full failures when an existing item stack still has room;
+workflow deposits carry and enforce the canonical target item key; full capacity planning,
+destination-content postcondition verification, and full live acceptance remain. Gather completion
+now also requires the worker result to prove the canonical requested item and collected quantity
+before navigation or deposit work is queued. Late inventory-full failures from a stopped workflow
+child are ignored behind the same explicit stop boundary as other late command events.
+
 ### CC-103 — Implement known-container deposit skill
 
 **Priority:** P0  
 **Dependencies:** CC-045, CC-064
+
+**Status:** PARTIAL — deposit/withdraw commands now accept a validated container ID and resolve it
+through a local front/up/down allowlist; named-location approach/docking and post-transfer inventory
+evidence are enforced by the gather workflow. Inspecting the destination's actual contents remains
+optional peripheral-specific hardening.
 
 ### CC-104 — Implement known-container withdraw skill
 
 **Priority:** P1  
 **Dependencies:** CC-045, CC-064
 
+**Status:** PARTIAL — the turtle runtime and operator CLI now support bounded withdraw commands
+with an optional allowlisted container ID; higher-level workflow use and postcondition checks
+remain.
+
+### CC-007 — Automatic CraftOS startup hook
+
+**Priority:** P0
+**Dependencies:** CC-030, CC-040
+
+**Status:** PARTIAL — the installer, stable gateway/turtle recovery bootstraps, and the first-use
+capability migration helper now validate and repair a missing, malformed, or directory-valued
+extensionless `startup` hook while preserving the previous hook for inspection. Live post-reboot
+validation on both transports remains outstanding.
+
+The runtime must start automatically after installation, reboot, and successful OTA activation.
+
 ### CC-105 — First useful natural-language acceptance
 
 **Priority:** P0  
-**Dependencies:** CC-091, CC-102, CC-103
+**Dependencies:** CC-097, CC-102, CC-103
+
+**Status:** PARTIAL — the protected read-only `goal-preflight` API and CLI now report the
+control-plane prerequisites (worker online/idle state, advertised capabilities, confirmed anchor,
+named destination, and known walkable route) without persisting work, including safe remediation
+hints for physical-world blockers. Operator anchors survive ordinary same-coordinate telemetry
+heartbeats but are invalidated by a changed reported coordinate. New installs advertise the full
+first-use capability set, and the pinned installer includes a backup-first `enable-gather.lua`
+helper for older explicit capability lists. Live execution and verified delivery remain
+outstanding.
 
 Pass live acceptance:
 
@@ -916,6 +1094,12 @@ Observed physical state supersedes stale memory.
 
 **Priority:** P1  
 **Dependencies:** CC-031
+
+**Status:** IMPLEMENTED — the read-only `peripheral.inspect` worker command and
+`npm run cli -- peripherals <worker-id> [side]` inspection path enumerate attached peripheral
+types and bounded method names, emit `peripheral.observed` events, and never invoke discovered
+methods. The latest command snapshot is also projected to `workers <worker-id>` as
+`observation.peripherals`. Live inventory/machine API documentation remains CC-131.
 
 Lua tool lists attached peripheral types/methods and sends result to VPS/prints it.
 
@@ -1025,12 +1209,20 @@ Verify high-retention audit, feature gate, bounded canary action.
 **Priority:** P0  
 **Dependencies:** CC-023, CC-012
 
+**Status:** DONE — control-plane startup marks gateways/workers offline, cancels uncertain command
+delivery, pauses assigned tasks behind explicit resume, queues transport-aware worker stops, and
+writes high-retention recovery audit records. Stale-worker and gateway/turtle boot recovery use the
+same explicit-resume boundary.
+
 Persist jobs, rediscover gateway/workers, refresh observations, resume/replan.
 
 ### CC-161 — Gateway restart reconciliation
 
 **Priority:** P0  
 **Dependencies:** CC-034, CC-047
+
+**Status:** DONE — a changed gateway boot ID cancels uncertain command delivery, pauses assigned
+tasks behind explicit resume, queues worker stops, and records a high-retention recovery event.
 
 Use boot/session IDs to avoid assuming prior in-flight command state.
 
@@ -1039,10 +1231,20 @@ Use boot/session IDs to avoid assuming prior in-flight command state.
 **Priority:** P0  
 **Dependencies:** CC-041, CC-047
 
+**Status:** DONE — a changed turtle boot ID cancels uncertain transport delivery, pauses assigned
+tasks behind explicit resume, queues a transport-specific stop, and records a high-retention
+recovery event for direct HTTP and gateway-backed workers.
+
+Runtime-specific resume state and a live reboot canary remain future validation work.
+
 ### CC-163 — No-human-online/chunk-loading spike
 
 **Priority:** P0  
 **Dependencies:** CC-051
+
+**Status:** PARTIAL — the runtime safety boundary and bounded validation procedure are documented;
+the live test and server-specific chunk-loading choice remain pending. The system does not claim
+that a turtle can execute while its chunk is unloaded.
 
 Test whether turtles can continue intended work with humans offline and across required chunks. Document infrastructure needed if not.
 
@@ -1050,6 +1252,10 @@ Test whether turtles can continue intended work with humans offline and across r
 
 **Priority:** P0  
 **Dependencies:** CC-089, CC-160
+
+**Status:** PARTIAL — failed planner triggers are released to the durable queue and retried by the
+production planner loop after the outage gate opens; outage state is persisted across control-plane
+restarts. A broader recovery sweep, operator controls, and richer retry policy remain.
 
 ---
 
@@ -1060,25 +1266,47 @@ Test whether turtles can continue intended work with humans offline and across r
 **Priority:** P0  
 **Dependencies:** CC-024
 
+**Status:** PARTIAL — an environment-backed skill allowlist, protected inspection endpoint, and
+`feature-gates` CLI command now gate operator command/task dispatch. Operator physical commands
+and named-location path execution also fail closed when the target worker is unknown or does not
+advertise the requested capability. Persistent per-worker gates, canary limits, and audit-history
+integration remain.
+
 ### CC-171 — Implement dry-run/plan-only mode
 
 **Priority:** P0  
 **Dependencies:** CC-085, CC-170
+
+**Status:** PARTIAL — physical command, stop-control, update, and addressed gather-goal CLI
+requests support `--dry-run`, which validates and constructs a bounded preview locally without
+contacting the control plane. Route planning and execution requests now also preview their exact
+HTTP method/path locally; the opt-in planner loop records plan-only decisions and exposes outage
+status. Task planning previews, decision review tooling, and feature-gate integration remain.
 
 ### CC-172 — Implement agent/project inspection CLI
 
 **Priority:** P0  
 **Dependencies:** CC-023
 
+**Status:** DONE — protected agent and project inspection endpoints are exposed through the CLI as
+`agents`, `agent <name>`, and `projects`; project summaries include job and task counts.
+
 ### CC-173 — Implement structured logging with lineage fields
 
 **Priority:** P0  
 **Dependencies:** CC-024
 
+**Status:** DONE — control-plane lifecycle, scheduler/recovery failures, and HTTP requests emit
+JSON logs with request correlation IDs and safe lineage fields; secret-like values are redacted.
+Recent persisted audit events are also available through protected API/CLI inspection.
+
 ### CC-174 — Implement retention cleanup jobs
 
 **Priority:** P1  
 **Dependencies:** CC-024
+
+**Status:** DONE — the control plane runs a bounded cleanup job for expired STANDARD and HIGH audit
+events using configurable windows while preserving IMMUTABLE history.
 
 ### CC-175 — Package ComputerCraft Lua release bundle
 

@@ -75,6 +75,7 @@ facing
 position_confidence
 fuel_level
 inventory_json
+peripherals_json
 current_command_id
 status
 ```

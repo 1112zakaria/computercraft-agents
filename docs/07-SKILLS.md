@@ -22,6 +22,7 @@ Suggested hierarchy:
 movement.step
 navigation.route
 observation.block
+peripheral.inspect
 inventory.inspect
 inventory.deposit
 inventory.withdraw
@@ -62,6 +63,7 @@ Lua primitives:
 - dig front/up/down;
 - place front/up/down;
 - inspect front/up/down;
+- inspect attached peripheral types and method names (read-only);
 - attack front/up/down where supported;
 - select/equip;
 - suck/drop;
@@ -102,8 +104,34 @@ FAILED
 4. gather until quantity target or blocking condition;
 5. handle inventory full state;
 6. deliver to destination;
-7. verify delivered quantity;
+7. verify delivered quantity and post-transfer inventory evidence;
 8. report completion/failure.
+
+The current deterministic runtime slice exposes the narrower `mining.gather` command for a
+target item, quantity, and explicit maximum tunnel depth. It checks the existing inventory,
+inspects and digs one block ahead at a time, and stops with `TARGET_NOT_REACHED` when the depth
+bound is exhausted. Bare item names are canonicalized to the `minecraft:` namespace at both the
+CLI and turtle runtime boundaries. It is intentionally not yet the full location-aware gather state machine
+described above. Before digging a discovered block, the turtle requires a usable non-reserved
+inventory slot and fails safely with `INVENTORY_FULL` when none is available. The control plane uses
+the reported collected quantity to attempt a bounded return to the configured destination, deposits
+that quantity, and queues a fresh gather step. A final deposit completes only when the moved quantity
+and the turtle's post-transfer `inventory.changed` evidence are both present. This verifies the
+bounded transfer operation; inspecting the destination's actual contents remains an optional
+peripheral-specific hardening step. If the worker position, named location, or known route is
+insufficient, it pauses the workflow and an operator can run `resume-task` after checking the turtle
+and depositing items manually.
+
+Before a gather workflow advances to navigation, the control plane also requires the completed
+command result to report `status: OK`, the canonical requested `itemKey`, and a `collected` quantity
+at least as large as the requested target. Mismatched or incomplete result evidence blocks the
+workflow instead of attempting a deposit for unverified material.
+
+The domain package now contains a pure gather workflow contract with the phases
+`CHECK_INVENTORY`, `GATHER`, `NAVIGATE_DESTINATION`, `DEPOSIT`, `VERIFY`, `COMPLETED`, and
+`BLOCKED`. It emits at most one next action per observation and treats an exhausted gathering
+bound or failed delivery as a terminal blocked state. Persistent task linkage and scheduler
+dispatch still need to consume this contract.
 
 ## 7. Excavation
 
@@ -116,6 +144,11 @@ excavate_box(origin, width, height, depth)
 dig_tunnel(start, direction, length, cross_section)
 clear_layer(bounds)
 ```
+
+The current deterministic runtime slice exposes `mining.excavate` for a bounded
+one-block-wide, one-block-high tunnel. The operator CLI invokes it with, for example,
+`npm run cli -- excavate alice 1 1 8`. Wider box patterns remain explicitly unsupported until
+their turn, fuel, inventory, and rollback behavior is tested.
 
 Every excavation SHALL have explicit bounds.
 
@@ -146,6 +179,11 @@ Execution SHALL:
 ## 9. Inventory transfer
 
 Generic container interaction SHOULD first attempt turtle `suck`/`drop` semantics.
+
+The runtime supports an optional `containerId` on deposit/withdraw commands. The turtle resolves
+that stable ID through the local `container_sides` allowlist in `worker.conf`; unknown IDs fail
+before any transfer. The mapping currently supports `front`, `up`, and `down`, and does not
+silently choose a different container.
 
 Higher-level inventory knowledge MAY come from peripherals.
 
